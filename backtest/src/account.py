@@ -1,4 +1,5 @@
-from .transaction import Transaction
+from .transaction import Transaction, TransactionType
+from datetime import datetime
 
 class Account:
     def __init__(self, initial_cash: float = 100_000, allow_debt: bool = False):
@@ -11,7 +12,8 @@ class Account:
     def _update_worth(self):
         self._account_worth.append(self._cash)
 
-    def deposit(self, transaction: Transaction):
+    def deposit(self, amount: float, dt: datetime, transaction_id: str = None, comment: str = None):
+        transaction = Transaction(amount, TransactionType.DEPOSIT, dt, transaction_id, comment)
         self._cash += transaction.amount
         if transaction.transaction_id is None:
             transaction.transaction_id = str(self.n)
@@ -19,7 +21,8 @@ class Account:
         self.n += 1
         self._update_worth()
 
-    def withdrawal(self, transaction: Transaction):
+    def withdrawal(self, amount: float, dt: datetime, transaction_id: str = None, comment: str = None):
+        transaction = Transaction(amount, TransactionType.WITHDRAWAL, dt, transaction_id, comment)
         if transaction.amount > self._cash and not self._allow_debt:
             raise RuntimeError("Transaction amount is bigger than current worth of account!")
         self._cash -= transaction.amount
