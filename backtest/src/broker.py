@@ -4,8 +4,8 @@ from .account import Account
 from .trade import (BuyLong, BuyShort, SellShort, SellLong, BuyLongOrder, SellLongOrder, BuyShortOrder, SellShortOrder,
                     TradeOrder, TradeType)
 from .portfolio import Portfolio, Equity
-from datetime import timedelta, datetime
-from typing import Dict, Tuple, List, Union
+from datetime import timedelta, datetime, date
+from typing import Dict, Tuple, List, Union, Optional
 from copy import deepcopy
 import numpy.typing as npt
 
@@ -71,6 +71,15 @@ class Broker:
             self._comm = commission
             self._relative = False
 
+        if min_maintenance_margin > 1. or min_maintenance_margin < 0.:
+            raise ValueError(f"Minimum maintenance margin must be between 0 and 1.  Got: {min_maintenance_margin}")
+
+        if min_initial_margin > 1. or min_initial_margin < 0.:
+            raise ValueError(f"Minimum initial margin must be between 0 and 1.  Got: {min_initial_margin}")
+
+        if min_maintenance_margin >= min_initial_margin:
+            raise ValueError(f"Minimum maintenance margin must be smaller or equal than minimum initial margin. ")
+
         self.min_maintenance_margin = min_maintenance_margin
         self.min_initial_margin = min_initial_margin
         self.margin_interest = margin_interest
@@ -83,8 +92,11 @@ class Broker:
         self.account = bank_account
         self.n = 0    # Keeps the count of trades.  (To give trades an id)
         self._month_interests = 0    # The current interests of the month.  They will be charged at the end of the month
-        self._current_month = None    # Remember the current month so the broker knows when we change month to
-                                      # charge monthly fees such as interest rates.
+        self._current_month: Optional[int] = None       # Remember the current month so the broker knows when we change
+                                                        # month to charge monthly fees such as interest rates.
+        self._last_day: Optional[date] = None           # Remember the last day so the broker knows how long
+                                                        # elapsed between the last step and the current step to charge
+                                                        # the correct amount of interest
         
         self.message = BrokerState({}, False)
 
@@ -106,7 +118,7 @@ class Broker:
         self._queued_trade_offers.append(BuyShortOrder(ticker, price_limit, amount, amount_borrowed, expiry))
 
     def tick(self, timestamp: datetime, security_names: List[str], current_tick_data: np.ndarray,
-             next_tick_data: np.ndarray):
+             next_tick_data: np.ndarray, marginables: npt.NDArray[np.bool]):
         """
         The simulation calls this method after the strategy has run.  It will calculate interests and margin call if
         applicable.  It will do trades that can be done in the trade queue at the next open.
@@ -117,15 +129,27 @@ class Broker:
                                   The 4 columns of the array are: Open, High, Low, Close of the next step.
         :param next_tick_data: An array containing prices of each security for the next step shape(n_securities, 4)
                                The 4 columns of the array are: Open, High, Low, Close of the next step.
+        :param marginables: A boolean array of shape (n_securities, 2) [Marginable, Shortable) where True means that
+                            the security can be bought on margin / sold short and False means that it cannot be bought on
+                            margin / sold short.
         :return: None
         """
+
+        # If it is the first step, we need to initialize the portfolio with the current month
+        if self._current_month is None:
+            self._current_month = timestamp.month
+
+        if self._last_day is None:
+            self._last_day = timestamp.date()
 
         # Step 1: Get the total borrowed money
         borrowed_money = sum(self._debt_record.values())
 
         # Step 2: If the portfolio has borrowed money: we calculate current interests and add them to monthly interests.
+        # Interest rates are calculated daily but charged monthly.
+        days_elapsed: int = (timestamp.date() - self._last_day).days
         if borrowed_money > 0:
-            self._month_interests += self.margin_interest * borrowed_money / 360
+            self._month_interests += days_elapsed * self.margin_interest * borrowed_money / 360
 
         # Step 3: Execute trades that can be executed
         # Step 3A: Liquidate equity positions that have passed the liquidation_delay
@@ -141,75 +165,16 @@ class Broker:
                 order = SellLongOrder(ticker, (None, None), long.amount, long.amount_borrowed, None)
                 self.make_trade(order, price, timestamp)
 
+        # Step 3B: Execute trades that can be executed
+
+
         if self.message.margin_calls["short margin call"].time_remaining == 0:
-            # For short margin calls, We need to find which position to liquidate to cover call.
-            # We liquidate positions that the worth is the closest to the call value.
-            # If there is no short positions remaining because the call value is too big, we will liquidate
-            # long positions.
-            call_amount = self.message.margin_calls["short margin call"].amount
-            while call_amount > 0 and len(self.portfolio.getShort()) > 0:
-                positions = list(self.portfolio.getShort().values())
-                delta = self._get_deltas(call_amount, security_names, next_tick_data)
-                delta_inf = deepcopy(delta)
-                delta_inf[delta_inf < 0] = np.inf
-                if delta_inf.min() == np.inf:    # No positions are worth enough to payout margin call
-                    idx = delta.argmax()    # delta are all negatives, so we take the one that is the less negative
-                    delta[idx] = -np.inf
-                    eq = positions[idx]
-                    # Buy this security
-                    eq_idx = security_names.index(ticker)
-                    price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
-                    if self._relative:
-                        cash = eq.amount_borrowed * price[0] * (2 - self._comm)
-                    else:
-                        cash = eq.amount_borrowed * price[0] - self._comm
-                    call_amount -= cash
-                    order = BuyShortOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
-                    self.make_trade(order, price[0], timestamp)
-                else:
-                    eq = positions[delta_inf.argmin()]
-                    # Buy this security
-                    eq_idx = security_names.index(ticker)
-                    price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
-                    order = BuyShortOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
-                    self.make_trade(order, price[0], timestamp)
-                    call_amount = 0
+            self._liquidate(self.message.margin_calls["short margin call"].amount, timestamp, security_names,
+                            next_tick_data)
 
-            # We liquidated all short positions.  We need to liquidate long position to cover.
-            if len(self.portfolio.getShort()) == 0 and call_amount > 0:
-                while call_amount > 0 and len(self.portfolio.getLong()) > 0:
-                    positions = list(self.portfolio.getLong().values())
-                    delta = self._get_deltas(call_amount, security_names, next_tick_data, short=False)
-                    delta_inf = deepcopy(delta)
-                    delta_inf[delta_inf < 0] = np.inf
-                    if delta_inf.min() == np.inf:  # No positions are worth enough to payout margin call
-                        idx = delta.argmax()  # delta are all negatives, so we take the one that is the less negative
-                        delta[idx] = -np.inf
-                        eq = positions[idx]
-                        # Buy this security
-                        eq_idx = security_names.index(ticker)
-                        price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
-                        if self._relative:
-                            amount = eq.amount + eq.amount_borrowed
-                            cash = amount * price[0] * (2 - self._comm) - self._debt_record[eq.ticker]
-                        else:
-                            amount = eq.amount + eq.amount_borrowed
-                            cash = amount * price[0] - self._comm - self._debt_record[eq.ticker]
-                        call_amount -= cash
-                        order = SellLongOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
-                        self.make_trade(order, price[0], timestamp)
-                    else:
-                        eq = positions[delta_inf.argmin()]
-                        # Buy this security
-                        eq_idx = security_names.index(ticker)
-                        price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
-                        order = SellLongOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
-                        self.make_trade(order, price[0], timestamp)
-                        call_amount = 0
-
-                if len(self.portfolio.getLong()) == 0 and call_amount > 0:
-                    self.message.bankruptcy = True
-                    return
+        if self.message.margin_calls["missing_funds"].time_remaining == 0:
+            self._liquidate(self.message.margin_calls["missing_funds"].amount, timestamp, security_names,
+                            next_tick_data)
 
         # Step 4: If there is borrowed money, check for margin calls and decrement delay until liquidation of
         # current margin calls.  If some margin calls where paid, remove them from records
@@ -264,10 +229,7 @@ class Broker:
         # Step 5: Charge interests if it's the first day of the month
         # Interest are deducted from account.  If there is not enough money in the account to payout interests,
         # the account, bankruptcy is set to True.
-        if self._current_month is None:
-            self._current_month = timestamp.month
 
-        bankruptcy = False
         if timestamp.month != self._current_month:
             self._current_month = timestamp.month
             if self.account.get_cash() > self._month_interests:
@@ -280,6 +242,90 @@ class Broker:
 
         # # Step 6: Store messages in object state (margin call, pending orders)
         # self.message = BrokerState(margin_calls, bankruptcy)
+
+
+    def _liquidate(self, call_amount: float, timestamp: datetime, security_names: List[str],
+             next_tick_data: np.ndarray):
+        """
+        Liquidate positions to cover margin call.  It starts by short positions.  If there are no short positions or
+        are all liquidated and there is still a margin call, it will liquidate long positions.
+        If there is not enough money in the portfolio and the account after every positions are liquidated, bankruptcy
+        is set to True.
+        :param call_amount: The amount of the margin call.
+        :param timestamp: The date and time of the current step
+        :param security_names: A list of all securities where the index of each ticker is the index of the data of the
+                               corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
+        :param next_tick_data: An array containing prices of each security for the next step shape(n_securities, 4)
+                               The 4 columns of the array are: Open, High, Low, Close of the next step.
+        :return: None
+        """
+        # For short margin calls, We need to find which position to liquidate to cover call.
+        # We liquidate positions that the worth is the closest to the call value.
+        # If there is no short positions remaining because the call value is too big, we will liquidate
+        # long positions.
+        while call_amount > 0 and len(self.portfolio.getShort()) > 0:
+            positions = list(self.portfolio.getShort().values())
+            delta = self._get_deltas(call_amount, security_names, next_tick_data)
+            delta_inf = deepcopy(delta)
+            delta_inf[delta_inf < 0] = np.inf
+            if delta_inf.min() == np.inf:  # No positions are worth enough to payout margin call
+                idx = delta.argmax()  # delta are all negatives, so we take the one that is the less negative
+                delta[idx] = -np.inf
+                eq = positions[idx]
+                # Buy this security
+                eq_idx = security_names.index(eq)
+                price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
+                if self._relative:
+                    cash = eq.amount_borrowed * price[0] * (2 - self._comm)
+                else:
+                    cash = eq.amount_borrowed * price[0] - self._comm
+                call_amount -= cash
+                order = BuyShortOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
+                self.make_trade(order, price[0], timestamp)
+            else:
+                eq = positions[delta_inf.argmin()]
+                # Buy this security
+                eq_idx = security_names.index(eq)
+                price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
+                order = BuyShortOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
+                self.make_trade(order, price[0], timestamp)
+                call_amount = 0
+
+        # We liquidated all short positions.  We need to liquidate long position to cover.
+        if len(self.portfolio.getShort()) == 0 and call_amount > 0:
+            while call_amount > 0 and len(self.portfolio.getLong()) > 0:
+                positions = list(self.portfolio.getLong().values())
+                delta = self._get_deltas(call_amount, security_names, next_tick_data, short=False)
+                delta_inf = deepcopy(delta)
+                delta_inf[delta_inf < 0] = np.inf
+                if delta_inf.min() == np.inf:  # No positions are worth enough to payout margin call
+                    idx = delta.argmax()  # delta are all negatives, so we take the one that is the less negative
+                    delta[idx] = -np.inf
+                    eq = positions[idx]
+                    # Buy this security
+                    eq_idx = security_names.index(eq)
+                    price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
+                    if self._relative:
+                        amount = eq.amount + eq.amount_borrowed
+                        cash = amount * price[0] * (2 - self._comm) - self._debt_record[eq.ticker]
+                    else:
+                        amount = eq.amount + eq.amount_borrowed
+                        cash = amount * price[0] - self._comm - self._debt_record[eq.ticker]
+                    call_amount -= cash
+                    order = SellLongOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
+                    self.make_trade(order, price[0], timestamp)
+                else:
+                    eq = positions[delta_inf.argmin()]
+                    # Buy this security
+                    eq_idx = security_names.index(eq)
+                    price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
+                    order = SellLongOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
+                    self.make_trade(order, price[0], timestamp)
+                    call_amount = 0
+
+            if len(self.portfolio.getLong()) == 0 and call_amount > 0:
+                self.message.bankruptcy = True
+                return
 
     def _get_deltas(self, call_amount: float, security_names: List[str], next_tick_data: npt.NDArray[float], short: bool = True)\
             -> npt.NDArray[float]:
@@ -327,15 +373,21 @@ class Broker:
         self.message.margin_calls[new_key] = MarginCall(self.liquidation_delay, value)
         self._debt_record[new_key] = value
 
-    def make_trade(self, order: TradeOrder, security_price: Tuple[float, float, float, float], timestamp: datetime) -> bool:
+    def make_trade(self, order: TradeOrder, security_price: Tuple[float, float, float, float], timestamp: datetime,
+                   marginable: bool, shortable: bool) -> bool:
         """
         This method is call to make trades (convert tradeOrders to trade).  Make the trade if price is in limit
         :param order: TradeOrder
         :param security_price: The security price (Open, High, Low, Close)
         :param timestamp: The time where securities will be bought (Usually the next step)
+        :param marginable: If the security is marginable.
+        :param shortable: If the security is shortable.
         :return: True if the trade was successful (Needs to remove from pending trades) And False otherwise
         """
         if order.trade_type == TradeType.BuyLong:
+            # Early exit if the security is not marginable and stragegy tried to buy it on margin.
+            if order.amount_borrowed > 0 and not marginable:
+                return False    # We cannot buy on margin this security
             # We buy if the price is below the low or higher than the high
             # If low limit is None, there is no low limit
             # If high limit is None, there is no high limit
@@ -426,8 +478,44 @@ class Broker:
                         self.account.withdrawal(due, timestamp, "Sold margin position at loss")
                 self.n += 1
 
+        # For the following two:
+        # - We only use the amount of shares borrowed since they are all borrowed.So, the amount of shares has no impact
+        # - We need to check if the security is shortable.  If not, we do not execute the trade and let it in pending
+        #   trade.  (It could become shortable later)
         elif order.trade_type == TradeType.SellShort:
-            pass
+            # Early exit if the security is not shortable.
+            if order.amount_borrowed > 0 and not shortable:
+                return False    # We cannot sell short this security
+            # We sell if the price is below the low, or higher than the high.
+            # If one of both limits are None, there is no limit on that side.
+            # If there is no limit, we sell at market price (Open)
+            # If there is a limit, we sell at the lowest price of the limit because we cannot look intra-step
+            # (Murphy's law)
+            low, high = order.security_price_limit
+            if low is None and high is None:
+                price = security_price[0]  # Open
+            else:
+                if low is None:
+                    if security_price[1] > high:
+                        price = high
+                elif high is None:
+                    if security_price[2] < low:
+                        price = low
+                elif security_price[2] < low:
+                    price = low
+                elif security_price[1] > high:
+                    price = high
+                else:
+                    price = None
+
+            if price is not None:    # We sell short
+                if self._relative:
+                    total = order.amount_borrowed * price * self._comm
+                else:
+                    total = order.amount_borrowed * price + self._comm
+
+                # TODO: Continue
+
         elif order.trade_type == TradeType.BuyShort:
             pass
         else:
@@ -436,6 +524,13 @@ class Broker:
 
     @staticmethod
     def _isMarginCall(market_value: float, loan: float, min_maintenance_margin: float) -> Tuple[bool, float]:
+        """
+        Check if there is a margin call (long) and how much is the margin call
+        :param market_value: The current market value of the investment
+        :param loan: The value of the loan
+        :param min_maintenance_margin: The minimum maintenance margin ratio [0, 1]
+        :return: if it is a margin call, the amount of the margin call (if there is so)
+        """
         if min_maintenance_margin <= 0 or min_maintenance_margin > 1:
             raise ValueError(f"Invalid minimum maintenance margin.  It must be between ]0,1] and got: "
                              f"{min_maintenance_margin}")
@@ -466,6 +561,12 @@ class Broker:
 
     @staticmethod
     def _findId(s: str, keys: set):
+        """
+        Find a unique id for a given string
+        :param s: A string
+        :param keys: The keys in the set or dict where we want to find a unique id
+        :return: The unique id
+        """
         if s in keys:
             i = 1
             while f"{s}_{i}" in keys:
@@ -485,4 +586,5 @@ class Broker:
         :param amount: Amount to pay
         :return: None
         """
+        # TODO: It will be automatically called as soon buying short with profit or selling long with profit in the tick method
         raise NotImplementedError("pay_margin_call")
