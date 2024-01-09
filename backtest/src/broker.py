@@ -243,6 +243,20 @@ class Broker:
         # # Step 6: Store messages in object state (margin call, pending orders)
         # self.message = BrokerState(margin_calls, bankruptcy)
 
+    def _update_account_collateral(self, timestamp: datetime, security_names: List[str], current_tick_data: np.ndarray):
+        """
+        Updates the amount of collateral in the account.  This is the amount of money held as collateral and cannot
+        be used.  This should be updated at each steps because it should be dependent to the current value of the
+        assets.
+        :param timestamp: The date and time of the current step
+        :param security_names: An array of the name of each security
+        :param current_tick_data: An array of prices of each security for the current step(n_securities, 4)
+                                  The 4 columns of the array are: Open, High, Low, Close of the next step.
+        :return: None
+        """
+        # TODO
+        raise NotImplementedError("TODO")
+
 
     def _liquidate(self, call_amount: float, timestamp: datetime, security_names: List[str],
              next_tick_data: np.ndarray):
@@ -510,11 +524,9 @@ class Broker:
 
             if price is not None:    # We sell short
                 if self._relative:
-                    total = order.amount_borrowed * price * self._comm
+                    total = order.amount_borrowed * price * (2 - self._comm)
                 else:
-                    total = order.amount_borrowed * price + self._comm
-
-                # TODO: Continue
+                    total = order.amount_borrowed * price - self._comm
 
         elif order.trade_type == TradeType.BuyShort:
             pass

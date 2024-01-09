@@ -8,7 +8,8 @@ New way to backtest stock trading strategies.
   - [X] Instead of filling bankruptcy, make a new margin call over no specific security to warns.  If demand not met, liquidate stocks
   - [X] Verify if there is no margin call anymore (If they have been paid)
   - [X] Liquidate short margin calls
-  - [ ] Trades
+  - [ ] Evaluate collateral value (method) [read this](https://www.investopedia.com/ask/answers/05/shortmarginrequirements.asp)
+  - [ ] Trades (Do not forget to add initial value of position as debt in short selling)
   - [ ] Do not forget to add trading fees (Relative or absolute)
   - [X] Change order in Tick method: trades should be before margins and all that stuff
   - [X] Handle margin call that expire that are not for tickers (Not enough fund, short margin call, etc)
