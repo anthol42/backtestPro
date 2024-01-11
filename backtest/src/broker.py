@@ -152,29 +152,6 @@ class Broker:
             self._month_interests += days_elapsed * self.margin_interest * borrowed_money / 360
 
         # Step 3: Execute trades that can be executed
-        # Step 3A: Liquidate equity positions that have passed the liquidation_delay
-        pos_to_liquidate = [ticker for ticker in self.message.margin_calls if self.message.margin_calls[ticker] == 0]
-        for ticker in pos_to_liquidate:
-            if ticker == "missing_funds" or ticker == "short margin call":
-                continue
-            eq_idx = security_names.index(ticker)
-            price = tuple(next_tick_data[eq_idx].tolist())    # (Open, High, Low, Close)
-            # We sell at this price if it is long
-            long, short = self.portfolio[ticker]    # Can be long AND short even though it does not make that much sense
-            if long is not None:
-                order = SellLongOrder(ticker, (None, None), long.amount, long.amount_borrowed, None)
-                self.make_trade(order, price, timestamp)
-
-        # Step 3B: Execute trades that can be executed
-
-
-        if self.message.margin_calls["short margin call"].time_remaining == 0:
-            self._liquidate(self.message.margin_calls["short margin call"].amount, timestamp, security_names,
-                            next_tick_data)
-
-        if self.message.margin_calls["missing_funds"].time_remaining == 0:
-            self._liquidate(self.message.margin_calls["missing_funds"].amount, timestamp, security_names,
-                            next_tick_data)
 
         # Step 4: If there is borrowed money, check for margin calls and decrement delay until liquidation of
         # current margin calls.  If some margin calls where paid, remove them from records
@@ -218,6 +195,8 @@ class Broker:
                         continue
                     # Verify is the stock is in margin call for short
                     short_market_value += short.amount_borrowed * current_tick_data[eq_idx, -1]    # Get price on Close
+
+
             is_short_margin_call, amount = self._isShortMarginCall(self.account.get_cash(), short_market_value,
                                   self.min_maintenance_margin)
             if is_short_margin_call:
@@ -239,6 +218,27 @@ class Broker:
                 # Put interests as debt and as margin call that the user needs to pay
                 self.new_margin_call(self._month_interests)
                 self._month_interests = 0
+
+        # Step 6: Liquidate expired margin calls
+        pos_to_liquidate = [ticker for ticker in self.message.margin_calls if self.message.margin_calls[ticker] == 0]
+        for ticker in pos_to_liquidate:
+            if ticker == "missing_funds" or ticker == "short margin call":
+                continue
+            eq_idx = security_names.index(ticker)
+            price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
+            # We sell at this price if it is long
+            long, short = self.portfolio[ticker]  # Can be long AND short even though it does not make that much sense
+            if long is not None:
+                order = SellLongOrder(ticker, (None, None), long.amount, long.amount_borrowed, None)
+                self.make_trade(order, price, timestamp)
+
+        if self.message.margin_calls["short margin call"].time_remaining == -1:
+            self._liquidate(self.message.margin_calls["short margin call"].amount, timestamp, security_names,
+                            next_tick_data)
+
+        if self.message.margin_calls["missing_funds"].time_remaining == -1:
+            self._liquidate(self.message.margin_calls["missing_funds"].amount, timestamp, security_names,
+                            next_tick_data)
 
         # # Step 6: Store messages in object state (margin call, pending orders)
         # self.message = BrokerState(margin_calls, bankruptcy)
@@ -537,7 +537,7 @@ class Broker:
     @staticmethod
     def _isMarginCall(market_value: float, loan: float, min_maintenance_margin: float) -> Tuple[bool, float]:
         """
-        Check if there is a margin call (long) and how much is the margin call
+        Check if there is a margin call (long) and how much is the margin call.
         :param market_value: The current market value of the investment
         :param loan: The value of the loan
         :param min_maintenance_margin: The minimum maintenance margin ratio [0, 1]
