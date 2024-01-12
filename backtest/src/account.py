@@ -45,7 +45,7 @@ class Account:
         self.n += 1
         self._update_worth()
 
-    def update_collaral(self, amount: float, dt: datetime, message: str = "Step update"):
+    def update_collateral(self, amount: float, dt: datetime, message: str = "Step update"):
         """
         Updates the amount of collateral in the account.  This is the amount of money held as collateral and cannot
         be used.  This should be updated at each steps because it should be dependent to the current value of the
@@ -65,6 +65,15 @@ class Account:
         :return: available cash
         """
         return self._cash - self._collateral
+
+
+    def get_total_cash(self):
+        """
+        The total amount of cash in the account.  Not deducing collateral.  This include cash that cannot be used to
+        buy securities.
+        :return: Total cash
+        """
+        return self._cash
 
     def stats(self):
         return {

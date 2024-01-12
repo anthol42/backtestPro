@@ -55,7 +55,9 @@ class Broker:
     """
     def __init__(self, bank_account: Account, buy_on_close: bool = False, commission: float = None,
                  relative_commission: float = None, margin_interest: float = 0,
-                 min_initial_margin: float = 0.5, min_maintenance_margin: float = 0.25, liquidation_delay: int = 2):
+                 min_initial_margin: float = 0.5, min_maintenance_margin: float = 0.25,
+                 liquidation_delay: int = 2, min_initial_margin_short: float = 0.5,
+                 min_maintenance_margin_short: float = 0.25):
         self._bonc = buy_on_close
         if commission is not None and relative_commission is not None:
             raise ValueError("Must choose between relative commission or absolute commission!")
@@ -83,6 +85,8 @@ class Broker:
         self.min_maintenance_margin = min_maintenance_margin
         self.min_initial_margin = min_initial_margin
         self.margin_interest = margin_interest
+        self.min_initial_margin_short = min_initial_margin_short
+        self.min_maintenance_margin_short = min_maintenance_margin_short
         self.liquidation_delay = liquidation_delay
 
         # By-stock record of borrowed money {ticker, borrowed_amount}
@@ -151,64 +155,21 @@ class Broker:
         if borrowed_money > 0:
             self._month_interests += days_elapsed * self.margin_interest * borrowed_money / 360
 
-        # Step 3: Execute trades that can be executed
+        # Step 3: Update the account collateral
+        self._update_account_collateral(timestamp, security_names, current_tick_data)
 
-        # Step 4: If there is borrowed money, check for margin calls and decrement delay until liquidation of
-        # current margin calls.  If some margin calls where paid, remove them from records
-        # Step 4A: Verify which margin calls are still active
-        for ticker in self.message.margin_calls:
-            if "missing_funds" in ticker or "short margin call" in ticker:
-                continue    # This is handled in the pay_margin_call method.  Here we only manage margin calls related
-                            # to security margin under minimum maintenace margin.
-            security = self.portfolio[ticker]   # Returns a list.  Usually of len 1 because one should not buy
-                                                # long and sell short at the same time
-            eq_idx = security_names.index(ticker)
-            for order in security:
-                # Verify if the stock is in margin call for long or short
-                is_margin_call, amount = self._isMarginCall(order.amount * current_tick_data[eq_idx, -1],
-                                                            self._debt_record[ticker],
-                                                            self.min_maintenance_margin)
-                if not is_margin_call:
-                    del self.message.margin_calls[ticker]
+        # Step 4: Execute trades that can be executed
 
-        # Step 4B: Decrement margin call delay until liquidation.  If it reaches 0, the position is liquidated
-        for key in self.message.margin_calls:
-            self.message.margin_calls[key] -= 1
-
-        # Step 4C: Find new margin calls to flag them
+        # Step 5: If there is borrowed money, reduce the delay of margin calls.  (It is normal that newly initialized
+        # margin call's delay will already be reduced.  It is took into account in the liquidation process)
         if borrowed_money > 0:
-            short_market_value = 0
-            for ticker in self._debt_record:
-                long, short = self.portfolio[ticker]    # Returns a list.  Usually of len 1 because one should not buy
-                                                     # long and sell short at the same time
-                eq_idx = security_names.index(ticker)
-                if long is not None:
-                    if order.ticker in self.message.margin_calls:
-                        continue
-                    # Verify if the stock is in margin call for long
-                    is_margin_call, amount = self._isMarginCall(order.amount * current_tick_data[eq_idx, -1], self._debt_record[ticker],
-                                          self.min_maintenance_margin)
-                    if is_margin_call:
-                        self.message.margin_calls[order.ticker] = MarginCall(self.liquidation_delay, amount)
-                if short is not None:
-                    if order.ticker in self.message.margin_calls:
-                        continue
-                    # Verify is the stock is in margin call for short
-                    short_market_value += short.amount_borrowed * current_tick_data[eq_idx, -1]    # Get price on Close
+            # Decrement margin call delay until liquidation.  If it reaches -1, the position is liquidated
+            for key in self.message.margin_calls:
+                self.message.margin_calls[key] -= 1
 
-
-            is_short_margin_call, amount = self._isShortMarginCall(self.account.get_cash(), short_market_value,
-                                  self.min_maintenance_margin)
-            if is_short_margin_call:
-                if "short margin call" in self.message.margin_calls:
-                    self.message.margin_calls["short margin call"].amount = amount
-                else:
-                    self.new_margin_call(amount, "short margin call")
-
-        # Step 5: Charge interests if it's the first day of the month
+        # Step 6: Charge interests if it's the first day of the month
         # Interest are deducted from account.  If there is not enough money in the account to payout interests,
-        # the account, bankruptcy is set to True.
-
+        # the account, we crrate a new margin call for missing funds and interests will be charged on these because.
         if timestamp.month != self._current_month:
             self._current_month = timestamp.month
             if self.account.get_cash() > self._month_interests:
@@ -220,7 +181,7 @@ class Broker:
                 self._month_interests = 0
 
         # Step 6: Liquidate expired margin calls
-        pos_to_liquidate = [ticker for ticker in self.message.margin_calls if self.message.margin_calls[ticker] == 0]
+        pos_to_liquidate = [ticker for ticker in self.message.margin_calls if self.message.margin_calls[ticker] == -1]
         for ticker in pos_to_liquidate:
             if ticker == "missing_funds" or ticker == "short margin call":
                 continue
@@ -243,19 +204,103 @@ class Broker:
         # # Step 6: Store messages in object state (margin call, pending orders)
         # self.message = BrokerState(margin_calls, bankruptcy)
 
+    def _get_short_collateral(self, available_cash: float, security_names: List[str],
+                              current_tick_data: npt.NDArray[float]) -> float:
+        """
+        Get the total collateral of short positions  It will also update margin calls at the same time.
+        :param available_cash: The available cash in the account.  (Total - reserved for collateral)
+        :param security_names: A list of all securities where the index of each ticker is the index of the data of the
+                               corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
+        :param current_tick_data: An array containing prices of each security for the current step shape(n_securities, 4)
+                                  The 4 columns of the array are: Open, High, Low, Close of the next step.
+        :return: The total collateral of short positions
+        """
+        collateral = 0.
+        for ticker in self.portfolio.getShort():
+            eq_idx = security_names.index(ticker)
+            price = tuple(current_tick_data[eq_idx].tolist()) # (Open, High, Low, Close)
+            mk_value = self.portfolio.getShort()[ticker].amount_borrowed * price[3] * (2 - self._comm)
+            collateral += (1 + self.min_maintenance_margin_short) * mk_value
+
+        if available_cash - collateral < 0:
+            if "short margin call" in self.message.margin_calls:
+                self.message.margin_calls["short margin call"].amount = collateral - available_cash
+            else:
+                self.new_margin_call(collateral - available_cash, "short margin call")
+        else:
+            # TODO: Remove margin call if not needed anymore: Use the method
+            pass
+        return collateral
+
+    def _get_long_collateral(self, available_cash: float, security_names: List[str],
+                             current_tick_data: npt.NDArray[float]) -> float:
+        """
+        Get the total collateral of long positions (Only the one having a margin call impact the collateral requirement)
+        It will also update margin calls at the same time ( remove the ones that aren't called anymore and create the
+        new ones.)
+        :param available_cash: The available cash in the account.  (Total - reserved for collateral)
+        :param security_names: A list of all securities where the index of each ticker is the index of the data of the
+                               corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
+        :param current_tick_data: An array containing prices of each security for the current step shape(n_securities, 4)
+                                  The 4 columns of the array are: Open, High, Low, Close of the next step.
+        :return: the collateral of long positions
+        """
+        new_call_tickers = set()
+        collateral = 0.
+        for ticker in self._debt_record:
+            long, short = self.portfolio[ticker]
+
+            eq_idx = security_names.index(ticker)
+            if long is not None:
+                if long.ticker in self.message.margin_calls:
+                    continue
+                # Verify if the stock is in margin call for long
+                is_margin_call, amount = self._isMarginCall(long.amount * current_tick_data[eq_idx, -1],
+                                                            self._debt_record[ticker],
+                                                            self.min_maintenance_margin)
+                if is_margin_call:
+                    # Check if true margin call compared with account balance
+                    if amount > available_cash:
+                        # Only adds it if not in margin call already.  (to not reset the delay)
+                        if ticker not in self.message.margin_calls:
+                            self.new_margin_call(amount - available_cash, ticker)
+                        new_call_tickers.add(ticker)
+                available_cash -= amount
+                collateral += amount
+            # Remove margin calls that are not called anymore
+            # new_call_tickers is a set included in the margin_calls keys.  So we can use set difference
+            for ticker in set(self.message.margin_calls.keys()).difference(new_call_tickers):
+                if ticker == "missing_funds" or ticker == "short margin call":
+                    continue
+                # TODO: Use the method to remove margin call
+                del self.message.margin_calls[ticker]
+
+        return collateral
+
     def _update_account_collateral(self, timestamp: datetime, security_names: List[str], current_tick_data: np.ndarray):
         """
         Updates the amount of collateral in the account.  This is the amount of money held as collateral and cannot
-        be used.  This should be updated at each steps because it should be dependent to the current value of the
-        assets.
+        be used.  This should be updated at each step because it should be dependent to the current value of the
+        assets.  It will also update margin calls at the same time.
         :param timestamp: The date and time of the current step
         :param security_names: An array of the name of each security
         :param current_tick_data: An array of prices of each security for the current step(n_securities, 4)
                                   The 4 columns of the array are: Open, High, Low, Close of the next step.
         :return: None
         """
-        # TODO
-        raise NotImplementedError("TODO")
+        total_cash = self.account.get_cash()
+
+        # Step 1: Evaluate short collateral; It also set margin calls if needed
+        short_collateral = self._get_short_collateral(total_cash, security_names, current_tick_data)
+
+        # Step 2: Update total_cash  --  Now it is more of a 'available cash'
+        total_cash -= short_collateral
+
+        # Step 3: Evaluate long collateral; It also set margin calls if needed
+        long_collateral = self._get_long_collateral(total_cash, security_names, current_tick_data)
+
+        # Step 4: Update the collateral so we know how much money is available for trading (Buying power)
+        self.account.update_collateral(long_collateral + short_collateral, timestamp)
 
 
     def _liquidate(self, call_amount: float, timestamp: datetime, security_names: List[str],
@@ -386,6 +431,14 @@ class Broker:
         new_key = self._findId(message, set(self.message.margin_calls.keys()))
         self.message.margin_calls[new_key] = MarginCall(self.liquidation_delay, value)
         self._debt_record[new_key] = value
+
+    def remove_margin_call(self, key: str):
+        """
+        Remove a margin call from the list of margin calls.  It also removed the debt in the debt record.
+        :param key: The key of the margin call to remove
+        :return: None
+        """
+        raise NotImplementedError("TODO")
 
     def make_trade(self, order: TradeOrder, security_price: Tuple[float, float, float, float], timestamp: datetime,
                    marginable: bool, shortable: bool) -> bool:
@@ -528,16 +581,17 @@ class Broker:
                 else:
                     total = order.amount_borrowed * price - self._comm
 
+                # TODO: continue
+
         elif order.trade_type == TradeType.BuyShort:
             pass
         else:
             raise RuntimeError(f"Invalid trade type!  Got: {order.trade_type}")
 
-
-    @staticmethod
-    def _isMarginCall(market_value: float, loan: float, min_maintenance_margin: float) -> Tuple[bool, float]:
+    def _isMarginCall(self, market_value: float, loan: float, min_maintenance_margin: float) -> Tuple[bool, float]:
         """
-        Check if there is a margin call (long) and how much is the margin call.
+        Check if there is a margin call (long) and how much is the margin call.  If there is enough cash in account,
+        the margin call is ignored.
         :param market_value: The current market value of the investment
         :param loan: The value of the loan
         :param min_maintenance_margin: The minimum maintenance margin ratio [0, 1]
@@ -549,6 +603,11 @@ class Broker:
         equity = market_value - loan
         abs_maintenance_margin = min_maintenance_margin * market_value
         if equity <= abs_maintenance_margin:
+            # call_amount = (abs_maintenance_margin - equity)
+            # if call_amount > self.account.get_cash():
+            #     return True, call_amount - self.account.get_cash()
+            # else:
+            #     return False, 0
             return True, abs_maintenance_margin - equity
         else:
             return False, 0
@@ -565,8 +624,8 @@ class Broker:
             raise ValueError(f"Invalid minimum maintenance margin.  It must be between ]0,1] and got: "
                              f"{min_maintenance_margin}")
 
-        if current_cash < min_maintenance_margin * market_value:
-            return True, min_maintenance_margin * market_value - current_cash
+        if current_cash < (1 + min_maintenance_margin) * market_value:
+            return True, (1 + min_maintenance_margin) * market_value - current_cash
         else:
             return False, 0
 
