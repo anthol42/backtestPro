@@ -3,7 +3,7 @@ New way to backtest stock trading strategies.
 
 ## TODO
 - [X] Make Portfolio object
-- [ ] Finish Broker object
+- [X] Finish Broker object
   - [X] Make that the account does not take a transaction as parameter, but builds the transaction inside method
   - [X] Instead of filling bankruptcy, make a new margin call over no specific security to warns.  If demand not met, liquidate stocks
   - [X] Verify if there is no margin call anymore (If they have been paid)
@@ -20,7 +20,10 @@ New way to backtest stock trading strategies.
     - [X] Total value of portfolio
     - [X] Trades stats (duration and profits)
 - [ ] BackTest object
-- [ ] Make a way to output stats at the end of simulation
+  - [ ] Make the step function
+  - [ ] Implement backtestResult class to save all stats and run info (Plus saving method)
+  - [ ] Implement saving and stats recording in backtest clas (run method)
 - [ ] Make a way to show trades using matplotlib
 - [ ] Unit tests.  Make sure to test all edge cases.
 - [ ] Package all stats, run info, meta data, config, states over the simulation and debug info in a json file format
+- [ ] FinCharts flutter GUI (Other charting engine)
