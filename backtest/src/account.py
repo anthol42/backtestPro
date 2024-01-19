@@ -55,8 +55,20 @@ class Account:
         :param message: Reason of the update.  Can be, for example: "Step update", "Enter short position for {ticker}", etc.
         :return: None
         """
-        self._collateral_history.append(CollateralUpdate(amount, dt, message))
+        self._collateral_history.append(CollateralUpdate(amount, dt, f"[UPDATE] - {message}"))
         self._collateral = amount
+
+    def add_collateral(self, amount: float, dt: datetime, message: str = "Sold short"):
+        """
+        Adds collateral to the account.  This is the amount of money held as collateral and cannot
+        be used.  This method could be used when selling short a position.
+        :param amount: Value of collateral.
+        :param dt: datetime of the update
+        :param message: Reason of the update.  Can be, for example: "Step update", "Enter short position for {ticker}", etc.
+        :return: None
+        """
+        self._collateral_history.append(CollateralUpdate(amount, dt, f"[ADD] - {message}"))
+        self._collateral += amount
 
     def get_cash(self):
         """

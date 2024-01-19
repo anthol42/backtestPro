@@ -9,15 +9,16 @@ New way to backtest stock trading strategies.
   - [X] Verify if there is no margin call anymore (If they have been paid)
   - [X] Liquidate short margin calls
   - [X] Evaluate collateral value (method) [read this](https://www.investopedia.com/ask/answers/05/shortmarginrequirements.asp)
-  - [ ] Implement delete_margin_call method and use it in '_get_short_collateral' and '_get_long_collateral'
-  - [ ] Trades (Do not forget to add initial value of position as debt in short selling)
-  - [ ] Do not forget to add trading fees (Relative or absolute)
+  - [X] Implement delete_margin_call method and use it in '_get_short_collateral' and '_get_long_collateral'
+  - [X] Trades (Do not forget to add initial value of position as debt in short selling)
+  - [X] Do not forget to add trading fees (Relative or absolute)
   - [X] Change order in Tick method: trades should be before margins and all that stuff
   - [X] Handle margin call that expire that are not for tickers (Not enough fund, short margin call, etc)
   - [X] Handle interest rates week-end calculation
-  - [X] Handle bankruptcy if all positions are sold and there is not enough funds to pay debt. 
-  - [ ] Implement Pay margin call method.
-  - [ ] Record Statistics
+  - [X] Handle bankruptcy if all positions are sold and there is not enough funds to pay debt.
+  - [X] Record Statistics
+    - [X] Total value of portfolio
+    - [X] Trades stats (duration and profits)
 - [ ] BackTest object
 - [ ] Make a way to output stats at the end of simulation
 - [ ] Make a way to show trades using matplotlib

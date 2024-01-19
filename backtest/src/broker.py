@@ -1,9 +1,11 @@
 import numpy as np
+import pandas as pd
+
 from .transaction import Transaction, TransactionType
 from .account import Account
 from .trade import (BuyLong, BuyShort, SellShort, SellLong, BuyLongOrder, SellLongOrder, BuyShortOrder, SellShortOrder,
                     TradeOrder, TradeType)
-from .portfolio import Portfolio, Equity
+from .portfolio import Portfolio, Position
 from datetime import timedelta, datetime, date
 from typing import Dict, Tuple, List, Union, Optional
 from copy import deepcopy
@@ -45,6 +47,18 @@ class BrokerState:
         self.margin_calls = margin_calls
         self.bankruptcy = bankruptcy
 
+class StepState:
+    """
+    Record the state of the broker at each steps for easier strategy debugging
+    """
+    def __init__(self, timestamp: datetime, worth: float, orders: List[TradeOrder], filled_orders: List[TradeOrder],
+                 margin_calls: Dict[str, MarginCall]):
+        self.timestamp = timestamp
+        self.worth = worth
+        self.orders = orders
+        self.filled_orders = filled_orders
+        self.margin_calls = margin_calls
+
 
 class Broker:
     """
@@ -53,12 +67,11 @@ class Broker:
     Note: If there is not enough cash in the account when monthly fees are deduced, the strategy fills a bankruptcy, and
     the simulation stops.
     """
-    def __init__(self, bank_account: Account, buy_on_close: bool = False, commission: float = None,
+    def __init__(self, bank_account: Account, commission: float = None,
                  relative_commission: float = None, margin_interest: float = 0,
                  min_initial_margin: float = 0.5, min_maintenance_margin: float = 0.25,
                  liquidation_delay: int = 2, min_initial_margin_short: float = 0.5,
                  min_maintenance_margin_short: float = 0.25):
-        self._bonc = buy_on_close
         if commission is not None and relative_commission is not None:
             raise ValueError("Must choose between relative commission or absolute commission!")
         if commission is None and relative_commission is None:
@@ -92,7 +105,7 @@ class Broker:
         # By-stock record of borrowed money {ticker, borrowed_amount}
         self._debt_record: Dict[str, float] = {}
         self._queued_trade_offers = []
-        self.portfolio = Portfolio()    # Equities bought with available cash
+        self.portfolio = Portfolio(self._comm, self._relative, self._debt_record)  # Equities bought with available cash
         self.account = bank_account
         self.n = 0    # Keeps the count of trades.  (To give trades an id)
         self._month_interests = 0    # The current interests of the month.  They will be charged at the end of the month
@@ -103,6 +116,9 @@ class Broker:
                                                         # the correct amount of interest
         
         self.message = BrokerState({}, False)
+
+        # Stats
+        self._historical_states = List[StepState]
 
 
     def buy_long(self, ticker: str, amount: int, expiry: datetime, price_limit: Tuple[float, float] = (None, None),
@@ -149,16 +165,37 @@ class Broker:
         # Step 1: Get the total borrowed money
         borrowed_money = sum(self._debt_record.values())
 
+        # Evaluate the worth of the portfolio
+        worth = self._get_worth(security_names, current_tick_data)
+
         # Step 2: If the portfolio has borrowed money: we calculate current interests and add them to monthly interests.
         # Interest rates are calculated daily but charged monthly.
         days_elapsed: int = (timestamp.date() - self._last_day).days
         if borrowed_money > 0:
             self._month_interests += days_elapsed * self.margin_interest * borrowed_money / 360
 
-        # Step 3: Update the account collateral
+        # Step 3: Update the account collateral after paying debts and interests, if it wasn't paid the previous steps
+        missing_funds_calls = [ticker for ticker in self.message.margin_calls if ticker.startswith("missing_funds")]
+        for miss_fund_call in missing_funds_calls:
+            if self.account.get_cash() > self.message.margin_calls[miss_fund_call].amount:
+                self.remove_margin_call(miss_fund_call)
+                self.account.withdrawal(self.message.margin_calls[miss_fund_call].amount, timestamp,
+                                        comment="Missing funds")
         self._update_account_collateral(timestamp, security_names, current_tick_data)
 
         # Step 4: Execute trades that can be executed
+        filled_orders = []
+        for order in self._queued_trade_offers:
+            if order.expiry <= timestamp:
+                continue
+            eq_idx = security_names.index(order.ticker)
+
+            result = self.make_trade(order, next_tick_data[eq_idx], timestamp, marginables[eq_idx, 0], marginables[eq_idx, 1])
+            if result:
+                filled_orders.append(order)
+
+        for order in filled_orders:
+            self._queued_trade_offers.remove(order)
 
         # Step 5: If there is borrowed money, reduce the delay of margin calls.  (It is normal that newly initialized
         # margin call's delay will already be reduced.  It is took into account in the liquidation process)
@@ -183,7 +220,7 @@ class Broker:
         # Step 6: Liquidate expired margin calls
         pos_to_liquidate = [ticker for ticker in self.message.margin_calls if self.message.margin_calls[ticker] == -1]
         for ticker in pos_to_liquidate:
-            if ticker == "missing_funds" or ticker == "short margin call":
+            if ticker.startswith("missing_funds") or ticker == "short margin call":
                 continue
             eq_idx = security_names.index(ticker)
             price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
@@ -196,13 +233,18 @@ class Broker:
         if self.message.margin_calls["short margin call"].time_remaining == -1:
             self._liquidate(self.message.margin_calls["short margin call"].amount, timestamp, security_names,
                             next_tick_data)
+        missing_funds_call = [ticker for ticker in self.message.margin_calls if ticker.startswith("missing_funds")]
+        for miss_fund_call in missing_funds_call:
+            if self.message.margin_calls[miss_fund_call].time_remaining == -1:
+                self._liquidate(self.message.margin_calls[miss_fund_call].amount, timestamp, security_names,
+                                next_tick_data)
 
-        if self.message.margin_calls["missing_funds"].time_remaining == -1:
-            self._liquidate(self.message.margin_calls["missing_funds"].amount, timestamp, security_names,
-                            next_tick_data)
+        # Step 6: Save states
+        self._historical_states.append(
+            StepState(timestamp, worth, self._queued_trade_offers, filled_orders, self.message.margin_calls)
+        )
 
-        # # Step 6: Store messages in object state (margin call, pending orders)
-        # self.message = BrokerState(margin_calls, bankruptcy)
+
 
     def _get_short_collateral(self, available_cash: float, security_names: List[str],
                               current_tick_data: npt.NDArray[float]) -> float:
@@ -228,10 +270,36 @@ class Broker:
             else:
                 self.new_margin_call(collateral - available_cash, "short margin call")
         else:
-            # TODO: Remove margin call if not needed anymore: Use the method
-            pass
+            self.remove_margin_call("short margin call")
+
         return collateral
 
+    def _get_worth(self, security_names: List[str], current_tick_data: np.ndarray) -> float:
+        """
+        Get the worth of the portfolio
+        :param security_names: A list of all securities where the index of each ticker is the index of the data of the
+                                 corresponding security in the 'current_tick_data' parameter along the first axis (axis=0).
+        :param current_tick_data: An array containing prices of each security for the current step shape(n_securities, 4)
+        :return: worth in dollars
+        """
+        worth = self.account.get_total_cash()
+        for ticker, position in self.portfolio.getLong().items():
+            eq_idx = security_names.index(ticker)
+            price = tuple(current_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
+            close = price[3]
+            debt = self._debt_record.get(ticker)
+            if debt is None:
+                debt = 0
+            worth += (position.amount * close +
+                      position.amount_borrowed * close - debt)
+
+        for ticker, position in self.portfolio.getShort().items():
+            eq_idx = security_names.index(ticker)
+            price = tuple(current_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
+            close = price[3]
+            worth -= position.amount_borrowed * close
+
+        return worth
     def _get_long_collateral(self, available_cash: float, security_names: List[str],
                              current_tick_data: npt.NDArray[float]) -> float:
         """
@@ -267,13 +335,12 @@ class Broker:
                         new_call_tickers.add(ticker)
                 available_cash -= amount
                 collateral += amount
-            # Remove margin calls that are not called anymore
-            # new_call_tickers is a set included in the margin_calls keys.  So we can use set difference
-            for ticker in set(self.message.margin_calls.keys()).difference(new_call_tickers):
-                if ticker == "missing_funds" or ticker == "short margin call":
-                    continue
-                # TODO: Use the method to remove margin call
-                del self.message.margin_calls[ticker]
+        # Remove margin calls that are not called anymore
+        # new_call_tickers is a set included in the margin_calls keys.  So we can use set difference
+        for ticker in set(self.message.margin_calls.keys()).difference(new_call_tickers):
+            if ticker.startswith("missing_funds") or ticker == "short margin call":
+                continue
+            self.remove_margin_call(ticker)
 
         return collateral
 
@@ -340,14 +407,14 @@ class Broker:
                     cash = eq.amount_borrowed * price[0] - self._comm
                 call_amount -= cash
                 order = BuyShortOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
-                self.make_trade(order, price[0], timestamp)
+                self.make_trade(order, price, timestamp)
             else:
                 eq = positions[delta_inf.argmin()]
                 # Buy this security
                 eq_idx = security_names.index(eq)
                 price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
                 order = BuyShortOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
-                self.make_trade(order, price[0], timestamp)
+                self.make_trade(order, price, timestamp)
                 call_amount = 0
 
         # We liquidated all short positions.  We need to liquidate long position to cover.
@@ -372,14 +439,14 @@ class Broker:
                         cash = amount * price[0] - self._comm - self._debt_record[eq.ticker]
                     call_amount -= cash
                     order = SellLongOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
-                    self.make_trade(order, price[0], timestamp)
+                    self.make_trade(order, price, timestamp)
                 else:
                     eq = positions[delta_inf.argmin()]
                     # Buy this security
                     eq_idx = security_names.index(eq)
                     price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
                     order = SellLongOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
-                    self.make_trade(order, price[0], timestamp)
+                    self.make_trade(order, price, timestamp)
                     call_amount = 0
 
             if len(self.portfolio.getLong()) == 0 and call_amount > 0:
@@ -424,7 +491,8 @@ class Broker:
 
     def new_margin_call(self, value: float, message: str = "missing_funds"):
         """
-        Create a new margin call and appends it to the other margin calls
+        Create a new margin call and appends it to the other margin calls.  Do not forget to remove money from
+        account if necessary.
         :param value: The value that needs to be added to the account to cover margin call
         :return: None
         """
@@ -438,7 +506,8 @@ class Broker:
         :param key: The key of the margin call to remove
         :return: None
         """
-        raise NotImplementedError("TODO")
+        del self.message.margin_calls[key]
+        del self._debt_record[key]
 
     def make_trade(self, order: TradeOrder, security_price: Tuple[float, float, float, float], timestamp: datetime,
                    marginable: bool, shortable: bool) -> bool:
@@ -491,16 +560,19 @@ class Broker:
                     total = order.amount * price + self._comm
 
                 if total > self.account.get_cash():  # Not enough cash to complete the trade
-                    return
+                    return False
                 else:
                     trade = order.convertToTrade(price, timestamp, str(self.n))
                     self.portfolio.trade(trade)
-                    self.account.withdrawal(total, timestamp)
+                    self.account.withdrawal(total, timestamp, str(self.n))
                     if order.security in self._debt_record:
                         self._debt_record[order.security] += order.amount_borrowed * price * self._comm
                     else:
                         self._debt_record[order.security] = order.amount_borrowed * price * self._comm
                 self.n += 1
+                return True
+            else:
+                return False
         elif order.trade_type == TradeType.SellLong:
             # We sell if the price is below the low (Stop loss) or higher than the high (take profit)
             # If low limit is None, there is no stop loss
@@ -526,9 +598,9 @@ class Broker:
                     price = None
             if price is not None:    # We sell
                 if self._relative:
-                    total = (order.amount + order.amount_borrowed) * price * self._comm
+                    total = (order.amount + order.amount_borrowed) * price * (2 - self._comm)
                 else:
-                    total = (order.amount + order.amount_borrowed) * price + self._comm
+                    total = (order.amount + order.amount_borrowed) * price - self._comm
 
                 trade = order.convertToTrade(price, timestamp, str(self.n))
                 self.portfolio.trade(trade)
@@ -544,6 +616,9 @@ class Broker:
                     else:
                         self.account.withdrawal(due, timestamp, "Sold margin position at loss")
                 self.n += 1
+                return True
+            else:
+                return False
 
         # For the following two:
         # - We only use the amount of shares borrowed since they are all borrowed.So, the amount of shares has no impact
@@ -581,10 +656,65 @@ class Broker:
                 else:
                     total = order.amount_borrowed * price - self._comm
 
-                # TODO: continue
-
+                # Verify if we have enough margin to make the trade
+                if self.min_initial_margin_short * total > self.account.get_cash():
+                    self.account.deposit(total, timestamp, transaction_id=str(self.n))
+                    self.account.add_collateral((self.min_maintenance_margin + 1) * total, timestamp, message=order.security)
+                    self.portfolio.trade(order.convertToTrade(price, timestamp, str(self.n)))
+                    self.n += 1
+                    return True
+                else:
+                    return False
+            else:
+                return False
         elif order.trade_type == TradeType.BuyShort:
-            pass
+            # Early exit if the order doesn't buy any borrowed shares.
+            if order.amount_borrowed > 0:
+                return False  # We cannot buy short this security
+            # We buy if the price is below the low, or higher than the high (stop loss).
+            # If one of both limits are None, there is no limit on that side.
+            # If there is no limit, we buy at market price (Open)
+            # If there is a limit, we buy at the highest price of the limit because we cannot look intra-step
+            # (Murphy's law)
+            low, high = order.security_price_limit
+            if low is None and high is None:
+                price = security_price[0]  # Open
+            else:
+                if low is None:
+                    if security_price[1] > high:
+                        price = high
+                elif high is None:
+                    if security_price[2] < low:
+                        price = low
+                elif security_price[1] > high:
+                    price = high
+                elif security_price[2] < low:
+                    price = low
+                else:
+                    price = None
+
+            if price is not None:    # We sell short
+                if self._relative:
+                    total = order.amount_borrowed * price * self._comm
+                else:
+                    total = order.amount_borrowed * price + self._comm
+
+                if total > self.account.get_cash():
+                    self.new_margin_call(total - self.account.get_total_cash(), message="missing_funds")
+                    trade = order.convertToTrade(price, timestamp, str(self.n))
+                    self.portfolio.trade(trade)
+                    self.account.withdrawal(total - self.account.get_total_cash(), timestamp, transaction_id=str(self.n))
+                    self.n += 1
+                    return True
+                else:
+                    trade = order.convertToTrade(price, timestamp, str(self.n))
+                    self.portfolio.trade(trade)
+                    self.account.withdrawal(total, timestamp, transaction_id=str(self.n))
+                    self.n += 1
+                    return True
+            else:
+                return False
+
         else:
             raise RuntimeError(f"Invalid trade type!  Got: {order.trade_type}")
 
@@ -647,15 +777,3 @@ class Broker:
 
         else:
             return s
-
-    def pay_margin_call(self, call_id: str, amount: float):
-        """
-        This method is called to pay a given margin call that is not linked to any stocks.
-        (Can be because of missing funds to pay interest, monthly fee or other things)
-        If there is enough cash in bank account, it will deduce the amount from bank account to pay margin call.
-        :param call_id: Margin call id
-        :param amount: Amount to pay
-        :return: None
-        """
-        # TODO: It will be automatically called as soon buying short with profit or selling long with profit in the tick method
-        raise NotImplementedError("pay_margin_call")
