@@ -19,10 +19,14 @@ New way to backtest stock trading strategies.
   - [X] Record Statistics
     - [X] Total value of portfolio
     - [X] Trades stats (duration and profits)
+  - [ ] Handle dividends
 - [ ] BackTest object
-  - [ ] Make the step function
+  - [ ] Handle stock splits in init section of run method
+  - [X] Make the step function
+    - [X] Find a way to prepare data of higher resolution than main timestep resolution.
+    - [X] If For the current timestep, the main resolution series is all nan, ignore stock.
   - [ ] Implement backtestResult class to save all stats and run info (Plus saving method)
-  - [ ] Implement saving and stats recording in backtest clas (run method)
+  - [ ] Implement saving and stats recording in backtest class (run method)
 - [ ] Make a way to show trades using matplotlib
 - [ ] Unit tests.  Make sure to test all edge cases.
 - [ ] Package all stats, run info, meta data, config, states over the simulation and debug info in a json file format

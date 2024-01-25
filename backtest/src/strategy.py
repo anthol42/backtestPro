@@ -3,6 +3,8 @@ from typing import List, Dict
 from .tsData import TSData
 from .account import Account
 from .broker import Broker
+from .record import Record
+from datetime import datetime
 
 
 class Strategy(ABC):
@@ -23,17 +25,22 @@ class Strategy(ABC):
         pass
 
     @abstractmethod
-    def eval(self, data: List[Dict[str, TSData]]):
+    def run(self, data: List[List[Record]], timestep: datetime):
         """
         This method is used to compute the strategy at each time step.  It is in this method that the strategy logic is
         implemented.
+        :param data: The data to use for the strategy
+        :param timestep: The current time step
         """
         raise NotImplementedError("eval method not implemented")
 
 
 
-    def __call__(self, data: List[Dict[str, TSData]]):
+    def __call__(self, data: List[List[Record]], timestep: datetime):
         """
+        YOU SHOULD NOT OVERRIDE THIS METHOD
         This method is used to compute the strategy at each time step and some other computations for stats purposes.
+        :param data: The data to use for the strategy
+        :param timestep: The current time step
         """
-        self.eval(data)
+        self.run(data)
