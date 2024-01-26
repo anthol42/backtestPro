@@ -156,6 +156,7 @@ class Broker:
                             margin / sold short.
         :param dividends: A float array of shape (n_securities, ) containing the dividends of each security for the
                             current step.
+        :param div_freq: The frequency that the security is paying dividends.
         :return: None
         """
 
@@ -173,20 +174,8 @@ class Broker:
         for ticker, position in self.portfolio.getLong().items():
             ticker_idx = security_names.index(ticker)
             if dividends[ticker_idx] > 0:
-                hold_days = (timestamp - position.last_dividends_dt).total_seconds() / 3600 / 24
-                if div_freq[ticker_idx] == DividendFrequency.MONTHLY:
-                    hold_ratio = hold_days / 30
-                elif div_freq[ticker_idx] == DividendFrequency.QUARTERLY:
-                    hold_ratio = hold_days / 90
-                elif div_freq[ticker_idx] == DividendFrequency.BIANNUALLY:
-                    hold_ratio = hold_days / 180
-                else:    # DividendFrequency.YEARLY
-                    hold_ratio = hold_days / 365
-
-                if hold_ratio > 1:
-                    hold_ratio = 1
-
-                self.account.deposit(dividends[ticker_idx] * (position.amount + position.amount_borrowed) * hold_ratio,
+                dividend_payout = self.compute_dividend_payout(timestamp, position, div_freq[ticker_idx], dividends[ticker_idx])
+                self.account.deposit(dividend_payout,
                                      timestamp, comment=f"Dividends - {ticker}")
 
         # Evaluate the worth of the portfolio
@@ -268,6 +257,29 @@ class Broker:
             StepState(timestamp, worth, self._queued_trade_offers, filled_orders, self.message.margin_calls)
         )
 
+    def compute_dividend_payout(self, timestamp: datetime, position: Position,
+                                div_freq: DividendFrequency, dividends: np.ndarray) -> float:
+        """
+        Compute the dividend payout of a long position
+        :param timestamp: The current timestamp
+        :param position: The position to calculate dividend payout
+        :param div_freq: The frequency that the security is paying dividends.
+        :param dividends: The actual dividends payout for 1 share and for the period in div_freq.
+        :return: Dividend payout
+        """
+        hold_days = (timestamp - position.last_dividends_dt).total_seconds() / 3600 / 24
+        if div_freq == DividendFrequency.MONTHLY:
+            hold_ratio = hold_days / 30
+        elif div_freq == DividendFrequency.QUARTERLY:
+            hold_ratio = hold_days / 90
+        elif div_freq == DividendFrequency.BIANNUALLY:
+            hold_ratio = hold_days / 180
+        else:  # DividendFrequency.YEARLY
+            hold_ratio = hold_days / 365
+
+        if hold_ratio > 1:
+            hold_ratio = 1
+        return dividends * (position.amount + position.amount_borrowed) * hold_ratio
 
 
     def _get_short_collateral(self, available_cash: float, security_names: List[str],
