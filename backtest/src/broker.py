@@ -119,7 +119,7 @@ class Broker:
         self.message = BrokerState({}, False)
 
         # Stats
-        self._historical_states = List[StepState]
+        self.historical_states = List[StepState]
 
 
     def buy_long(self, ticker: str, amount: int, expiry: datetime, price_limit: Tuple[float, float] = (None, None),
@@ -253,7 +253,7 @@ class Broker:
                                 next_tick_data)
 
         # Step 6: Save states
-        self._historical_states.append(
+        self.historical_states.append(
             StepState(timestamp, worth, self._queued_trade_offers, filled_orders, self.message.margin_calls)
         )
 
