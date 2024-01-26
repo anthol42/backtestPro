@@ -10,6 +10,7 @@ from datetime import timedelta, datetime, date
 from typing import Dict, Tuple, List, Union, Optional
 from copy import deepcopy
 import numpy.typing as npt
+from .tsData import DividendFrequency
 
 class MarginCall:
     """
@@ -138,7 +139,8 @@ class Broker:
         self._queued_trade_offers.append(BuyShortOrder(ticker, price_limit, amount, amount_borrowed, expiry))
 
     def tick(self, timestamp: datetime, security_names: List[str], current_tick_data: np.ndarray,
-             next_tick_data: np.ndarray, marginables: npt.NDArray[np.bool]):
+             next_tick_data: np.ndarray, marginables: npt.NDArray[np.bool], dividends: npt.NDArray[np.float32],
+             div_freq: List[DividendFrequency]):
         """
         The simulation calls this method after the strategy has run.  It will calculate interests and margin call if
         applicable.  It will do trades that can be done in the trade queue at the next open.
@@ -152,6 +154,8 @@ class Broker:
         :param marginables: A boolean array of shape (n_securities, 2) [Marginable, Shortable) where True means that
                             the security can be bought on margin / sold short and False means that it cannot be bought on
                             margin / sold short.
+        :param dividends: A float array of shape (n_securities, ) containing the dividends of each security for the
+                            current step.
         :return: None
         """
 
@@ -162,8 +166,28 @@ class Broker:
         if self._last_day is None:
             self._last_day = timestamp.date()
 
-        # Step 1: Get the total borrowed money
+        # Step 1: Get the total borrowed money, cash and portfolio worth
         borrowed_money = sum(self._debt_record.values())
+
+        # Cash in dividends
+        for ticker, position in self.portfolio.getLong().items():
+            ticker_idx = security_names.index(ticker)
+            if dividends[ticker_idx] > 0:
+                hold_days = (timestamp - position.last_dividends_dt).total_seconds() / 3600 / 24
+                if div_freq[ticker_idx] == DividendFrequency.MONTHLY:
+                    hold_ratio = hold_days / 30
+                elif div_freq[ticker_idx] == DividendFrequency.QUARTERLY:
+                    hold_ratio = hold_days / 90
+                elif div_freq[ticker_idx] == DividendFrequency.BIANNUALLY:
+                    hold_ratio = hold_days / 180
+                else:    # DividendFrequency.YEARLY
+                    hold_ratio = hold_days / 365
+
+                if hold_ratio > 1:
+                    hold_ratio = 1
+
+                self.account.deposit(dividends[ticker_idx] * (position.amount + position.amount_borrowed) * hold_ratio,
+                                     timestamp, comment=f"Dividends - {ticker}")
 
         # Evaluate the worth of the portfolio
         worth = self._get_worth(security_names, current_tick_data)

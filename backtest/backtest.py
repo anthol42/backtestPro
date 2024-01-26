@@ -81,11 +81,14 @@ class BackTest:
         # Step 4: Run broker
         # Get security names
         security_names = [record.ticker for record in prepared_data[self.main_timestep]]
+
         # Prepare current data for broker
         current_data = np.array([record.chart.iloc[-1].to_list() for record in prepared_data[self.main_timestep]], dtype=np.float32)
         next_tick_data = np.array([record.next_tick.to_list() for record in prepared_data[self.main_timestep]], dtype=np.float32)
         marginables = np.array([[record.marginable, record.shortable] for record in prepared_data[self.main_timestep]], dtype=np.bool)
-        self.broker.tick(timestep, security_names, current_data, next_tick_data, marginables)
+        dividends = np.array([record.chart["Dividends"].iloc[-1] if record.has_dividends else 0. for record in prepared_data[self.main_timestep]], dtype=np.float32)
+        div_freq = [record.div_freq for record in prepared_data[self.main_timestep]]
+        self.broker.tick(timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq)
 
     def run(self) -> BackTestResult:
         """
@@ -105,7 +108,7 @@ class BackTest:
         # Many groups of time series
         for i, ts_group in enumerate(self._data):
             available_time_res.append(ts_group[ts_group.keys()[0]].time_res)
-            # Check if all the data has the same time resolution
+            # Check if all the data has the same time resolution + renorm data
             last_index = None
             for ticker, ts in ts_group.items():
                 if ts.time_res != available_time_res[i]:
@@ -119,6 +122,10 @@ class BackTest:
                         raise ValueError(f"All the timeseries data in the same group must have the same index.\n"
                                             f"Ticker: {ticker} for data in group {i} has a different index than the "
                                             f"other data in the same group.")
+
+                # Renormalize data by undoing splits:
+                ts.data = self.reverse_split_norm(ts.data)
+
                 if i == self.main_timestep:
                     if len(ts.data) > len(timesteps_list):
                         timesteps_list = list(ts.data.index)
@@ -141,7 +148,8 @@ class BackTest:
         Prepare the data for the current timestep.  This method assumes that nan are padding.  This means that it is
         assumed that the security didn't exist at the time where there is nan.  It is important to fill nan in data
         preprocessing steps before starting the backtest.  If you do not want to impute value, you can override this
-        method.
+        method.  This method will also handle splits by dividing the price by split value and multiplying the volume by
+        the split value.  (This is the default behavior of yfinance)
         :param data: The data
         :param current_time_res: The current time resolution
         :param timestep: The current timestep
@@ -181,7 +189,16 @@ class BackTest:
                 shortable = ts.data["Shortable"].iloc[end_idx - 1]
             else:
                 shortable = self.default_shortable
-            prepared_data.append(Record(cropped.iloc[start_idx:], ticker, current_time_res,
+
+            # Normalize the price and volume of window according to splits
+            cropped = cropped.iloc[start_idx:]
+            multiplier = cropped["Stock Splits"].max()
+            cropped["Open"] /= multiplier
+            cropped["High"] /= multiplier
+            cropped["Low"] /= multiplier
+            cropped["Close"] /= multiplier
+            cropped["Volume"] *= multiplier
+            prepared_data.append(Record(cropped, ticker, current_time_res,
                                         marginable, shortable,
                                         ts.data[["Open", "High", "Low", "Close", "Volume"]].iloc[end_idx]))
 
@@ -291,3 +308,39 @@ class BackTest:
             newly_forged_candles.append((candle_open, candle_high, candle_low, candle_close, candle_volume, ticker))
 
         return newly_forged_candles
+
+    @staticmethod
+    def reverse_split_norm(hist: pd.DataFrame) -> pd.DataFrame:
+        """
+        Normalize the pricing and volume by undoing the splits far a single timeseries.
+        It also updates the Stock Splits column to be the current multiplier.  (yfinance price is price  / multiplier)
+        This means that it starts with a multiplier of 1 and it is mulitplied by the split value each time there is a
+        split.
+        Warning:
+            This is a mutating function.  It will modify the dataframe in place.
+        :param hist: An OHLCV dataframe
+        :return: The modified dataframe
+        """
+
+        class Normalizer:
+            def __init__(self):
+                self.multiplier = 1
+
+            def __call__(self, row):
+                if row["Stock Splits"] > 0:
+                    self.multiplier *= row["Stock Splits"]
+
+                new_row = row.copy()
+                new_row["Stock Splits"] = self.multiplier
+                return new_row
+
+        idx_splits = np.arange(len(hist))[(hist["Stock Splits"] > 0)]
+        multipliers: np.ndarray = hist["Stock Splits"].to_numpy()[idx_splits]
+        total_multiplier = multipliers.prod()
+        hist["Open"] *= total_multiplier
+        hist["High"] *= total_multiplier
+        hist["Low"] *= total_multiplier
+        hist["Close"] *= total_multiplier
+        hist["Volume"] = (hist["Volume"] / total_multiplier).astype(int)
+        hist = hist.apply(Normalizer(), axis=1)
+        return hist

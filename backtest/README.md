@@ -19,9 +19,9 @@ New way to backtest stock trading strategies.
   - [X] Record Statistics
     - [X] Total value of portfolio
     - [X] Trades stats (duration and profits)
-  - [ ] Handle dividends
+  - [X] Handle dividends
 - [ ] BackTest object
-  - [ ] Handle stock splits in init section of run method
+  - [X] Handle stock splits in init section of run method
   - [X] Make the step function
     - [X] Find a way to prepare data of higher resolution than main timestep resolution.
     - [X] If For the current timestep, the main resolution series is all nan, ignore stock.

@@ -7,14 +7,15 @@ class Position:
     """
     Data class holding info about a position
     """
-    def __init__(self, ticker: str, amount: int,  amount_borrowed: int, long: bool, average_price: float, average_filled_price: datetime):
+    def __init__(self, ticker: str, amount: int,  amount_borrowed: int, long: bool, average_price: float, average_filled_time: datetime):
         self.ticker = ticker
         self.amount = amount
         self.amount_borrowed = amount_borrowed
         self.average_price = average_price
         self.on_margin = amount_borrowed > 0
         self.long = long
-        self.average_filled_price = average_filled_price
+        self.average_filled_time = average_filled_time
+        self.last_dividends_dt = average_filled_time
 
     @property
     def worth(self):
@@ -34,10 +35,19 @@ class Position:
     def __repr__(self):
         return f"EQUITY: {self.ticker}"
 
+    def dividends_got_paid(self, timestamp: datetime):
+        """
+        Call this method to reset last dividends date.  Useful when calculating how much dividends the user should have
+        :param timestamp: The timestamp of dividend payment
+        :return: None
+        """
+        self.last_dividends_dt = timestamp
+
     def __add__(self, other):
         if isinstance(other, int):
             self.amount += other
         elif isinstance(other, Position):
+            # Concatenating positions
             current_amount = self.amount + self.amount_borrowed
             other_amount = other.amount + other.amount_borrowed
             total_amount = current_amount + other_amount
@@ -45,9 +55,12 @@ class Position:
                                   (other_amount / total_amount) * other.average_price)
             self.amount += other.amount
             self.amount_borrowed += other.amount_borrowed
-            self.average_filled_price = (self.average_filled_price +
-                                         timedelta(seconds=(other.average_filled_price -
-                                                            self.average_filled_price).total_seconds() / 2))
+            self.average_filled_time = (self.average_filled_time +
+                                         timedelta(seconds=(other.average_filled_time -
+                                                    self.average_filled_time).total_seconds() / 2))
+
+            self.last_dividends_dt = (self.last_dividends_dt + timedelta(seconds=(other.last_dividends_dt -
+                                                                        self.last_dividends_dt).total_seconds() / 2))
 
         elif isinstance(other, Trade):
             current_amount = self.amount + self.amount_borrowed
@@ -57,6 +70,14 @@ class Position:
                                   (other_amount / total_amount) * other.security_price)
             self.amount += other.amount
             self.amount_borrowed += other.amount_borrowed
+            self.average_filled_time = (self.average_filled_time +
+                                            timedelta(seconds=(other.timestamp -
+                                                               self.average_filled_time).total_seconds() / 2))
+
+            if other.timestamp < self.last_dividends_dt:
+                raise RuntimeError("Cannot add a trade that happened before the last dividends [Not causal]")
+            self.last_dividends_dt = (self.last_dividends_dt + timedelta(seconds=(other.timestamp -
+                                                                        self.last_dividends_dt).total_seconds() / 2))
         else:
             raise NotImplementedError(f"Addition not implemented for type {type(other)}")
 
@@ -120,7 +141,7 @@ class Portfolio:
                 self._long[trade.security] += trade
             else:
                 self._long[trade.security] = Position(trade.security, trade.amount, trade.amount_borrowed, True,
-                                                    trade.security_price)
+                                                    trade.security_price, trade.timestamp)
             self._trades.append(trade)
         elif isinstance(trade, SellLong):
             if trade.security not in self._long:
@@ -146,7 +167,7 @@ class Portfolio:
                 self._short[trade.security] += trade.amount_borrowed
             else:
                 self._short[trade.security] = Position(trade.security, 0, trade.amount_borrowed, False,
-                                                     trade.security_price)
+                                                     trade.security_price, trade.timestamp)
             self._trades.append(trade)
         elif isinstance(trade, BuyShort):
             if trade.security not in self._short:
@@ -163,7 +184,7 @@ class Portfolio:
                 self._trades.append(
                     TradeStats(trade,
                                duration,
-                               *self.getLongProfit(average_sell_price,trade.security_price, trade.amount_borrowed)))
+                               *self.getShortProfit(average_sell_price,trade.security_price, trade.amount_borrowed)))
 
     def getShortProfit(self, average_sell_price: float, average_buy_price: float, qty: int) -> Tuple[float, float]:
         """
