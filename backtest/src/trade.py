@@ -31,6 +31,21 @@ class TradeOrder(ABC):
         return Trade(self.security, security_price, self.amount, self.amount_borrowed, transaction_id,
                      timestamp, self.trade_type)
 
+    def export(self) -> dict:
+        """
+        This method export the trade order object to a JSONable dictionary.
+        :return: The object state as a dictionary
+        """
+        return {
+            "type": f"TradeOrder.{self.trade_type.value}",
+            "security": self.security,
+            "security_price_limit": self.security_price_limit,
+            "amount": self.amount,
+            "amount_borrowed": self.amount_borrowed,
+            "trade_type": self.trade_type.value,
+            "expiry": str(self.expiry)
+        }
+
 class BuyLongOrder(TradeOrder):
     def __init__(self, security: str, security_price_limit: Tuple[float, float], amount: int, amount_borrowed: int,
                   expiry: datetime):
@@ -71,6 +86,23 @@ class Trade(ABC):
             return f'TRADE: [{self.trade_type} - MARGIN] -- {self.security}: {self.amount + self.amount_borrowed} x {self.security_price} || {self.timestamp}'
         else:
             return f'TRADE: [{self.trade_type}] -- {self.security}: {self.amount + self.amount_borrowed} x {self.security_price} || {self.timestamp}'
+
+    def export(self) -> dict:
+        """
+        This method export the trade object to a JSONable dictionary.
+        :return: The object state as a dictionary
+        """
+        return {
+            "type": f"Trade.{self.trade_type.value}",
+            "security": self.security,
+            "security_price": self.security_price,
+            "amount": self.amount,
+            "amount_borrowed": self.amount_borrowed,
+            "transaction_id": self.transaction_id,
+            "trade_type": self.trade_type.value,
+            "margin_trade": self.margin_trade,
+            "timestamp": str(self.timestamp)
+        }
 
 
 

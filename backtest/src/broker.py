@@ -31,6 +31,17 @@ class MarginCall:
     def __repr__(self):
         return "MARGIN CALL"
 
+    def export(self) -> dict:
+        """
+        This method export the margin call object to a JSONable dictionary.
+        :return: The object state as a dictionary
+        """
+        return {
+            "type": "MarginCall",
+            "time_remaining": self.time_remaining,
+            "amount": self.amount
+        }
+
     def __eq__(self, other):
         if isinstance(other, int):
             return self.time_remaining == other
@@ -48,6 +59,18 @@ class BrokerState:
         self.margin_calls = margin_calls
         self.bankruptcy = bankruptcy
 
+    def export(self):
+        """
+        This method export the broker state object to a JSONable dictionary.
+        :return: The object state as a dictionary
+        """
+        return {
+            "type": "BrokerState",
+            "margin_calls": {key: value.export()
+                             for key, value in self.margin_calls.items()},
+            "bankruptcy": self.bankruptcy
+        }
+
 class StepState:
     """
     Record the state of the broker at each steps for easier strategy debugging
@@ -59,6 +82,21 @@ class StepState:
         self.orders = orders
         self.filled_orders = filled_orders
         self.margin_calls = margin_calls
+
+    def export(self) -> dict:
+        """
+        This method export the step state object to a JSONable dictionary.
+        :return: The object state as a dictionary
+        """
+        return {
+            "type": "StepState",
+            "timestamp": str(self.timestamp),
+            "worth": self.worth,
+            "orders": [order.export() for order in self.orders],
+            "filled_orders": [order.export() for order in self.filled_orders],
+            "margin_calls": {key: value.export()
+                             for key, value in self.margin_calls.items()}
+        }
 
 
 class Broker:
@@ -115,11 +153,15 @@ class Broker:
         self._last_day: Optional[date] = None           # Remember the last day so the broker knows how long
                                                         # elapsed between the last step and the current step to charge
                                                         # the correct amount of interest
-        
+        self._last_step = Optional[datetime] = None     # Remember the last step.
+
         self.message = BrokerState({}, False)
 
         # Stats
-        self.historical_states = List[StepState]
+        self.historical_states: List[StepState] = []
+
+        # Exposure time in days
+        self.exposure_time = 0
 
 
     def buy_long(self, ticker: str, amount: int, expiry: datetime, price_limit: Tuple[float, float] = (None, None),
@@ -166,6 +208,16 @@ class Broker:
 
         if self._last_day is None:
             self._last_day = timestamp.date()
+        else:
+            self.exposure_time += (timestamp.date() - self._last_day).days
+
+        if self._last_step is None:
+            self._last_step = timestamp
+        else:
+            # If portfolio is not empty, we add the time elapsed since the last step to the exposure time
+            if not self.portfolio.empty():
+                self.exposure_time += (timestamp - self._last_step).total_seconds() / 86_400
+
 
         # Step 1: Get the total borrowed money, cash and portfolio worth
         borrowed_money = sum(self._debt_record.values())
@@ -813,3 +865,29 @@ class Broker:
 
         else:
             return s
+
+    def get_state(self) -> dict:
+        """
+        Get the current state of the broker as a JSONable dictionary (deepcopy
+        Note:
+            - It doesn't include the account's state.
+        :return: The broker's state as a dictionary
+        """
+        return {
+            "portfolio": self.portfolio.get_state(),
+            "queued_trade_offers": [offer.export() for offer in self._queued_trade_offers],
+            "current_month": self._current_month,
+            "last_day": self._last_day,
+            "message": self.message.export(),
+            "debt_record": deepcopy(self._debt_record),
+            "historical_states": [state.export() for state in self.historical_states],
+            "liquidation_delay": self.liquidation_delay,
+            "min_initial_margin": self.min_initial_margin,
+            "min_maintenance_margin": self.min_maintenance_margin,
+            "min_initial_margin_short": self.min_initial_margin_short,
+            "min_maintenance_margin_short": self.min_maintenance_margin_short,
+            "margin_interest": self.margin_interest,
+            "comm": self._comm,
+            "relative": self._relative,
+            "n": self.n
+        }

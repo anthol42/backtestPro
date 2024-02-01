@@ -1,3 +1,6 @@
+import numpy as np
+import pandas as pd
+
 from .trade import Trade, BuyLong, BuyShort, SellLong, SellShort
 from copy import deepcopy
 from typing import Dict, Tuple, List, Union
@@ -93,6 +96,24 @@ class Position:
         else:
             raise NotImplementedError(f"Addition not implemented for type {type(other)}")
 
+    def export(self) -> dict:
+        """
+        Export the position to a dictionary JSONable
+        :return: The object as a dictionary
+        """
+        return {
+            "type": "Position",
+            "ticker": self.ticker,
+            "amount": self.amount,
+            "amount_borrowed": self.amount_borrowed,
+            "long": self.long,
+            "average_price": self.average_price,
+            "on_margin": self.on_margin,
+            "average_filled_time": str(self.average_filled_time),
+            "last_dividends_dt": str(self.last_dividends_dt)
+
+        }
+
 
 class TradeStats:
     """
@@ -109,6 +130,20 @@ class TradeStats:
         self.duration = duration
         self.profit = profit
         self.rel_profit = rel_profit
+
+    def export(self):
+        """
+        Export the object to a JSONable dictionary
+        Note: The duration is saved in seconds
+        :return: A dictionary corresponding top the object's state
+        """
+        return {
+            "type": "TradeStats",
+            "trade": self.trade.export(),
+            "duration": self.duration.total_seconds(),
+            "profit": self.profit,
+            "rel_profit": self.rel_profit
+        }
 
 class Portfolio:
     """
@@ -246,3 +281,91 @@ class Portfolio:
             out[1] = deepcopy(self._short[item])
 
         return tuple(out)
+
+    def get_trades(self):
+        """
+        To get the list of trades.  (Make a deep copy)
+        :return: the list of rades
+        """
+        return deepcopy(self._trades)
+
+    def get_trade_count(self, exit_only: bool = True):
+        """
+        To get the number of trades made.
+        :param exit_only: If True, Only the trade that exit a position are counted
+        :return: The number of trades
+        """
+        if exit_only:
+            return len([trade for trade in self._trades if isinstance(trade, TradeStats)])
+        else:
+            return len(self._trades)
+
+    def get_trade_stats(self) -> dict:
+        """
+        To get the stats for each trade.  (Make a deep copy)
+        :return: The dictionary of trades: {
+            "best_trade": float,    # In percentage
+            "worst_trade": float,   # In percentage
+            "win_rate": float,      # In percentage
+            "avg_trade": float,     # In percentage
+            "max_trade_duration": float,    # In days
+            "min_trade_duration": float,    # In days
+            "avg_trade_duration": float,    # In days
+            "profit_factor": float, # Total gains / Total losses
+            "SQN": float,           # System Quality Number
+        }
+        """
+        rel_profit = [trade.rel_profit for trade in self._trades if isinstance(trade, TradeStats)]
+        abs_profit = np.array([trade.profit for trade in self._trades if isinstance(trade, TradeStats)], dtype=np.float32)
+        duration_seconds = [trade.duration.total_seconds() for trade in self._trades if isinstance(trade, TradeStats)]
+        # df = pd.DataFrame({"Relative Profit": rel_profit, "Absolute Profit": abs_profit, "Duration": duration})
+        best_trade = max(rel_profit)
+        worst_trade = min(rel_profit)
+        win_rate = len([x for x in rel_profit if x > 0]) / len(rel_profit)
+        avg_trade = sum(rel_profit) / len(rel_profit)
+        max_trade_duration = max(duration_seconds) / 86_400    # In days
+        min_trade_duration = min(duration_seconds) / 86_400    # In days
+        avg_trade_duration = (sum(duration_seconds) / len(duration_seconds)) / 86_400    # In days
+        total_gains = abs_profit[abs_profit > 0].sum()
+        total_losses = abs_profit[abs_profit < 0].sum()
+        rel_profit = np.array(rel_profit, dtype=np.float32)
+        sqn = np.sqrt(self.get_trade_count(exit_only=True)) * rel_profit.mean() / (rel_profit.std() or np.nan)
+        if total_losses == 0:
+            profit_factor = total_gains
+        else:
+            profit_factor = total_gains / abs(total_losses)
+        return {
+            "best_trade": best_trade,
+            "worst_trade": worst_trade,
+            "win_rate": win_rate,
+            "avg_trade": avg_trade,
+            "max_trade_duration": max_trade_duration,
+            "min_trade_duration": min_trade_duration,
+            "avg_trade_duration": avg_trade_duration,
+            "profit_factor": profit_factor,
+            "SQN": sqn
+        }
+
+    def get_state(self) -> dict:
+        """
+        Return the state of the portfolio.  (Make a deep copy)
+        :return: The state of the portfolio as a dict
+        """
+        return {
+            "type": "Portfolio",
+            "long": {ticker: pos.export() for ticker, pos in self._long.items()},
+            "short": {ticker: pos.export() for ticker, pos in self._short.items()},
+            "debt_record": deepcopy(self._debt_record),
+            "trades": [{"type": trade.__class__.__name__, **trade.export()} for trade in self._trades],
+            "transaction_cost": self._transaction_cost,
+            "transaction_relative": self._relative
+        }
+
+
+    def empty(self) -> bool:
+        """
+        To check if the portfolio is empty
+        :return: True if the portfolio is empty, False otherwise
+        """
+        return len(self._long) == 0 and len(self._short) == 0
+

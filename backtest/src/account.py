@@ -12,6 +12,18 @@ class CollateralUpdate:
         self.dt = dt
         self.message = message
 
+    def export(self) -> dict:
+        """
+        This method export the trade order object to a JSONable dictionary.
+        :return: The object's state as a dictionary
+        """
+        return {
+            "type": "CollateralUpdate",
+            "amount": self.amount,
+            "dt": str(self.dt),
+            "message": self.message
+        }
+
 class Account:
     def __init__(self, initial_cash: float = 100_000, allow_debt: bool = False):
         self._cash = initial_cash
@@ -96,3 +108,16 @@ class Account:
 
     def __str__(self):
         return f"BankAccount: {round(self._cash, 2)}$"
+
+    def get_state(self) -> dict:
+        """
+        This method export the account object to a JSONable dictionary.
+        :return: The object state as a dictionary
+        """
+        return {
+            "cash": self._cash,
+            "collateral": self._collateral,
+            "transactions": [t.export() for t in self._transactions],
+            "collateral_history": [c.export() for c in self._collateral_history],
+            "account_worth": self._account_worth
+        }

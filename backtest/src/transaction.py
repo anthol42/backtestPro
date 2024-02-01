@@ -5,6 +5,9 @@ class TransactionType(Enum):
     DEPOSIT = 'DEPOSIT'
     WITHDRAWAL = 'WITHDRAWAL'
 
+    def __str__(self):
+        return self.value
+
 class Transaction:
     """
     Data class
@@ -21,3 +24,17 @@ class Transaction:
             return f"{self.t} {round(self.amount, 2)}$, {self.dt}, comment='{self.comment}'"
         else:
             return f"{self.t} {round(self.amount, 2)}$, {self.dt}"
+
+    def export(self) -> dict:
+        """
+        This method export the trade order object to a JSONable dictionary.
+        :return: The object's state as a dictionary
+        """
+        return {
+            "type": f"Transaction.{self.t.value}",
+            "amount": self.amount,
+            "dt": str(self.dt),
+            "transaction_id": self.transaction_id,
+            "comment": self.comment,
+            "t": self.t.value
+        }
