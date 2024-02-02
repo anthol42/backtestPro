@@ -4,9 +4,11 @@ import numpy.typing as npt
 from .broker import Broker
 from .account import Account
 from .metadata import Metadata
+from .tsData import TSData
+from .analyser import Analyser
 import pandas as pd
 from enum import Enum
-from typing import Union
+from typing import Union, List, Dict
 import json
 from pathlib import PurePath
 from utils import *
@@ -289,3 +291,22 @@ class BackTestResult:
             path = path + ".bktst"
         with open(path, "w") as f:
             json.dump(self.get_state(), f, indent=4)
+
+    @classmethod
+    def load(cls, path: str):
+        """
+        Load a backtest result from a JSON file
+        :param path: The path to the backtest result file
+        :return: The backtest result
+        """
+        with open(path, "r") as f:
+            data = json.load(f)
+        return cls.load_state(data)
+
+
+    def toAnalyser(self, data: List[Dict[str, TSData]]):
+        """
+        Convert the backtest result to an analyser object to visualize the backtest results
+        :return: The analyser object
+        """
+        return Analyser(data, self.get_state())

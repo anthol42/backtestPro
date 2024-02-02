@@ -3,3 +3,4 @@ numpy
 matplotlib
 psutil
 py-cpuinfo
+mplfinance
