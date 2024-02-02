@@ -130,3 +130,25 @@ class Metadata:
             "features": self.features,
             "run_duration": self.run_duration
         }
+
+    @classmethod
+    def load(cls, data: dict):
+        """
+        This method load the metadata from a dictionary.
+        :param data: The dictionary to load the metadata from.
+        :return: The metadata object
+        """
+        metadata = cls()
+        metadata.strategy_name = data["strategy_name"]
+        metadata.description = data["description"]
+        metadata.author = data["author"]
+        metadata.version = data["version"]
+        metadata.time_res = data["time_res"]
+        metadata.save_code = data["save_code"]
+        metadata.hash_only = data["hash_only"]
+        metadata.code = data["code"]
+        metadata.backtest_parameters = data["backtest_parameters"]
+        metadata.tickers = data["tickers"]
+        metadata.features = data["features"]
+        metadata.run_duration = data["run_duration"]
+        return metadata

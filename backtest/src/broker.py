@@ -1,16 +1,13 @@
 import numpy as np
-import pandas as pd
-
-from .transaction import Transaction, TransactionType
 from .account import Account
-from .trade import (BuyLong, BuyShort, SellShort, SellLong, BuyLongOrder, SellLongOrder, BuyShortOrder, SellShortOrder,
-                    TradeOrder, TradeType)
+from .trade import BuyLongOrder, SellLongOrder, BuyShortOrder, SellShortOrder, TradeOrder, TradeType
 from .portfolio import Portfolio, Position
-from datetime import timedelta, datetime, date
-from typing import Dict, Tuple, List, Union, Optional
+from datetime import datetime, date
+from typing import Dict, Tuple, List, Optional
 from copy import deepcopy
 import numpy.typing as npt
 from .tsData import DividendFrequency
+
 
 class MarginCall:
     """
@@ -42,6 +39,15 @@ class MarginCall:
             "amount": self.amount
         }
 
+    @classmethod
+    def load(cls, data: dict):
+        """
+        This method load a margin call object from a dictionary.
+        :param data: The dictionary containing the object state
+        :return: The object state as a dictionary
+        """
+        return MarginCall(data["time_remaining"], data["amount"])
+
     def __eq__(self, other):
         if isinstance(other, int):
             return self.time_remaining == other
@@ -71,6 +77,15 @@ class BrokerState:
             "bankruptcy": self.bankruptcy
         }
 
+    @classmethod
+    def load(cls, data: dict):
+        """
+        This method load a broker state object from a dictionary.
+        :param data: The dictionary containing the object state
+        :return: The object state as a dictionary
+        """
+        return BrokerState({key: MarginCall.load(value) for key, value in data["margin_calls"].items()}, data["bankruptcy"])
+
 class StepState:
     """
     Record the state of the broker at each steps for easier strategy debugging
@@ -97,6 +112,18 @@ class StepState:
             "margin_calls": {key: value.export()
                              for key, value in self.margin_calls.items()}
         }
+
+    @classmethod
+    def load(cls, data: dict):
+        """
+        This method load a step state object from a dictionary.
+        :param data: The dictionary containing the object state
+        :return: The object state as a dictionary
+        """
+        return StepState(datetime.fromisoformat(data["timestamp"]), data["worth"],
+                         [TradeOrder.load(order) for order in data["orders"]],
+                         [TradeOrder.load(order) for order in data["filled_orders"]],
+                         {key: MarginCall.load(value) for key, value in data["margin_calls"].items()})
 
 
 class Broker:
@@ -891,3 +918,30 @@ class Broker:
             "relative": self._relative,
             "n": self.n
         }
+
+    @classmethod
+    def load_state(cls, data: dict, account: Account):
+        """
+        Load a broker from a state dictionary
+        :param data: The state dictionary
+        :param account: The account to which the broker is linked (Loaded by the BacktestResult object)
+        :return: The broker
+        """
+        broker = cls(account)
+        broker._debt_record = deepcopy(data["debt_record"])
+        broker.portfolio = Portfolio.load_state(data["portfolio"], broker._debt_record)
+        broker._queued_trade_offers = [TradeOrder.load(offer) for offer in data["queued_trade_offers"]]
+        broker._current_month = data["current_month"]
+        broker._last_day = data["last_day"]
+        broker.message = BrokerState.load(data["message"])
+        broker.historical_states = [StepState.load(state) for state in data["historical_states"]]
+        broker.liquidation_delay = data["liquidation_delay"]
+        broker.min_initial_margin = data["min_initial_margin"]
+        broker.min_maintenance_margin = data["min_maintenance_margin"]
+        broker.min_initial_margin_short = data["min_initial_margin_short"]
+        broker.min_maintenance_margin_short = data["min_maintenance_margin_short"]
+        broker.margin_interest = data["margin_interest"]
+        broker._comm = data["comm"]
+        broker._relative = data["relative"]
+        broker.n = data["n"]
+        return broker

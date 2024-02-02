@@ -29,7 +29,7 @@ New way to backtest stock trading strategies.
     - [X] Make exports methods in child class
     - [X] Make metadata class
     - [ ] Enable loading the whole state from a backtest file
-  - [ ] Implement saving and stats recording in backtest class (run method)
+  - [X] Implement saving and stats recording in backtest class (run method)
 - [ ] Make a way to show trades using matplotlib
 - [ ] Unit tests.  Make sure to test all edge cases.
 - [X] Package all stats, run info, meta data, config, states over the simulation and debug info in a json file format

@@ -43,8 +43,35 @@ class TradeOrder(ABC):
             "amount": self.amount,
             "amount_borrowed": self.amount_borrowed,
             "trade_type": self.trade_type.value,
-            "expiry": str(self.expiry)
+            "expiry": str(self.expiry),
+            "margin_trade": self.margin_trade
         }
+
+    @classmethod
+    def load(cls, data: dict):
+        """
+        This method loads a trade order object from a dictionary.
+        :param data: The dictionary containing the object state
+        :return: The object
+        """
+        trade_type = TradeType(data["trade_type"])
+        if trade_type == TradeType.BuyLong:
+            self = BuyLongOrder(data["security"], data["security_price_limit"], data["amount"], data["amount_borrowed"],
+                       datetime.fromisoformat(data["expiry"]))
+        elif trade_type == TradeType.SellLong:
+            self = SellLongOrder(data["security"], data["security_price_limit"], data["amount"], data["amount_borrowed"],
+                       datetime.fromisoformat(data["expiry"]))
+        elif trade_type == TradeType.SellShort:
+            self = SellShortOrder(data["security"], data["security_price_limit"], data["amount"], data["amount_borrowed"],
+                       datetime.fromisoformat(data["expiry"]))
+        elif trade_type == TradeType.BuyShort:
+            self = BuyShortOrder(data["security"], data["security_price_limit"], data["amount"], data["amount_borrowed"],
+                       datetime.fromisoformat(data["expiry"]))
+        else:
+            self = cls(data["security"], data["security_price_limit"], data["amount"], data["amount_borrowed"], trade_type,
+                       datetime.fromisoformat(data["expiry"]))
+        self.margin_trade = data["margin_trade"]
+        return self
 
 class BuyLongOrder(TradeOrder):
     def __init__(self, security: str, security_price_limit: Tuple[float, float], amount: int, amount_borrowed: int,
@@ -103,6 +130,32 @@ class Trade(ABC):
             "margin_trade": self.margin_trade,
             "timestamp": str(self.timestamp)
         }
+
+    @classmethod
+    def load(cls, data: dict):
+        """
+        This method loads a trade object from a dictionary.
+        :param data: The dictionary containing the object state
+        :return: The object
+        """
+        trade_type = TradeType(data["trade_type"])
+        if trade_type == TradeType.BuyLong:
+            self = BuyLong(data["security"], data["security_price"], data["amount"], data["amount_borrowed"],
+                       data["transaction_id"], datetime.fromisoformat(data["timestamp"]))
+        elif trade_type == TradeType.SellLong:
+            self = SellLong(data["security"], data["security_price"], data["amount"], data["amount_borrowed"],
+                       data["transaction_id"], datetime.fromisoformat(data["timestamp"]))
+        elif trade_type == TradeType.SellShort:
+            self = SellShort(data["security"], data["security_price"], data["amount"], data["amount_borrowed"],
+                       data["transaction_id"], datetime.fromisoformat(data["timestamp"]))
+        elif trade_type == TradeType.BuyShort:
+            self = BuyShort(data["security"], data["security_price"], data["amount"], data["amount_borrowed"],
+                       data["transaction_id"], datetime.fromisoformat(data["timestamp"]))
+        else:
+            self = cls(data["security"], data["security_price"], data["amount"], data["amount_borrowed"], data["transaction_id"],
+                       datetime.fromisoformat(data["timestamp"]), trade_type)
+        self.margin_trade = data["margin_trade"]
+        return self
 
 
 

@@ -44,6 +44,7 @@ class BackTestResult:
         # About the backtest (Including steps to reproduce, environment conditions, etc.)
         self.metadata = metadata
         self.strategy_name = strategy_name
+        self.initial_cash = intial_cash
 
         # Unique values
         self.start = start
@@ -216,7 +217,8 @@ class BackTestResult:
                 "run_timestamp": str(datetime.now()),
                 "broker": self.broker_state,
                 "account": self.account_state,
-                "equity_history": self.equity_history
+                "equity_history": self.equity_history,
+                "market_index": self.market_index.tolist()
             },
             "sys_info":{
                 "software": {
@@ -227,6 +229,48 @@ class BackTestResult:
                 "hardware": get_hardware()
             }
         }
+
+    @classmethod
+    def load_state(cls, data: dict):
+        """
+        Load a backtest result from a state dictionary
+        :param data: The state dictionary
+        :return: The backtest result
+        """
+        metadata = Metadata.load(data["metadata"])
+        broker = Broker.load_state(data["run_states"]["broker"])
+        account = Account.load_state(data["run_states"]["account"])
+        self = cls(data["stats"]["strategy_name"], metadata, datetime.fromisoformat(data["stats"]["start"]),
+                   datetime.fromisoformat(data["stats"]["end"]), data["metadata"]["backtest_parameters"]["initial_cash"],
+                   np.array(data["run_states"]["market_index"]), broker, account,
+                   risk_free_rate=data["metadata"]["backtest_parameters"]["risk_free_rate"])
+
+        self.equity_history = data["run_states"]["equity_history"]
+        self.start = datetime.fromisoformat(data["stats"]["start"])
+        self.end = datetime.fromisoformat(data["stats"]["end"])
+        self.duration = self.end - self.start
+        self.exposure_time = timedelta(seconds=float(data["stats"]["exposure_time"]))
+        self.equity_final = data["stats"]["equity_final"]
+        self.equity_peak = data["stats"]["equity_peak"]
+        self.returns = data["stats"]["returns"]
+        self.index_returns = data["stats"]["index_returns"]
+        self.annual_returns = data["stats"]["annual_returns"]
+        self.sharp_ratio = data["stats"]["sharp_ratio"]
+        self.sortino_ratio = data["stats"]["sortino_ratio"]
+        self.max_drawdown = data["stats"]["max_drawdown"]
+        self.avg_drawdown = data["stats"]["avg_drawdown"]
+        self.calmar_ratio = data["stats"]["calmar_ratio"]
+        self.num_trades = data["stats"]["num_trades"]
+        self.win_rate = data["stats"]["win_rate"]
+        self.best_trade = data["stats"]["best_trade"]
+        self.worst_trade = data["stats"]["worst_trade"]
+        self.avg_trade = data["stats"]["avg_trade"]
+        self.max_trade_duration = data["stats"]["max_trade_duration"]
+        self.avg_trade_duration = data["stats"]["avg_trade_duration"]
+        self.min_trade_duration = data["stats"]["min_trade_duration"]
+        self.profit_factor = data["stats"]["profit_factor"]
+        self.sqn = data["stats"]["sqn"]
+        return self
 
     def save(self, path: str):
         """

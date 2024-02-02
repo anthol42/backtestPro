@@ -24,6 +24,15 @@ class CollateralUpdate:
             "message": self.message
         }
 
+    @classmethod
+    def load(cls, data: dict):
+        """
+        This method load a CollateralUpdate object from a dictionary.
+        :param data: The dictionary to load from
+        :return: The CollateralUpdate object
+        """
+        return cls(data["amount"], datetime.fromisoformat(data["dt"]), data["message"])
+
 class Account:
     def __init__(self, initial_cash: float = 100_000, allow_debt: bool = False):
         self._cash = initial_cash
@@ -115,9 +124,27 @@ class Account:
         :return: The object state as a dictionary
         """
         return {
+            "type": "Account",
             "cash": self._cash,
             "collateral": self._collateral,
             "transactions": [t.export() for t in self._transactions],
             "collateral_history": [c.export() for c in self._collateral_history],
-            "account_worth": self._account_worth
+            "account_worth": self._account_worth,
+            "allow_debt": self._allow_debt
         }
+
+    @classmethod
+    def load_state(cls, dict_data: dict):
+        """
+        This method load a Account object from a dictionary.
+        :param dict_data: The dictionary to load from
+        :return: The Account object
+        """
+        account = cls()
+        account._cash = dict_data["cash"]
+        account._collateral = dict_data["collateral"]
+        account._transactions = [Transaction.load(t) for t in dict_data["transactions"]]
+        account._collateral_history = [CollateralUpdate.load(c) for c in dict_data["collateral_history"]]
+        account._account_worth = dict_data["account_worth"]
+        account._allow_debt = dict_data["allow_debt"]
+        return account

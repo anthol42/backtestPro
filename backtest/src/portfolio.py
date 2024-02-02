@@ -111,8 +111,19 @@ class Position:
             "on_margin": self.on_margin,
             "average_filled_time": str(self.average_filled_time),
             "last_dividends_dt": str(self.last_dividends_dt)
-
         }
+    @classmethod
+    def load(cls, data: dict):
+        """
+        Load the object from a dictionary
+        :param data: The dictionary to load from
+        :return: The object
+        """
+        self = cls(data["ticker"], data["amount"], data["amount_borrowed"], data["long"], data["average_price"],
+                   datetime.fromisoformat(data["average_filled_time"]))
+        self.last_dividends_dt = datetime.fromisoformat(data["last_dividends_dt"])
+        self.on_margin = data["on_margin"]
+        return self
 
 
 class TradeStats:
@@ -145,6 +156,17 @@ class TradeStats:
             "rel_profit": self.rel_profit
         }
 
+    @classmethod
+    def load(cls, data: dict):
+        """
+        Load the object from a dictionary
+        :param data: The dictionary to load from
+        :return: The object
+        """
+        trade = Trade.load(data["trade"])
+        duration = timedelta(seconds=data["duration"])
+        return cls(trade, duration, data["profit"], data["rel_profit"])
+
 class Portfolio:
     """
     This  class will have two sub portfolios: long and short.  When 'trade' is called, it will add or remove in the
@@ -155,7 +177,7 @@ class Portfolio:
         """
         :param transaction_cost: The cost of a transaction (buy or sell) in $ or in %
         :param transaction_relative: Whether the transaction cost is in percentage relative to transaction cost or fix price
-        :param debt_record: The amount of debt used to buy securities: {security: amount}.  Passed by reference.
+        :param debt_record: The amount of debt used to buy securities: {security: amount}.  Passed by reference from broker.
         """
         # Keys will be security (ticker) and the value will be Equity data object
         self._long: Dict[str, Position] = {}
@@ -351,16 +373,29 @@ class Portfolio:
         Return the state of the portfolio.  (Make a deep copy)
         :return: The state of the portfolio as a dict
         """
+        # Debt record is saved by the Broker
         return {
             "type": "Portfolio",
             "long": {ticker: pos.export() for ticker, pos in self._long.items()},
             "short": {ticker: pos.export() for ticker, pos in self._short.items()},
-            "debt_record": deepcopy(self._debt_record),
             "trades": [{"type": trade.__class__.__name__, **trade.export()} for trade in self._trades],
             "transaction_cost": self._transaction_cost,
             "transaction_relative": self._relative
         }
-
+    @classmethod
+    def load_state(cls, data: dict, debt_record: Dict[str, float]):
+        """
+        Load the state of the portfolio from a dictionary
+        :param data: The dictionary to load from
+        :param debt_record: The amount of debt used to buy securities: {security: amount}.  Passed by reference from broker.
+        :return: The portfolio object
+        """
+        # Debt record is loaded by the broker
+        self = cls(data["transaction_cost"], data["transaction_relative"], debt_record)
+        self._long = {ticker: Position.load(pos) for ticker, pos in data["long"].items()}
+        self._short = {ticker: Position.load(pos) for ticker, pos in data["short"].items()}
+        self._trades = [Trade.load(trade) for trade in data["trades"]]
+        return self
 
     def empty(self) -> bool:
         """
