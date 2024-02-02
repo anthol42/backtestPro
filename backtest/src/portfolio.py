@@ -231,10 +231,10 @@ class Portfolio:
         """
         if self._relative:
             gain = (average_buy_price*qty - average_sell_price*qty) * (1 - self._transaction_cost)
-            return gain, gain / average_sell_price
+            return gain, 100 * gain / average_sell_price
         else:
             gain = (average_buy_price*qty - average_sell_price*qty) - self._transaction_cost
-            return gain, gain / average_sell_price
+            return gain, 100 * gain / average_sell_price
 
     def getLongProfit(self, average_buy_price: float, average_sell_price: float, qty: int, debt) -> Tuple[float, float]:
         """
@@ -243,14 +243,14 @@ class Portfolio:
         :param average_sell_price: The price at which the security was sold
         :param qty: The number of shares in the trade
         :param debt: The amount of debt used to buy the security
-        :return: The profit (positive) or loss (negative) made on the trade, relative profit
+        :return: The profit (positive) or loss (negative) made on the trade, relative profit in percentage
         """
         if self._relative:
             gain = (average_sell_price*qty - average_buy_price*qty) * (1 - self._transaction_cost) - debt
-            return gain, gain / average_buy_price
+            return gain, 100 * gain / average_buy_price
         else:
             gain = (average_sell_price*qty - average_buy_price*qty) - self._transaction_cost - debt
-            return gain, gain / average_buy_price
+            return gain, 100 * gain / average_buy_price
 
     def getShort(self) -> Dict[str, Position]:
         """
@@ -329,7 +329,7 @@ class Portfolio:
         total_gains = abs_profit[abs_profit > 0].sum()
         total_losses = abs_profit[abs_profit < 0].sum()
         rel_profit = np.array(rel_profit, dtype=np.float32)
-        sqn = np.sqrt(self.get_trade_count(exit_only=True)) * rel_profit.mean() / (rel_profit.std() or np.nan)
+        sqn = np.sqrt(self.get_trade_count(exit_only=True)) * (rel_profit.mean() / 100) / ((rel_profit / 100).std() or np.nan)
         if total_losses == 0:
             profit_factor = total_gains
         else:

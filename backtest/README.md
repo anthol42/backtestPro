@@ -27,7 +27,7 @@ New way to backtest stock trading strategies.
     - [X] If For the current timestep, the main resolution series is all nan, ignore stock.
   - [ ] Implement backtestResult class to save all stats and run info (Plus saving method)
     - [X] Make exports methods in child class
-    - [ ] Make metadata class
+    - [X] Make metadata class
     - [ ] Enable loading the whole state from a backtest file
   - [ ] Implement saving and stats recording in backtest class (run method)
 - [ ] Make a way to show trades using matplotlib

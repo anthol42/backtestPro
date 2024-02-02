@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import numpy as np
 import numpy.typing as npt
 from .broker import Broker
+from .account import Account
 from .metadata import Metadata
 import pandas as pd
 from enum import Enum
@@ -21,8 +22,21 @@ class Period(Enum):
 
 
 class BackTestResult:
-    def __init__(self, strategy_name: str, metadata: Metadata, start: datetime, end: datetime,  exposure_time: float, intial_cash: float,
-                 index_returns: float, broker: Broker, risk_free_rate: float = 1.5):
+    def __init__(self, strategy_name: str, metadata: Metadata, start: datetime, end: datetime, intial_cash: float,
+                 market_index: npt.NDArray[np.float64], broker: Broker, account: Account,
+                 risk_free_rate: float = 1.5):
+        """
+        This class is used to store the result of a backtest.  It contains all the information about the backtest
+        :param strategy_name: The name of the strategy
+        :param metadata: The metadata object
+        :param start: Start date of the backtest data
+        :param end: End date of the backtest data
+        :param intial_cash: The initial cash of the account
+        :param market_index: The market index time series (Price/score evolution across time)
+        :param broker: The broker object used to backtest the strategy
+        :param account: The account object used to backtest the strategy
+        :param risk_free_rate: The risk free rate used to compute the ratios [%].  (Usually the estimated policy rate)
+        """
 
         equity_history = np.array([stepState.worth for stepState in broker.historical_states])
         timestamps = np.array([stepState.timestamp for stepState in broker.historical_states])
@@ -35,11 +49,12 @@ class BackTestResult:
         self.start = start
         self.end = end
         self.duration = end - start    # Total duration of simulation
-        self.exposure_time = exposure_time
+        self.exposure_time = broker.exposure_time
         self.equity_final = equity_history[-1]
         self.equity_peak = equity_history.max()
-        self.returns = 100 * (equity_history[-1] - intial_cash) / intial_cash
-        self.index_returns = index_returns    # Buy and hold
+        self.returns = 100 * ((equity_history[-1] - intial_cash) / intial_cash).item
+        self.market_index = market_index
+        self.index_returns = 100 * (market_index[-1] - market_index[0]) / market_index[0]    # Buy and hold
         self.annual_returns = self._get_annual_returns(self.duration, self.returns)
         self.sharp_ratio = (self.annual_returns - risk_free_rate) / np.std(equity_history)
         self.sortino_ratio = self.compute_sortino_ratio(risk_free_rate)
@@ -68,8 +83,8 @@ class BackTestResult:
 
         # Series
         self.broker = broker
+        self.account_state = account.get_state()
         self.broker_state = broker.get_state()
-        self.account_state = broker.account.get_state()
         self.equity_history = equity_history.tolist()
 
     @staticmethod
@@ -78,10 +93,10 @@ class BackTestResult:
         Get the annual returns of a strategy
         :param duration: The duration of the simulation
         :param returns: The overall returns of the strategy
-        :return: The annual returns of the strategy (esperance)
+        :return: The annual returns of the strategy (esperance) in percentage
         """
         duration_in_years = duration.total_seconds() / (365*86_400)
-        return np.exp(np.log(returns) / duration_in_years)
+        return 100 * np.exp(np.log(returns) / duration_in_years)
 
 
     def get_ohlc(self, period: Period):
@@ -115,8 +130,9 @@ class BackTestResult:
         equity_ohlc = self.get_ohlc(Period.Yearly)
         diff = equity_ohlc["close"].diff()
         diff[0] = equity_ohlc["close"].iloc[0] - equity_ohlc["open"].iloc[0]
-        downside = diff[diff < 0].to_numpy()
-        downside_deviation = (downside ** 2).sum() / len(diff)
+        diff_percentage = 100 * diff / equity_ohlc["close"].shift(1)
+        downside = diff_percentage[diff_percentage < 0].to_numpy()
+        downside_deviation = (downside ** 2).sum() / len(diff_percentage)
         return (self.annual_returns - risk_free_rate) / downside_deviation
 
     def compute_calmar_ratio(self, yearly_max_drawdown: pd.Series) -> float:
@@ -127,7 +143,7 @@ class BackTestResult:
         """
         equity_ohlc = self.get_ohlc(Period.Yearly)
         diff = equity_ohlc["close"].diff()
-        diff_percentage = diff / equity_ohlc["close"].shift(1)
+        diff_percentage = 100 * diff / equity_ohlc["close"].shift(1)
         diff_percentage[0] = (equity_ohlc["close"].iloc[0] - equity_ohlc["open"].iloc[0]) / equity_ohlc["open"].iloc[0]
         assert diff.shape == yearly_max_drawdown.shape
         return (diff_percentage / yearly_max_drawdown).mean()
@@ -168,7 +184,7 @@ class BackTestResult:
 
     def get_state(self) -> dict:
         return {
-            "metadata": self.metadata.export(),    # TODO: create metadata class
+            "metadata": self.metadata.export(),
             "stats":{
                 "strategy_name": self.strategy_name,
                 "start": str(self.start),

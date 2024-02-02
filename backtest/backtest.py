@@ -11,12 +11,15 @@ from src.backtestResult import BackTestResult
 from src.record import Record
 from tqdm import tqdm
 import warnings
+from src.metadata import Metadata
 
 class UnexpectedBehaviorRisk(Warning):
     pass
 
 class BackTest:
-    def __init__(self, data: List[Dict[str, TSData]], strategy: Type[Strategy], *, main_timestep: int = 0,
+    def __init__(self, data: List[Dict[str, TSData]], strategy: Type[Strategy], *, metadata: Metadata = Metadata(),
+                 market_index: TSData = None,
+                 main_timestep: int = 0,
                  initial_cash: float = 100_000,
                  commission: float = None,
                  relative_commission: float = None, margin_interest: float = 0,
@@ -25,10 +28,13 @@ class BackTest:
                  min_maintenance_margin_short: float = 0.25,
                  broker: Type[Broker] = Broker, account: Type[Account] = Account,
                  window: int = 50, default_marginable: bool = False,
-                 default_shortable: bool = False):
+                 default_shortable: bool = False,
+                 risk_free_rate: float = 1.5):
 
         self._data = data
         self._initial_cash = initial_cash
+        self.market_index = market_index
+        self.risk_free_rate = risk_free_rate
         self.account = account(initial_cash)
         self.broker = broker(self.account, commission, relative_commission, margin_interest, min_initial_margin,
                              min_maintenance_margin, liquidation_delay, min_initial_margin_short,
@@ -44,6 +50,23 @@ class BackTest:
         self.default_marginable = default_marginable
         # Use this value if it is not specified in the data (Column Shorable)
         self.default_shortable = default_shortable
+        self.metadata = metadata
+        self._backtest_parameters = {
+            "strategy": strategy.__class__.__name__,
+            "main_timestep": main_timestep,
+            "initial_cash": initial_cash,
+            "commission": commission,
+            "relative_commission": relative_commission,
+            "margin_interest": margin_interest,
+            "min_initial_margin": min_initial_margin,
+            "min_maintenance_margin": min_maintenance_margin,
+            "liquidation_delay": liquidation_delay,
+            "min_initial_margin_short": min_initial_margin_short,
+            "min_maintenance_margin_short": min_maintenance_margin_short,
+            "window": window,
+            "default_marginable": default_marginable,
+            "default_shortable": default_shortable
+        }
 
     def _step(self, i: int, timestep: datetime):
         # Step 1: Prepare the data
@@ -98,10 +121,14 @@ class BackTest:
         returned value of this method.
         :return: BackTestResult object containing all the results, statistics, debug info, etc.
         """
-
+        start = datetime.now()
         # Step 1: Initialization
         # Initialize strategy
         self.strategy.init()
+
+        # For metadata
+        features = None
+        tickers = None
         timesteps_list = []
         # Evaluate if data is valid + make timestep list.
         available_time_res: List[timedelta] = []
@@ -127,22 +154,43 @@ class BackTest:
                 ts.data = self.reverse_split_norm(ts.data)
 
                 if i == self.main_timestep:
+                    if features is None:
+                        features = list(ts.data.columns)
+                    if tickers is None:
+                        tickers = list(ts_group.keys())
                     if len(ts.data) > len(timesteps_list):
                         timesteps_list = list(ts.data.index)
         self.available_time_res = available_time_res
 
-        # Optionnaly reformat timesteps_list.  Can be useful when indexes are variable across stocks
+        # This adds freedom to the user if he has custom data
         timesteps_list = self.stadardize_timesteps(timesteps_list)
+
+        # Initialize metadata with dynamic parameters
+        self.metadata.init(backtest_parameters=self._backtest_parameters, tickers=tickers, features=features)
+        if self.metadata.strategy_name is None:
+            self.metadata.strategy_name = self.strategy.__class__.__name__
+        if self.metadata.time_res is None:
+            self.metadata.time_res = self.available_time_res[self.main_timestep].total_seconds()
+
+
         # Step 2: Run simulation
         for i, timestep in enumerate(tqdm(timesteps_list, desc="Backtesting...")):
             self._step(i, timestep)
 
 
         # Step 3: Prepare and save stats
+        market_worth = self.market_index.data["Close"].loc[timesteps_list[0]:timesteps_list[-1]].to_numpy()
+        market_worth[0] = self.market_index.data["Open"].iloc[0]
+        self.results = BackTestResult(self.metadata.strategy_name, metadata=self.metadata, start=timesteps_list[0],
+                                      end=timesteps_list[-1], intial_cash=self._initial_cash, market_index=market_worth,
+                                      broker=self.broker, account=self.account,
+                                      risk_free_rate=self.risk_free_rate)
+        end = datetime.now()
+        run_duration = (end - start).total_seconds()
 
-
-
-
+        # Now we can set the duration (After everything has been computed)
+        self.results.metadata.run_duration = run_duration
+        return self.results
     def _prepare_data(self, data: List[Dict[str, TSData]], current_time_res: int, timestep: datetime) -> List[Record]:
         """
         Prepare the data for the current timestep.  This method assumes that nan are padding.  This means that it is
