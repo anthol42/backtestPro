@@ -166,9 +166,8 @@ class BackTest:
         timesteps_list = self.stadardize_timesteps(timesteps_list)
 
         # Initialize metadata with dynamic parameters
-        self.metadata.init(backtest_parameters=self._backtest_parameters, tickers=tickers, features=features)
-        if self.metadata.strategy_name is None:
-            self.metadata.strategy_name = self.strategy.__class__.__name__
+        self.metadata.init(self.strategy, backtest_parameters=self._backtest_parameters, tickers=tickers, features=features)
+
         if self.metadata.time_res is None:
             self.metadata.time_res = self.available_time_res[self.main_timestep].total_seconds()
 

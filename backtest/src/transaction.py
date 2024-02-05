@@ -56,3 +56,7 @@ class Transaction:
         """
         return cls(data["amount"], TransactionType.from_str(data["t"]), datetime.fromisoformat(data["dt"]),
                    data["transaction_id"], data["comment"])
+
+
+    def __eq__(self, other):
+        return self.amount == other.amount and self.t == other.t and self.dt == other.dt and self.transaction_id == other.transaction_id and self.comment == other.comment

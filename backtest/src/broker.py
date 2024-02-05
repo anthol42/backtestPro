@@ -208,7 +208,7 @@ class Broker:
         self._queued_trade_offers.append(BuyShortOrder(ticker, price_limit, amount, amount_borrowed, expiry))
 
     def tick(self, timestamp: datetime, security_names: List[str], current_tick_data: np.ndarray,
-             next_tick_data: np.ndarray, marginables: npt.NDArray[np.bool], dividends: npt.NDArray[np.float32],
+             next_tick_data: np.ndarray, marginables: npt.NDArray[bool], dividends: npt.NDArray[np.float32],
              div_freq: List[DividendFrequency]):
         """
         The simulation calls this method after the strategy has run.  It will calculate interests and margin call if

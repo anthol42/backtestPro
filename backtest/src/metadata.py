@@ -1,5 +1,6 @@
 from typing import List, Optional, Iterable, Dict
 from datetime import timedelta
+from .strategy import Strategy
 import subprocess
 import os
 import glob
@@ -13,21 +14,27 @@ class Metadata:
     """
     def __init__(self, strategy_name: Optional[str] = None, description: Optional[str] = None,
                  author: Optional[str] = None, version: Optional[str] = None, time_res: Optional[timedelta] = None,
-                 save_code: bool = True, hash_only: bool = True, file_blacklist: Optional[Iterable[str]] = tuple()):
+                 save_code: bool = True, hash_only: bool = True, file_blacklist: Optional[Iterable[str]] = tuple(),
+                 code_path: Optional[str] = None):
         """
         This class contains the metadata of the strategy.
         :param strategy_name: The name of the strategy.  If None, the name of the class will be used.
         :param description: The description of the strategy.  It is strongly recommended to write steps on how to
-                            reproduce the results here.
+                            reproduce the results here.  If description is None, the docstring of the strategy will be
+                            used.
         :param author: The author of the strategy.  If None, the git author will be used.
         :param version: The version of the strategy.  If None, the git commit hash will be used.  If no git
                         repository, it will be "Unknown"
-        :param time_res: The time resolution.  If None, the automatically found time resolution will be saved.
+        :param time_res: The time resolution.  If None, the automatically found time resolution will be saved. It is
+                         the task of the broker to provide the time resolution.  (Not handled in this class)
         :param save_code: Whether to save the code of the strategy.  If True, the code will be saved.
         :param hash_only: Only used if save_code is True.  If True, only the hash of the code will be saved.
                             (It can spare storage space)
         :param file_blacklist: Files to not include in the code saved.  It is a list of strings with the file paths
                                 relative to the current working directory.
+        :param code_path: The path to the root folder where to search for the code.  Default is the current working
+                            directory (If None).  If no '*' is present in the path, it will be added at the end to
+                            search for py files.
         """
         self.strategy_name = strategy_name
         self.description = description
@@ -39,23 +46,33 @@ class Metadata:
         self.hash_only = hash_only
         self.file_blacklist = file_blacklist
         self.code = None
+        self.code_path = code_path if code_path is not None else './**/*.py'
+        if '*' not in self.code_path:
+            self.code_path = self.code_path.rstrip("/") + "/*.py"
 
-    def init(self, backtest_parameters: Optional[dict] = None, tickers: Optional[List[str]] = None,
+    def init(self, strategy: Strategy, backtest_parameters: Optional[dict] = None, tickers: Optional[List[str]] = None,
              features: Optional[List[str]] = None, run_duration: Optional[float] = None):
         """
         This method is used to initialize the metadata object from the Backtest object (When the simulation has started)
+        :param strategy: The strategy object.  (Used to get its name
         :param backtest_parameters: The parameters of the backtest object (Init paraeters)
         :param tickers: The tickers used in the backtest
         :param features: The features used in the backtest (Columns)
         :param run_duration: The duration of the backtest (in seconds)
         :return: None
         """
+        if strategy is None:
+            raise ValueError("strategy cannot be None")
+        if self.description is None:
+            self.description = strategy.__doc__
+        if self.strategy_name is None:
+            self.strategy_name = strategy.__class__.__name__
         self.run_duration = run_duration
         self.backtest_parameters = backtest_parameters
         self.tickers = tickers
         self.features = features
         if self.save_code:
-            self.code = self.load_code(checksum=self.hash_only)
+            self.code = self.load_code(checksum=self.hash_only, path=self.code_path, ignore=self.file_blacklist)
         else:
             self.code = None
 
@@ -73,14 +90,16 @@ class Metadata:
         except:
             return "Unknown"
 
-    def load_code(self, checksum: bool = True, ignore: Iterable[str] = tuple()) -> Dict[str, Dict[str, Optional[str]]]:
+    def load_code(self, checksum: bool = True, ignore: Iterable[str] = tuple(), path: str = f"./**/*.py") \
+            -> Dict[str, Dict[str, Optional[str]]]:
         """
         This method load the code of the strategy.
+        :param path: The path to search for the code.  Default is the current working directory. (And ignore venv)
         :param checksum: Whether to return only the checksum of each file.
         :param ignore: Files to ignore when loading the code.
         :return: The code of the strategy
         """
-        paths = glob.glob(f"./**/*.py", recursive=True)
+        paths = glob.glob(path, recursive=True)
         paths_filtered = [path for path in paths if "/venv/" not in path and path not in ignore]
         files = {}
         for path in paths_filtered:
@@ -114,6 +133,8 @@ class Metadata:
     def export(self) -> dict:
         """
         This method export the metadata to a JSONable dictionary.
+        Note:
+            The file_blacklist parameter is not saved (and not loaded) for privacy purposes.
         :return: The state of the object as a dictionary
         """
         return {
@@ -135,6 +156,8 @@ class Metadata:
     def load(cls, data: dict):
         """
         This method load the metadata from a dictionary.
+        NOTE:
+            The file_blacklist parameter is not loaded (and not saved) for privacy purposes.
         :param data: The dictionary to load the metadata from.
         :return: The metadata object
         """

@@ -1,6 +1,6 @@
 from .transaction import Transaction, TransactionType
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 
 class CollateralUpdate:
@@ -8,6 +8,11 @@ class CollateralUpdate:
     Data class holding info about a collateral update
     """
     def __init__(self, amount: float, dt: datetime, message: str):
+        """
+        :param amount: The amount frozen in the account as collateral (Cannot be used to buy securities)
+        :param dt: The datetime of the update.
+        :param message: A message explaining the reason of the update.  (Useful for debugging the strategy)
+        """
         self.amount = amount
         self.dt = dt
         self.message = message
@@ -33,6 +38,9 @@ class CollateralUpdate:
         """
         return cls(data["amount"], datetime.fromisoformat(data["dt"]), data["message"])
 
+    def __eq__(self, other):
+        return self.amount == other.amount and self.dt == other.dt and self.message == other.message
+
 class Account:
     def __init__(self, initial_cash: float = 100_000, allow_debt: bool = False):
         self._cash = initial_cash
@@ -40,13 +48,18 @@ class Account:
         self._allow_debt = allow_debt
         self._transactions = []
         self._collateral_history: List[CollateralUpdate] = []
-        self._account_worth = []
+        self._account_worth = [self._cash]
+        self._previous_ids = set()
         self.n = 0    # Id for transactions
 
     def _update_worth(self):
         self._account_worth.append(self._cash)
 
     def deposit(self, amount: float, dt: datetime, transaction_id: str = None, comment: str = None):
+        if transaction_id in self._previous_ids:
+            raise RuntimeError("Transaction id already used!")
+        else:
+            self._previous_ids.add(transaction_id)
         transaction = Transaction(amount, TransactionType.DEPOSIT, dt, transaction_id, comment)
         self._cash += transaction.amount
         if transaction.transaction_id is None:
@@ -59,6 +72,10 @@ class Account:
         transaction = Transaction(amount, TransactionType.WITHDRAWAL, dt, transaction_id, comment)
         if transaction.amount > self._cash and not self._allow_debt:
             raise RuntimeError("Transaction amount is bigger than current worth of account!")
+        if transaction_id in self._previous_ids:
+            raise RuntimeError("Transaction id already used!")
+        else:
+            self._previous_ids.add(transaction_id)
         self._cash -= transaction.amount
         if transaction.transaction_id is None:
             transaction.transaction_id = str(self.n)
@@ -70,12 +87,14 @@ class Account:
         """
         Updates the amount of collateral in the account.  This is the amount of money held as collateral and cannot
         be used.  This should be updated at each steps because it should be dependent to the current value of the
-        assets.
+        assets.  Raise a RuntimeError if the amount of collateral is bigger than the current worth of the account.
         :param amount: Value of collateral.
         :param dt: datetime of the update
         :param message: Reason of the update.  Can be, for example: "Step update", "Enter short position for {ticker}", etc.
         :return: None
         """
+        if amount > self._cash and not self._allow_debt:
+            raise RuntimeError("Collateral amount is bigger than current worth of account!")
         self._collateral_history.append(CollateralUpdate(amount, dt, f"[UPDATE] - {message}"))
         self._collateral = amount
 
@@ -83,11 +102,14 @@ class Account:
         """
         Adds collateral to the account.  This is the amount of money held as collateral and cannot
         be used.  This method could be used when selling short a position.
+        :raise RuntimeError: If the amount of collateral is bigger than the current cash in the account.
         :param amount: Value of collateral.
         :param dt: datetime of the update
         :param message: Reason of the update.  Can be, for example: "Step update", "Enter short position for {ticker}", etc.
         :return: None
         """
+        if amount + self._collateral > self._cash and not self._allow_debt:
+            raise RuntimeError("Collateral amount is bigger than current worth of account!")
         self._collateral_history.append(CollateralUpdate(amount, dt, f"[ADD] - {message}"))
         self._collateral += amount
 
@@ -130,7 +152,8 @@ class Account:
             "transactions": [t.export() for t in self._transactions],
             "collateral_history": [c.export() for c in self._collateral_history],
             "account_worth": self._account_worth,
-            "allow_debt": self._allow_debt
+            "allow_debt": self._allow_debt,
+            "previous_ids": list(self._previous_ids)
         }
 
     @classmethod
@@ -147,4 +170,16 @@ class Account:
         account._collateral_history = [CollateralUpdate.load(c) for c in dict_data["collateral_history"]]
         account._account_worth = dict_data["account_worth"]
         account._allow_debt = dict_data["allow_debt"]
+        account._previous_ids = set(dict_data["previous_ids"])
+        account.n = len(account._transactions)
         return account
+
+    def __eq__(self, other):
+        return (self._cash == other._cash and
+                self._collateral == other._collateral and
+                self._transactions == other._transactions and
+                self._collateral_history == other._collateral_history and
+                self._account_worth == other._account_worth and
+                self._allow_debt == other._allow_debt and
+                self._previous_ids == other._previous_ids and
+                self.n == other.n)
