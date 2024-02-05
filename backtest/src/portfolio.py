@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 from .trade import Trade, BuyLong, BuyShort, SellLong, SellShort
 from copy import deepcopy

@@ -50,9 +50,10 @@ class TSData:
         self.name = name
 
         # Find start and end of data since data is padded using nan
-        start, end = self._find_start_end()
-        self._start = self.data.index[start]
-        self._end = self.data.index[end]
+        # Commented since not used in default framework (And therefor not tested in unit tests))
+        # start, end = self._find_start_end()
+        # self._start = self.data.index[start]
+        # self._end = self.data.index[end]
 
         if div_freq is None:
             if "Dividends" not in data.columns:

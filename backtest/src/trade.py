@@ -20,6 +20,15 @@ class TradeOrder(ABC):
         self.timestamp = timestamp
         self.security = security
         self.security_price_limit = security_price_limit
+        if amount < 0:
+            raise ValueError("The amount of securities must be positive")
+        if amount_borrowed < 0:
+            raise ValueError("The amount of borrowed securities must be positive")
+        if trade_type == TradeType.SellShort or trade_type == TradeType.BuyShort:
+            if amount > 0:
+                raise ValueError("Short selling orders must have only amount_borrowed since the securities are borrowed")
+            if amount_borrowed <= 0:
+                raise ValueError("Short selling orders must have a positive amount_borrowed")
         self.amount = amount
         self.amount_borrowed = amount_borrowed
         self.trade_type = trade_type
@@ -34,7 +43,7 @@ class TradeOrder(ABC):
 
     def convertToTrade(self, security_price: float, timestamp: datetime, transaction_id: str):
         return Trade(self.security, security_price, self.amount, self.amount_borrowed, transaction_id,
-                     timestamp, self.trade_type)
+                     timestamp, self.trade_type, self)
 
     def export(self) -> dict:
         """
@@ -50,7 +59,7 @@ class TradeOrder(ABC):
             "amount_borrowed": self.amount_borrowed,
             "trade_type": self.trade_type.value,
             "expiry": str(self.expiry),
-            "margin_trade": self.margin_trade
+            "margin_trade": self.margin_trade,
         }
 
     @classmethod
@@ -62,22 +71,32 @@ class TradeOrder(ABC):
         """
         trade_type = TradeType(data["trade_type"])
         if trade_type == TradeType.BuyLong:
-            self = BuyLongOrder(data["timestamp"], data["security"], data["security_price_limit"], data["amount"], data["amount_borrowed"],
+            self = BuyLongOrder(datetime.fromisoformat(data["timestamp"]), data["security"], tuple(data["security_price_limit"]), data["amount"], data["amount_borrowed"],
                        datetime.fromisoformat(data["expiry"]))
         elif trade_type == TradeType.SellLong:
-            self = SellLongOrder(data["timestamp"], data["security"], data["security_price_limit"], data["amount"], data["amount_borrowed"],
+            self = SellLongOrder(datetime.fromisoformat(data["timestamp"]), data["security"], tuple(data["security_price_limit"]), data["amount"], data["amount_borrowed"],
                        datetime.fromisoformat(data["expiry"]))
         elif trade_type == TradeType.SellShort:
-            self = SellShortOrder(data["timestamp"], data["security"], data["security_price_limit"], data["amount"], data["amount_borrowed"],
+            self = SellShortOrder(datetime.fromisoformat(data["timestamp"]), data["security"], tuple(data["security_price_limit"]), data["amount"], data["amount_borrowed"],
                        datetime.fromisoformat(data["expiry"]))
         elif trade_type == TradeType.BuyShort:
-            self = BuyShortOrder(data["timestamp"], data["security"], data["security_price_limit"], data["amount"], data["amount_borrowed"],
+            self = BuyShortOrder(datetime.fromisoformat(data["timestamp"]), data["security"], tuple(data["security_price_limit"]), data["amount"], data["amount_borrowed"],
                        datetime.fromisoformat(data["expiry"]))
         else:
-            self = cls(data["timestamp"], data["security"], data["security_price_limit"], data["amount"], data["amount_borrowed"], trade_type,
+            self = cls(data["timestamp"], data["security"], tuple(data["security_price_limit"]), data["amount"], data["amount_borrowed"], trade_type,
                        datetime.fromisoformat(data["expiry"]))
         self.margin_trade = data["margin_trade"]
         return self
+
+    def __eq__(self, other):
+        return (self.timestamp == other.timestamp and
+                self.security == other.security and
+                self.security_price_limit == other.security_price_limit and
+                self.amount == other.amount and
+                self.amount_borrowed == other.amount_borrowed and
+                self.trade_type == other.trade_type and
+                self.expiry == other.expiry and
+                self.margin_trade == other.margin_trade)
 
 class BuyLongOrder(TradeOrder):
     def __init__(self, timestamp: datetime, security: str, security_price_limit: Tuple[float, float], amount: int, amount_borrowed: int,
@@ -113,7 +132,13 @@ class Trade(ABC):
         self.margin_trade = amount_borrowed > 0
         self.timestamp = timestamp
 
-    def getPrice(self) -> float:
+    def getCost(self) -> float:
+        """
+        This method calculates the upfront cost of the trade.  It ignores the cost of borrowing the securities.
+        Note:
+            It doesn't include transaction costs nor the cost of borrowing the securities.
+        :return: The upfront cost of the trade
+        """
         return self.security_price * self.amount
 
     def __str__(self):
@@ -165,6 +190,17 @@ class Trade(ABC):
                        datetime.fromisoformat(data["timestamp"]), trade_type, TradeOrder.load(data["order"]))
         self.margin_trade = data["margin_trade"]
         return self
+
+    def __eq__(self, other):
+        return (self.security == other.security and
+                self.security_price == other.security_price and
+                self.amount == other.amount and
+                self.amount_borrowed == other.amount_borrowed and
+                self.transaction_id == other.transaction_id and
+                self.trade_type == other.trade_type and
+                self.margin_trade == other.margin_trade and
+                self.timestamp == other.timestamp and
+                self.trade_order == other.trade_order)
 
 
 
