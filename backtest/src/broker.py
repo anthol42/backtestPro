@@ -236,7 +236,11 @@ class Broker:
         if self._last_day is None:
             self._last_day = timestamp.date()
         else:
-            self.exposure_time += (timestamp.date() - self._last_day).days
+            n_days_elapsed_since_last_step = (timestamp.date() - self._last_day).days
+            self.exposure_time += n_days_elapsed_since_last_step
+            # We update the time stock index for each stock in the portfolio to know how long each asset has been held
+            # for later dividend calculation
+            self.portfolio.update_time_stock_idx(n_days_elapsed_since_last_step)
 
         if self._last_step is None:
             self._last_step = timestamp
@@ -346,19 +350,20 @@ class Broker:
         :param dividends: The actual dividends payout for 1 share and for the period in div_freq.
         :return: Dividend payout
         """
-        hold_days = (timestamp - position.last_dividends_dt).total_seconds() / 3600 / 24
-        if div_freq == DividendFrequency.MONTHLY:
-            hold_ratio = hold_days / 30
-        elif div_freq == DividendFrequency.QUARTERLY:
-            hold_ratio = hold_days / 90
-        elif div_freq == DividendFrequency.BIANNUALLY:
-            hold_ratio = hold_days / 180
-        else:  # DividendFrequency.YEARLY
-            hold_ratio = hold_days / 365
+        hold_idx = position.time_stock_idx    # Equivalent to time * num_share_held
 
-        if hold_ratio > 1:
-            hold_ratio = 1
-        return dividends * (position.amount + position.amount_borrowed) * hold_ratio
+        # If I divide the hold_idx by the time, I get the average number of shares held for the period.
+
+        if div_freq == DividendFrequency.MONTHLY:
+            avg_amount = hold_idx / 30
+        elif div_freq == DividendFrequency.QUARTERLY:
+            avg_amount = hold_idx / 90
+        elif div_freq == DividendFrequency.BIANNUALLY:
+            avg_amount = hold_idx / 180
+        else:  # DividendFrequency.YEARLY
+            avg_amount = hold_idx / 365
+
+        return dividends * avg_amount
 
 
     def _get_short_collateral(self, available_cash: float, security_names: List[str],

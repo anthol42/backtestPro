@@ -16,11 +16,25 @@ class Position:
         self.average_price = average_price
         self.on_margin = amount_borrowed > 0
         self.long = long
+        if amount < 0:
+            raise ValueError("Amount cannot be negative")
+        elif amount_borrowed < 0:
+            raise ValueError("Amount borrowed cannot be negative")
+        if not long and amount_borrowed == 0:
+            raise ValueError("Short position should have a non-zero amount_borrowed")
+        if not long and amount > 0:
+            raise ValueError(f"All shares must be borrowed when shorting a security.  Got {amount} shares and "
+                             f"{amount_borrowed} borrowed for ticker {ticker}")
         self.average_filled_time = average_filled_time
         self.last_dividends_dt = average_filled_time
 
+        # This index correspond to the amount of shares hold times the time hold.  It will be used to calculate the
+        # dividends due to the shareholders.
+        # Formula: days * (amount + amount_borrowed)
+        self.time_stock_idx = 0
+
     @property
-    def worth(self):
+    def purchase_worth(self):
         return self.average_price * (self.amount + self.amount_borrowed)
 
     def __str__(self):
@@ -37,6 +51,16 @@ class Position:
     def __repr__(self):
         return f"EQUITY: {self.ticker}"
 
+    def update_time_stock_idx(self, timestep_elapsed: int = 1):
+        """
+        Call this method to update the time_stock_idx.  It will be used to calculate the dividends due to the shareholders.
+        Call this method at the end of each day.
+        :param timestep_elapsed: The number of seconds elapsed since the last call to this method
+        :return: None
+        """
+
+        self.time_stock_idx += timestep_elapsed * (self.amount + self.amount_borrowed)
+
     def dividends_got_paid(self, timestamp: datetime):
         """
         Call this method to reset last dividends date.  Useful when calculating how much dividends the user should have
@@ -44,11 +68,16 @@ class Position:
         :return: None
         """
         self.last_dividends_dt = timestamp
+        self.time_stock_idx = 0
 
-    def __add__(self, other):
-        if isinstance(other, int):
-            self.amount += other
-        elif isinstance(other, Position):
+    def __add__(self, other: Union['Position', Trade]):
+        """
+        Add a position to the current one.  It will update the average price and the amount, the amount borrowed, the
+        average filled time and the last dividends date (for a better calculation of dividends due to shareholders)
+        :param other: The other position or trade to add.
+        :return: None
+        """
+        if isinstance(other, Position):
             # Concatenating positions
             current_amount = self.amount + self.amount_borrowed
             other_amount = other.amount + other.amount_borrowed
@@ -84,9 +113,13 @@ class Position:
             raise NotImplementedError(f"Addition not implemented for type {type(other)}")
 
     def __sub__(self, other):
-        if isinstance(other, int):
-            self.amount -= other
-        elif isinstance(other, Position):
+        """
+        Subtract a position from the current one.  It will update the average price and the amount and the amount
+        borrowed.
+        :param other: The other position to add
+        :return: None
+        """
+        if isinstance(other, Position):
             self.amount -= other.amount
             self.amount_borrowed -= other.amount_borrowed
         elif isinstance(other, Trade):
@@ -320,6 +353,16 @@ class Portfolio:
             return len([trade for trade in self._trades if isinstance(trade, TradeStats)])
         else:
             return len(self._trades)
+
+    def update_time_stock_idx(self, timestep_elapsed: int = 1):
+        """
+        Call this method to update the time_stock_idx for each position.  It will be used to calculate the dividends due
+        to the shareholders.
+        :param timestep_elapsed: The number of timestep elapsed since the last call to this method
+        :return: None
+        """
+        for pos in self._long.values():
+            pos.update_time_stock_idx(timestep_elapsed)
 
     def get_trade_stats(self) -> dict:
         """
