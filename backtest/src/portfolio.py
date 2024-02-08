@@ -1,6 +1,6 @@
 import numpy as np
 
-from .trade import Trade, BuyLong, BuyShort, SellLong, SellShort
+from .trade import Trade, BuyLong, BuyShort, SellLong, SellShort, TradeType
 from copy import deepcopy
 from typing import Dict, Tuple, List, Union
 from datetime import datetime, timedelta
@@ -9,44 +9,32 @@ class Position:
     """
     Data class holding info about a position
     """
-    def __init__(self, ticker: str, amount: int,  amount_borrowed: int, long: bool, average_price: float, average_filled_time: datetime):
+    def __init__(self, ticker: str, amount: int, long: bool, average_price: float, average_filled_time: datetime, margin: bool = False):
         self.ticker = ticker
         self.amount = amount
-        self.amount_borrowed = amount_borrowed
         self.average_price = average_price
-        self.on_margin = amount_borrowed > 0
+        self.on_margin = margin
         self.long = long
-        if amount < 0:
-            raise ValueError("Amount cannot be negative")
-        elif amount_borrowed < 0:
-            raise ValueError("Amount borrowed cannot be negative")
-        if not long and amount_borrowed == 0:
-            raise ValueError("Short position should have a non-zero amount_borrowed")
-        if not long and amount > 0:
-            raise ValueError(f"All shares must be borrowed when shorting a security.  Got {amount} shares and "
-                             f"{amount_borrowed} borrowed for ticker {ticker}")
+        if amount <= 0:
+            raise ValueError("Amount cannot be negative nor zero")
+        if not long and not margin:
+            raise ValueError("Short position must be on margin")
         self.average_filled_time = average_filled_time
         self.last_dividends_dt = average_filled_time
 
         # This index correspond to the amount of shares hold times the time hold.  It will be used to calculate the
         # dividends due to the shareholders.
-        # Formula: days * (amount + amount_borrowed)
+        # Formula: days * (amount)
         self.time_stock_idx = 0
 
     @property
     def purchase_worth(self):
-        return self.average_price * (self.amount + self.amount_borrowed)
+        return self.average_price * self.amount
 
     def __str__(self):
         mrg = "MARGIN" if self.on_margin else ""
         lg = "LONG" if self.long else "SHORT"
-        return f"EQUITY: {self.amount + self.amount_borrowed}x{self.ticker} {round(self.average_price, 2)}$ {mrg} {lg}"
-
-    def get_total(self):
-        """
-        :return: Total number of shares
-        """
-        return self.amount + self.amount_borrowed
+        return f"EQUITY: {self.amount}x{self.ticker} {round(self.average_price, 2)}$ {mrg} {lg}"
 
     def __repr__(self):
         return f"EQUITY: {self.ticker}"
@@ -58,8 +46,8 @@ class Position:
         :param timestep_elapsed: The number of seconds elapsed since the last call to this method
         :return: None
         """
-
-        self.time_stock_idx += timestep_elapsed * (self.amount + self.amount_borrowed)
+        if self.long:
+            self.time_stock_idx += timestep_elapsed * self.amount
 
     def dividends_got_paid(self, timestamp: datetime):
         """
@@ -70,45 +58,74 @@ class Position:
         self.last_dividends_dt = timestamp
         self.time_stock_idx = 0
 
+
     def __add__(self, other: Union['Position', Trade]):
         """
         Add a position to the current one.  It will update the average price and the amount, the amount borrowed, the
-        average filled time and the last dividends date (for a better calculation of dividends due to shareholders)
+        average filled time, the last dividends date and the time_stock_idx.
+        (for a better calculation of dividends due to shareholders)
         :param other: The other position or trade to add.
         :return: None
+        :raise TypeError: If trying to add long and short positions together
+        :raise ValueError: If trying to add positions of different tickers or wrong trade type
+        :raise RuntimeError: If trying to add a trade that happened before the last dividends [Not causal]
+        :raise NotImplementedError: If trying to add a type that is not implemented
         """
         if isinstance(other, Position):
+            if self.long != other.long:
+                raise TypeError("Cannot add long and short positions together")
+            if self.ticker != other.ticker:
+                raise ValueError("Cannot add positions of different tickers")
+            new = deepcopy(self)
             # Concatenating positions
-            current_amount = self.amount + self.amount_borrowed
-            other_amount = other.amount + other.amount_borrowed
+            current_amount = self.amount
+            other_amount = other.amount
             total_amount = current_amount + other_amount
-            self.average_price = ((current_amount / total_amount) * self.average_price +
+            new.average_price = ((current_amount / total_amount) * self.average_price +
                                   (other_amount / total_amount) * other.average_price)
-            self.amount += other.amount
-            self.amount_borrowed += other.amount_borrowed
-            self.average_filled_time = (self.average_filled_time +
+            new.amount += other.amount
+            new.time_stock_idx += other.time_stock_idx
+            new.average_filled_time = (self.average_filled_time +
                                          timedelta(seconds=(other.average_filled_time -
                                                     self.average_filled_time).total_seconds() / 2))
 
-            self.last_dividends_dt = (self.last_dividends_dt + timedelta(seconds=(other.last_dividends_dt -
+            new.last_dividends_dt = (self.last_dividends_dt + timedelta(seconds=(other.last_dividends_dt -
                                                                         self.last_dividends_dt).total_seconds() / 2))
+            return new
 
         elif isinstance(other, Trade):
-            current_amount = self.amount + self.amount_borrowed
+            if self.ticker != other.security:
+                raise ValueError("Cannot add positions of different tickers")
+            if self.long:
+                if other.trade_type == TradeType.SellLong:
+                    raise ValueError("Cannot add a trade that is selling to long position")
+                elif other.trade_type != TradeType.BuyLong:
+                    raise ValueError("Invalid trade type for addition to long position")
+            else:    # Short
+                if other.trade_type == TradeType.BuyShort:
+                    raise ValueError("Cannot add a trade that is buying to short position")
+                elif other.trade_type != TradeType.SellShort:
+                    raise ValueError("Invalid trade type for addition to short position")
+
+            new = deepcopy(self)
+            # Newly acquired position.  (Was not held before)
+            current_amount = self.amount
             other_amount = other.amount + other.amount_borrowed
             total_amount = current_amount + other_amount
-            self.average_price = ((current_amount / total_amount) * self.average_price +
+            new.average_price = ((current_amount / total_amount) * self.average_price +
                                   (other_amount / total_amount) * other.security_price)
-            self.amount += other.amount
-            self.amount_borrowed += other.amount_borrowed
-            self.average_filled_time = (self.average_filled_time +
+            new.amount += other.amount + other.amount_borrowed
+            # time stock idx is not updated when adding a trade because the position was not held before.
+            new.time_stock_idx += 0
+            new.average_filled_time = (self.average_filled_time +
                                             timedelta(seconds=(other.timestamp -
                                                                self.average_filled_time).total_seconds() / 2))
 
             if other.timestamp < self.last_dividends_dt:
                 raise RuntimeError("Cannot add a trade that happened before the last dividends [Not causal]")
-            self.last_dividends_dt = (self.last_dividends_dt + timedelta(seconds=(other.timestamp -
+            new.last_dividends_dt = (self.last_dividends_dt + timedelta(seconds=(other.timestamp -
                                                                         self.last_dividends_dt).total_seconds() / 2))
+            return new
         else:
             raise NotImplementedError(f"Addition not implemented for type {type(other)}")
 
@@ -118,13 +135,34 @@ class Position:
         borrowed.
         :param other: The other position to add
         :return: None
+        :raise TypeError: If trying to subtract long and short positions together
+        :raise ValueError: If trying to subtract positions of different tickers or wrong trade type
+        :raise NotImplementedError: If trying to subtract a type that is not implemented
         """
         if isinstance(other, Position):
-            self.amount -= other.amount
-            self.amount_borrowed -= other.amount_borrowed
+            if self.long != other.long:
+                raise TypeError("Cannot add long and short positions together")
+            if self.ticker != other.ticker:
+                raise ValueError("Cannot add positions of different tickers")
+            new = deepcopy(self)
+            new.amount -= other.amount
+            return new
         elif isinstance(other, Trade):
-            self.amount -= other.amount
-            self.amount_borrowed -= other.amount_borrowed
+            if self.ticker != other.security:
+                raise ValueError("Cannot add positions of different tickers")
+            if self.long:
+                if other.trade_type == TradeType.BuyLong:
+                    raise ValueError("Cannot sub a buying trade to a long position")
+                elif other.trade_type != TradeType.SellLong:
+                    raise ValueError("Invalid trade type for subtraction to a long position")
+            else:    # Short
+                if other.trade_type == TradeType.BuyShort:
+                    raise ValueError("Cannot sub a selling trade to a short position")
+                elif other.trade_type != TradeType.BuyShort:
+                    raise ValueError("Invalid trade type for subtraction to short position")
+            new = deepcopy(self)
+            new.amount -= other.amount + other.amount_borrowed
+            return new
         else:
             raise NotImplementedError(f"Addition not implemented for type {type(other)}")
 
@@ -137,12 +175,12 @@ class Position:
             "type": "Position",
             "ticker": self.ticker,
             "amount": self.amount,
-            "amount_borrowed": self.amount_borrowed,
             "long": self.long,
             "average_price": self.average_price,
             "on_margin": self.on_margin,
             "average_filled_time": str(self.average_filled_time),
-            "last_dividends_dt": str(self.last_dividends_dt)
+            "last_dividends_dt": str(self.last_dividends_dt),
+            "time_stock_idx": self.time_stock_idx
         }
     @classmethod
     def load(cls, data: dict):
@@ -151,11 +189,22 @@ class Position:
         :param data: The dictionary to load from
         :return: The object
         """
-        self = cls(data["ticker"], data["amount"], data["amount_borrowed"], data["long"], data["average_price"],
-                   datetime.fromisoformat(data["average_filled_time"]))
+        self = cls(data["ticker"], data["amount"], data["long"], data["average_price"],
+                   datetime.fromisoformat(data["average_filled_time"]), margin=data["on_margin"])
         self.last_dividends_dt = datetime.fromisoformat(data["last_dividends_dt"])
-        self.on_margin = data["on_margin"]
+        self.time_stock_idx = data["time_stock_idx"]
         return self
+
+
+    def __eq__(self, other):
+        return (self.ticker == other.ticker and
+                self.amount == other.amount and
+                self.long == other.long and
+                self.average_price == other.average_price and
+                self.on_margin == other.on_margin and
+                self.average_filled_time == other.average_filled_time and
+                self.last_dividends_dt == other.last_dividends_dt and
+                self.time_stock_idx == other.time_stock_idx)
 
 
 class TradeStats:
@@ -167,8 +216,12 @@ class TradeStats:
         :param trade: The trade object (SellLong or BuyShort)
         :param duration: The duration of the trade
         :param profit: The profit made on the trade
-        :param rel_profit: The profit made on the trade relative to the amount invested
+        :param rel_profit: The profit made on the trade relative to the amount invested NOT IN PERCENTAGE
+        :raise ValueError: If the trade type is not SellLong or BuyShort (Doesn't exit a position)
         """
+        if trade.trade_type != TradeType.SellLong and trade.trade_type != TradeType.BuyShort:
+            raise ValueError(f"Invalid trade type for TradeStats.  The tradetype must exit a position.  "
+                             f"Got {trade.trade_type}, but expected SellLong or BuyShort.")
         self.trade = trade
         self.duration = duration
         self.profit = profit
@@ -199,13 +252,19 @@ class TradeStats:
         duration = timedelta(seconds=data["duration"])
         return cls(trade, duration, data["profit"], data["rel_profit"])
 
+    def __eq__(self, other):
+        return (self.trade == other.trade and
+                self.duration == other.duration and
+                self.profit == other.profit and
+                self.rel_profit == other.rel_profit)
+
 class Portfolio:
     """
     This  class will have two sub portfolios: long and short.  When 'trade' is called, it will add or remove in the
     appropriate portfolio the security.  It will also remember each trades (in a list) to recover the state at each
     days (For debugging purpose).
     """
-    def __init__(self , transaction_cost: float = 10., transaction_relative: bool = False, debt_record: Dict[str, float] = {}):
+    def __init__(self, transaction_cost: float = 10., transaction_relative: bool = False, debt_record: Dict[str, float] = {}):
         """
         :param transaction_cost: The cost of a transaction (buy or sell) in $ or in %
         :param transaction_relative: Whether the transaction cost is in percentage relative to transaction cost or fix price
@@ -218,57 +277,93 @@ class Portfolio:
         self._transaction_cost = transaction_cost
         self._relative = transaction_relative
         self._debt_record: Dict[str, float] = debt_record
+        self._transaction_ids = set()
 
-    def trade(self, trade: Trade):
+    def trade(self, trade: Trade) -> float:
         """
         Make a trade and add it to the portfolio.
+        Note:
+            This class will handle the debt record.  It will add the amount borrowed to the debt record when buying long
+            and remove it when selling long.
         :param trade: Can be BuyLong, SellLong, SellShort, BuyShort
-        :return: None
+        :return: The cash change in account.  If negative, withdraw.  If positive, deposit.
+        :raise RuntimeError: If the transaction ID is already used
         """
+        if trade.transaction_id in self._transaction_ids:
+            raise RuntimeError("Transaction ID already used.")
+        else:
+            self._transaction_ids.add(trade.transaction_id)
+
         if isinstance(trade, BuyLong):
             if trade.security in self._long:
                 self._long[trade.security] += trade
             else:
-                self._long[trade.security] = Position(trade.security, trade.amount, trade.amount_borrowed, True,
-                                                    trade.security_price, trade.timestamp)
+                self._long[trade.security] = Position(trade.security, trade.amount + trade.amount_borrowed, True,
+                                                trade.security_price, trade.timestamp, margin=trade.amount_borrowed > 0)
+
+            # Handle debt record
+            if trade.security in self._debt_record:
+                if self._relative:
+                    self._debt_record[trade.security] += trade.amount_borrowed * trade.security_price * self._transaction_cost
+                else:
+                    self._debt_record[trade.security] += trade.amount_borrowed * trade.security_price + self._transaction_cost
+            else:
+                if self._relative:
+                    self._debt_record[trade.security] = trade.amount_borrowed * trade.security_price * self._transaction_cost
+                else:
+                    self._debt_record[trade.security] = trade.amount_borrowed * trade.security_price + self._transaction_cost
+            # Save for stats
             self._trades.append(trade)
+            return -self.getCost(trade)
         elif isinstance(trade, SellLong):
             if trade.security not in self._long:
                 raise RuntimeError("Cannot sell Long if the security is not acquired.")
-            elif self._long[trade.security].get_total() < trade.amount + trade.amount_borrowed:
+            elif self._long[trade.security].amount< trade.amount + trade.amount_borrowed:
                 raise RuntimeError("Cannot sell Long more securities than the portfolio has")
             else:
-                duration = trade.timestamp - self._long[trade.security].average_filled_price
+                # Get relative debt (Debt that will be repaid to the bank).
+                n_assets = trade.amount + trade.amount_borrowed
+                total_assets = self._long[trade.security].amount
+                relative_debt = self._debt_record[trade.security] * (n_assets / total_assets)
+                duration = trade.timestamp - self._long[trade.security].average_filled_time
                 average_buy_price = self._long[trade.security].average_price
+                profit, rel_profit = self.getLongProfit(average_buy_price,
+                                                   trade.security_price,
+                                                   trade.amount + trade.amount_borrowed,
+                                                   relative_debt)
                 self._trades.append(
                     TradeStats(trade,
                                duration,
-                               *self.getLongProfit(average_buy_price,
-                                                   trade.security_price,
-                                                   trade.amount + trade.amount_borrowed,
-                                                   self._debt_record[trade.security])))
+                               profit, rel_profit))
+                # Handle debt record
+                self._debt_record[trade.security] -= relative_debt    # Debt that has been repaid
+                # Should not be negative (Or slighly because of float precision)
+                if self._debt_record[trade.security] <= 0:
+                    del self._debt_record[trade.security]
                 self._long[trade.security] -= trade
-                if self._long[trade.security].amount == 0 and self._long[trade.security].amount_borrowed == 0:
+                if self._long[trade.security].amount == 0:
                     del self._long[trade.security]
+
+                return self.getCost(trade)
 
         elif isinstance(trade, SellShort):
             if trade.security in self._short:
                 self._short[trade.security] += trade.amount_borrowed
             else:
-                self._short[trade.security] = Position(trade.security, 0, trade.amount_borrowed, False,
-                                                     trade.security_price, trade.timestamp)
+                self._short[trade.security] = Position(trade.security, trade.amount_borrowed, False,
+                                                     trade.security_price, trade.timestamp, margin=True)
             self._trades.append(trade)
         elif isinstance(trade, BuyShort):
             if trade.security not in self._short:
                 raise RuntimeError("Cannot buy short if the security has not been sold short.")
-            elif self._short[trade.security].get_total() < trade.amount + trade.amount_borrowed:
+            elif self._short[trade.security].amount < trade.amount + trade.amount_borrowed:
                 raise RuntimeError("Cannot buy short more securities than the portfolio has sold short.")
             else:
-                duration = trade.timestamp - self._long[trade.security].average_filled_price
+                duration = trade.timestamp - self._long[trade.security].average_filled_time
                 average_sell_price = self._short[trade.security].average_price
                 trade.amount = 0    # Just to make sure
                 self._short[trade.security] -= trade
-                if self._short[trade.security].amount_borrowed == 0:
+                if self._short[trade.security].amount == 0:
                     del self._short[trade.security]
                 self._trades.append(
                     TradeStats(trade,
@@ -305,6 +400,17 @@ class Portfolio:
         else:
             gain = (average_sell_price*qty - average_buy_price*qty) - self._transaction_cost - debt
             return gain, 100 * gain / average_buy_price
+
+    def getCost(self, trade: Trade) -> float:
+        """
+        Calculate the cost of a trade
+        :param trade: The trade to calculate the cost
+        :return: The cost of the trade
+        """
+        if self._relative:
+            return trade.security_price * trade.amount * self._transaction_cost
+        else:
+            return trade.security_price * trade.amount + self._transaction_cost
 
     def getShort(self) -> Dict[str, Position]:
         """

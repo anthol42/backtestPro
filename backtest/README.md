@@ -32,5 +32,6 @@ New way to backtest stock trading strategies.
   - [X] Implement saving and stats recording in backtest class (run method)
 - [X] Make a way to show trades using matplotlib
 - [ ] Unit tests.  Make sure to test all edge cases.
+  - [ ] Make the portfolio handle its debt and returns (Handle short + implement in broker)
 - [X] Package all stats, run info, meta data, config, states over the simulation and debug info in a json file format
 - [ ] FinCharts flutter GUI (Other charting engine)

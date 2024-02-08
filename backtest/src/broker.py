@@ -349,7 +349,10 @@ class Broker:
         :param div_freq: The frequency that the security is paying dividends.
         :param dividends: The actual dividends payout for 1 share and for the period in div_freq.
         :return: Dividend payout
+        :raise RuntimeError: If the position is not long
         """
+        if not position.long:
+            raise RuntimeError("Dividend payout can only be calculated for long positions.")
         hold_idx = position.time_stock_idx    # Equivalent to time * num_share_held
 
         # If I divide the hold_idx by the time, I get the average number of shares held for the period.
@@ -410,14 +413,13 @@ class Broker:
             debt = self._debt_record.get(ticker)
             if debt is None:
                 debt = 0
-            worth += (position.amount * close +
-                      position.amount_borrowed * close - debt)
+            worth += position.amount * close * close - debt
 
         for ticker, position in self.portfolio.getShort().items():
             eq_idx = security_names.index(ticker)
             price = tuple(current_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
             close = price[3]
-            worth -= position.amount_borrowed * close
+            worth -= position.amount * close
 
         return worth
     def _get_long_collateral(self, available_cash: float, security_names: List[str],
@@ -522,18 +524,18 @@ class Broker:
                 eq_idx = security_names.index(eq)
                 price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
                 if self._relative:
-                    cash = eq.amount_borrowed * price[0] * (2 - self._comm)
+                    cash = eq.amount * price[0] * (2 - self._comm)
                 else:
-                    cash = eq.amount_borrowed * price[0] - self._comm
+                    cash = eq.amount * price[0] - self._comm
                 call_amount -= cash
-                order = BuyShortOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
+                order = BuyShortOrder(timestamp, eq.ticker, (None, None), 0, eq.amount, None)
                 self.make_trade(order, price, timestamp)
             else:
                 eq = positions[delta_inf.argmin()]
-                # Buy this security
+                # Buy this security that was sold short
                 eq_idx = security_names.index(eq)
                 price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
-                order = BuyShortOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
+                order = BuyShortOrder(timestamp, eq.ticker, (None, None), 0, eq.amount, None)
                 self.make_trade(order, price, timestamp)
                 call_amount = 0
 
@@ -548,24 +550,24 @@ class Broker:
                     idx = delta.argmax()  # delta are all negatives, so we take the one that is the less negative
                     delta[idx] = -np.inf
                     eq = positions[idx]
-                    # Buy this security
+                    # Sell this security
                     eq_idx = security_names.index(eq)
                     price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
                     if self._relative:
-                        amount = eq.amount + eq.amount_borrowed
+                        amount = eq.amount
                         cash = amount * price[0] * (2 - self._comm) - self._debt_record[eq.ticker]
                     else:
-                        amount = eq.amount + eq.amount_borrowed
+                        amount = eq.amount
                         cash = amount * price[0] - self._comm - self._debt_record[eq.ticker]
                     call_amount -= cash
-                    order = SellLongOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
+                    order = SellLongOrder(eq.ticker, (None, None), eq.amount, 0, None)
                     self.make_trade(order, price, timestamp)
                 else:
                     eq = positions[delta_inf.argmin()]
                     # Buy this security
                     eq_idx = security_names.index(eq)
                     price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
-                    order = SellLongOrder(eq.ticker, (None, None), eq.amount, eq.amount_borrowed, None)
+                    order = SellLongOrder(eq.ticker, (None, None), eq.amount, 0, None)
                     self.make_trade(order, price, timestamp)
                     call_amount = 0
 
@@ -591,9 +593,9 @@ class Broker:
                 price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
                 # If positive, it means that the trade will cover the call.
                 if self._relative:
-                    delta.append(eq.amount_borrowed * price[0] * (2 - self._comm) - call_amount)
+                    delta.append(eq.amount * price[0] * (2 - self._comm) - call_amount)
                 else:
-                    delta.append(eq.amount_borrowed * price[0] - self._comm - call_amount)
+                    delta.append(eq.amount * price[0] - self._comm - call_amount)
         else:
             delta = []
             for eq in self.portfolio.getLong().values():
@@ -601,10 +603,10 @@ class Broker:
                 price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
                 # If positive, it means that the trade will cover the call.
                 if self._relative:
-                    amount = eq.amount + eq.amount_borrowed
+                    amount = eq.amount
                     delta.append(amount * price[0] * (2 - self._comm) - self._debt_record[eq.ticker] - call_amount)
                 else:
-                    amount = eq.amount + eq.amount_borrowed
+                    amount = eq.amount
                     delta.append(amount * price[0] - self._comm - self._debt_record[eq.ticker] - call_amount)
 
         return np.array(delta)
