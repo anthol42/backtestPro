@@ -1,7 +1,7 @@
 from abc import ABC
 from enum import Enum
 from datetime import datetime
-from typing import Tuple
+from typing import Tuple, Optional
 
 class TradeType(Enum):
     BuyLong = 'BuyLong'
@@ -16,7 +16,7 @@ class TradeType(Enum):
 
 class TradeOrder(ABC):
     def __init__(self, timestamp: datetime, security: str, security_price_limit: Tuple[float, float], amount: int, amount_borrowed: int,
-                 trade_type: TradeType, expiry: datetime):
+                 trade_type: TradeType, expiry: Optional[datetime]):
         self.timestamp = timestamp
         self.security = security
         self.security_price_limit = security_price_limit
@@ -72,19 +72,19 @@ class TradeOrder(ABC):
         trade_type = TradeType(data["trade_type"])
         if trade_type == TradeType.BuyLong:
             self = BuyLongOrder(datetime.fromisoformat(data["timestamp"]), data["security"], tuple(data["security_price_limit"]), data["amount"], data["amount_borrowed"],
-                       datetime.fromisoformat(data["expiry"]))
+                       datetime.fromisoformat(data["expiry"]) if data["expiry"] != "None" else None)
         elif trade_type == TradeType.SellLong:
             self = SellLongOrder(datetime.fromisoformat(data["timestamp"]), data["security"], tuple(data["security_price_limit"]), data["amount"], data["amount_borrowed"],
-                       datetime.fromisoformat(data["expiry"]))
+                       datetime.fromisoformat(data["expiry"]) if data["expiry"] != "None" else None)
         elif trade_type == TradeType.SellShort:
             self = SellShortOrder(datetime.fromisoformat(data["timestamp"]), data["security"], tuple(data["security_price_limit"]), data["amount"], data["amount_borrowed"],
-                       datetime.fromisoformat(data["expiry"]))
+                       datetime.fromisoformat(data["expiry"]) if data["expiry"] != "None" else None)
         elif trade_type == TradeType.BuyShort:
             self = BuyShortOrder(datetime.fromisoformat(data["timestamp"]), data["security"], tuple(data["security_price_limit"]), data["amount"], data["amount_borrowed"],
-                       datetime.fromisoformat(data["expiry"]))
+                       datetime.fromisoformat(data["expiry"]) if data["expiry"] != "None" else None)
         else:
             self = cls(data["timestamp"], data["security"], tuple(data["security_price_limit"]), data["amount"], data["amount_borrowed"], trade_type,
-                       datetime.fromisoformat(data["expiry"]))
+                       datetime.fromisoformat(data["expiry"]) if data["expiry"] != "None" else None)
         self.margin_trade = data["margin_trade"]
         return self
 

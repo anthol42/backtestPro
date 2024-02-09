@@ -81,6 +81,7 @@ class TestPosition(TestCase):
         self.assertEqual(position3.average_filled_time, datetime(2021, 1, 16, 12))
         self.assertEqual(position3.time_stock_idx, 9400)
         self.assertEqual(position3.last_dividends_dt, datetime(2021, 1, 16, 12))
+        self.assertEqual(position3._number_of_entry, 2)
         self.assertTrue(position3.long)
 
         # Short position addition
@@ -95,6 +96,7 @@ class TestPosition(TestCase):
         self.assertEqual(position3.average_price, 87.5)
         self.assertEqual(position3.average_filled_time, datetime(2021, 1, 16, 12))
         self.assertEqual(position3.time_stock_idx, 0)
+        self.assertEqual(position3._number_of_entry, 2)
         self.assertFalse(position3.long)
 
         # Long and short position addition
@@ -129,6 +131,8 @@ class TestPosition(TestCase):
         self.assertEqual(new_position.time_stock_idx, 9300)
         self.assertEqual(new_position.last_dividends_dt, datetime(2021, 1, 16, 12))
         self.assertTrue(new_position.long)
+        self.assertEqual(position3._number_of_entry, 2)
+        self.assertEqual(new_position.ratio_owned, 0.875)
 
         # Position + trade with wrong trade types
         long = Position("AAPL", 300, long=True, average_price=100,
@@ -164,6 +168,7 @@ class TestPosition(TestCase):
         self.assertEqual(position1.average_filled_time, datetime(2021, 1, 16, 12))
         self.assertEqual(position1.time_stock_idx, 9400)
         self.assertEqual(position1.last_dividends_dt, datetime(2021, 1, 16, 12))
+        self.assertEqual(position3._number_of_entry, 2)
         self.assertTrue(position1.long)
 
         # Position += self
@@ -176,8 +181,19 @@ class TestPosition(TestCase):
         self.assertEqual(position1.average_filled_time, datetime(2021, 1, 1))
         self.assertEqual(position1.time_stock_idx, 18600)
         self.assertEqual(position1.last_dividends_dt, datetime(2021, 1, 1))
+        self.assertEqual(position3._number_of_entry, 2)
         self.assertTrue(position1.long)
 
+        # Position + Trade; Position + Trade
+        position1 = Position("AAPL", 300, long=True, average_price=100,
+                             average_filled_time=datetime(2021, 1, 1))
+        trade1 = Trade("AAPL", 150, 50, 50, "1",
+                      datetime(2021, 2, 1), trade_type=TradeType.BuyLong, order=None)
+        trade2 = Trade("AAPL", 150, 50, 50, "1",
+                        datetime(2021, 2, 1), trade_type=TradeType.BuyLong, order=None)
+        position1 += trade1
+        position1 += trade2
+        self.assertEqual(position1._number_of_entry, 3)
 
 
     def test_sub(self):
@@ -285,7 +301,8 @@ class TestPosition(TestCase):
             "average_filled_time": str(datetime(2021, 1, 1)),
             "time_stock_idx": 900,
             "last_dividends_dt": str(datetime(2021, 1, 1)),
-            "ratio_owned": 0.5
+            "ratio_owned": 0.5,
+            "number_of_entry": 1,
         })
 
         # Make sure the dict is JSON serializable
@@ -302,7 +319,8 @@ class TestPosition(TestCase):
             "average_filled_time": str(datetime(2021, 1, 1)),
             "time_stock_idx": 900,
             "last_dividends_dt": str(datetime(2021, 1, 1)),
-            "ratio_owned": 0.5
+            "ratio_owned": 0.5,
+            "number_of_entry": 1,
         })
         position_expected = Position("AAPL", 300, long=True, average_price=100,
                             average_filled_time=datetime(2021, 1, 1), ratio_owned=0.5)
@@ -575,7 +593,7 @@ class TestPortfolio(TestCase):
         self.assertAlmostEqual(portfolio_rel._trades[1].rel_profit, rel_stat.rel_profit)
 
 
-    def test_trade_SL(self):
+    def test_trade_ss(self):
         # ------------------------------
         # Sell Short
         # ------------------------------
@@ -606,3 +624,432 @@ class TestPortfolio(TestCase):
         # Test if the historical trades are saved.
         self.assertEqual(portfolio_abs._trades, [trade1, trade2])
         self.assertEqual(portfolio_rel._trades, [trade1, trade2])
+
+    def test_trade_bs(self):
+        # ------------------------------
+        # Buy Short
+        # ------------------------------
+        portfolio_abs = Portfolio(6.99, False)
+        portfolio_rel = Portfolio(1, True)     # 1% cost
+        # Add short position
+        trade1 = SellShort("AAPL", 100, 0, 200, "1",
+                           datetime(2021, 2, 1), order=None)
+        portfolio_abs.trade(trade1)
+        portfolio_rel.trade(trade1)
+
+        # Test buy short if no open positions
+        trade2 = BuyShort("MSFT", 100, 0, 100, "1",
+                          datetime(2021, 2, 1), order=None)
+        self.assertRaises(RuntimeError, portfolio_abs.trade, trade2)
+        self.assertRaises(RuntimeError, portfolio_rel.trade, trade2)
+
+        # Test buy short if insufficient amount
+        trade2 = BuyShort("AAPL", 150, 0, 500, "1",
+                          datetime(2021, 2, 1), order=None)
+        self.assertRaises(RuntimeError, portfolio_abs.trade, trade2)
+        self.assertRaises(RuntimeError, portfolio_rel.trade, trade2)
+
+        # Test buy short with existing position
+        trade2 = BuyShort("AAPL", 50, 0, 100, "2",
+                          datetime(2021, 2, 15), order=None)
+        total_abs = portfolio_abs.trade(trade2)
+        total_rel = portfolio_rel.trade(trade2)
+
+        # Test if the worth is accurately computed
+        self.assertEqual(total_abs, -5006.99)
+        self.assertEqual(total_rel, -5050)
+
+        # Test if the portfolio is correctly updated
+        self.assertEqual(portfolio_abs._short, {"AAPL": Position("AAPL", 100, False, 100,
+                                                         datetime(2021, 2, 1), 0.)})
+        self.assertEqual(portfolio_rel._short, {"AAPL": Position("AAPL", 100, False, 100,
+                                                            datetime(2021, 2, 1), 0.)})
+
+        # Test if stats are correctly computed
+        abs_stat = TradeStats(trade2, timedelta(weeks=2), 4986.02, 49.8602, 0.)
+        self.assertEqual(portfolio_abs._trades[1].trade, abs_stat.trade)
+        self.assertEqual(portfolio_abs._trades[1].duration, abs_stat.duration)
+        self.assertAlmostEqual(portfolio_abs._trades[1].profit, abs_stat.profit)
+        self.assertAlmostEqual(portfolio_abs._trades[1].rel_profit, abs_stat.rel_profit)
+        self.assertEqual(portfolio_abs._trades[1].ratio_owned, abs_stat.ratio_owned)
+
+        rel_stat = TradeStats(trade2, timedelta(weeks=2), 4850, 48.5, 0.)
+        self.assertEqual(portfolio_rel._trades[1].trade, rel_stat.trade)
+        self.assertEqual(portfolio_rel._trades[1].duration, rel_stat.duration)
+        self.assertAlmostEqual(portfolio_rel._trades[1].profit, rel_stat.profit)
+        self.assertAlmostEqual(portfolio_rel._trades[1].rel_profit, rel_stat.rel_profit)
+        self.assertEqual(portfolio_rel._trades[1].ratio_owned, rel_stat.ratio_owned)
+
+
+    def test_trade_multi(self):
+        # ------------------------------
+        # Multiple trades
+        # ------------------------------
+        portfolio_abs = Portfolio(6.99, False)
+        portfolio_rel = Portfolio(1, True)     # 1% cost
+
+        # Add shares in portfolio
+        trade1 = BuyLong("AAPL", 100, 250, 250, "1",
+                         datetime(2021, 2, 1), order=None)
+        total_abs = portfolio_abs.trade(trade1)
+        total_rel = portfolio_rel.trade(trade1)
+        # Now, the portfolio should have 500 shares of AAPL.  Where 50% is bought on margin.
+        self.assertEqual(total_abs, -25006.99)
+        self.assertEqual(total_rel, -25250)
+        self.assertEqual(portfolio_abs._long, {"AAPL": Position("AAPL", 500, True, 100,
+                                                        datetime(2021, 2, 1), 0.5)})
+        self.assertEqual(portfolio_rel._long, {"AAPL": Position("AAPL", 500, True, 100,
+                                                        datetime(2021, 2, 1), 0.5)})
+        self.assertEqual(portfolio_abs._debt_record, {"AAPL": 25000})
+        self.assertEqual(portfolio_rel._debt_record, {"AAPL": 25250})
+
+
+        # Sell short
+        trade2 = SellShort("TSLA", 100, 0, 100, "2",
+                           datetime(2021, 2, 1), order=None)
+        total_abs = portfolio_abs.trade(trade2)
+        total_rel = portfolio_rel.trade(trade2)
+        self.assertEqual(total_abs, 9993.01)
+        self.assertEqual(total_rel, 9900)
+        self.assertEqual(portfolio_abs._short, {"TSLA": Position("TSLA", 100, False, 100,
+                                                         datetime(2021, 2, 1), 0.)})
+        self.assertEqual(portfolio_rel._short, {"TSLA": Position("TSLA", 100, False, 100,
+                                                            datetime(2021, 2, 1), 0.)})
+
+
+        # Sell few shares of AAPL
+        trade3 = SellLong("AAPL", 125, 100, 0, "3",
+                          datetime(2021, 2, 15), order=None)
+        total_abs = portfolio_abs.trade(trade3)    # We pay 5000$ for debt
+        total_rel = portfolio_rel.trade(trade3)    # We pay 5050$ for debt
+
+        self.assertEqual(portfolio_abs._long, {"AAPL": Position("AAPL", 400, True, 100,
+                                                        datetime(2021, 2, 1), 0.5)})
+        self.assertEqual(portfolio_rel._long, {"AAPL": Position("AAPL", 400, True, 100,
+                                                        datetime(2021, 2, 1), 0.5)})
+        self.assertAlmostEqual(portfolio_abs._debt_record["AAPL"], 20000)
+        self.assertAlmostEqual(portfolio_rel._debt_record["AAPL"], 20200)
+        self.assertEqual(total_abs, 7493.01)
+        self.assertEqual(total_rel, 7325.)
+
+
+        # Buy new shares of AAPL NOT ON MARGIN
+        trade4 = BuyLong("AAPL", 110, 100, 0, "4",
+                         datetime(2021, 2, 25), order=None)
+        total_abs = portfolio_abs.trade(trade4)
+        total_rel = portfolio_rel.trade(trade4)
+        self.assertEqual(total_abs, -11006.99)
+        self.assertEqual(total_rel, -11110)
+        self.assertEqual(portfolio_abs._long, {"AAPL": Position("AAPL", 500, True, 102,
+                                                        datetime(2021, 2, 13), 0.6)})
+        self.assertEqual(portfolio_rel._long, {"AAPL": Position("AAPL", 500, True, 102,
+                                                        datetime(2021, 2, 13), 0.6)})
+
+
+        # Sell Everything of AAPL
+        trade5 = SellLong("AAPL", 185, 500, 0, "5",
+                          datetime(2021, 3, 13), order=None)
+        total_abs = portfolio_abs.trade(trade5)
+        total_rel = portfolio_rel.trade(trade5)
+        self.assertEqual(total_abs, 72493.01)
+        self.assertEqual(total_rel, 71375)
+        self.assertEqual(portfolio_abs._long, {})
+        self.assertEqual(portfolio_rel._long, {})
+        self.assertEqual(portfolio_abs._debt_record, {"AAPL": 0})
+        self.assertEqual(portfolio_rel._debt_record, {"AAPL": 0})
+        stats_abs = TradeStats(trade5, timedelta(days=28), 41879.03, 136.7970777, 0.6)
+        stats_rel = TradeStats(trade5, timedelta(days=28), 40469, 130.9422119, 0.6)
+        self.assertEqual(portfolio_abs._trades[4].trade, stats_abs.trade)
+        self.assertEqual(portfolio_abs._trades[4].duration, stats_abs.duration)
+        self.assertAlmostEqual(portfolio_abs._trades[4].profit, stats_abs.profit)
+        self.assertAlmostEqual(portfolio_abs._trades[4].rel_profit, stats_abs.rel_profit)
+        self.assertEqual(portfolio_abs._trades[4].ratio_owned, stats_abs.ratio_owned)
+
+        self.assertEqual(portfolio_rel._trades[4].trade, stats_rel.trade)
+        self.assertEqual(portfolio_rel._trades[4].duration, stats_rel.duration)
+        self.assertAlmostEqual(portfolio_rel._trades[4].profit, stats_rel.profit)
+        self.assertAlmostEqual(portfolio_rel._trades[4].rel_profit, stats_rel.rel_profit)
+        self.assertEqual(portfolio_rel._trades[4].ratio_owned, stats_rel.ratio_owned)
+
+
+
+        # Buy short TSLA
+        trade6 = BuyShort("TSLA", 125, 0, 100, "6",
+                          datetime(2021, 3, 25), order=None)
+        total_abs = portfolio_abs.trade(trade6)
+        total_rel = portfolio_rel.trade(trade6)
+
+        self.assertEqual(total_abs, -12506.99)
+        self.assertEqual(total_rel, -12625)
+        self.assertEqual(portfolio_abs._short, {})
+        self.assertEqual(portfolio_rel._short, {})
+        abs_stat = TradeStats(trade6, timedelta(days=52), -2513.98, -25.1398, 0.)
+        rel_stat = TradeStats(trade6, timedelta(days=52), -2725, -27.25, 0.)
+        self.assertEqual(portfolio_abs._trades[5].trade, abs_stat.trade)
+        self.assertEqual(portfolio_abs._trades[5].duration, abs_stat.duration)
+        self.assertAlmostEqual(portfolio_abs._trades[5].profit, abs_stat.profit)
+        self.assertAlmostEqual(portfolio_abs._trades[5].rel_profit, abs_stat.rel_profit)
+        self.assertEqual(portfolio_abs._trades[5].ratio_owned, abs_stat.ratio_owned)
+
+        self.assertEqual(portfolio_rel._trades[5].trade, rel_stat.trade)
+        self.assertEqual(portfolio_rel._trades[5].duration, rel_stat.duration)
+        self.assertAlmostEqual(portfolio_rel._trades[5].profit, rel_stat.profit)
+        self.assertAlmostEqual(portfolio_rel._trades[5].rel_profit, rel_stat.rel_profit)
+        self.assertEqual(portfolio_rel._trades[5].ratio_owned, rel_stat.ratio_owned)
+
+    def test_getters(self):
+        # ------------------------------
+        # Test getters
+        # ------------------------------
+        # We only test that they do not raise
+        portfolio_abs = Portfolio(6.99, False)
+        self.assertTrue(portfolio_abs.empty())
+        trade1 = BuyLong("AAPL", 100, 250, 250, "1",
+                            datetime(2021, 2, 1), order=None)
+        portfolio_abs.trade(trade1)
+
+        portfolio_abs.getLong()
+
+        trade2 = SellShort("TSLA", 100, 0, 100, "2",
+                            datetime(2021, 2, 1), order=None)
+        portfolio_abs.trade(trade2)
+        portfolio_abs.getShort()
+
+        portfolio_abs.get_trades()
+
+        long, short = portfolio_abs["AAPL"]
+        self.assertIsNotNone(long)
+        self.assertIsNone(short)
+        long, short = portfolio_abs["TSLA"]
+        self.assertIsNone(long)
+        self.assertIsNotNone(short)
+
+        self.assertEqual(portfolio_abs.get_trade_count(exit_only=False), 2)
+        self.assertEqual(portfolio_abs.get_trade_count(), 0)
+
+        self.assertFalse(portfolio_abs.empty())
+
+
+    def test_update_time_stock_idx(self):
+        portfolio = Portfolio(6.99, False)
+        trade1 = BuyLong("AAPL", 100, 250, 250, "1",
+                            datetime(2021, 2, 1), order=None)
+        portfolio.trade(trade1)
+        self.assertEqual(portfolio._long["AAPL"].time_stock_idx, 0)
+
+        portfolio.update_time_stock_idx(1)
+        trade2 = BuyLong("TSLA", 100, 100, 100, "2",
+                            datetime(2021, 2, 1), order=None)
+        portfolio.trade(trade2)
+        self.assertEqual(portfolio._long["AAPL"].time_stock_idx, 500*1)
+        self.assertEqual(portfolio._long["TSLA"].time_stock_idx, 0)
+
+        portfolio.update_time_stock_idx(1)
+
+        self.assertEqual(portfolio._long["AAPL"].time_stock_idx, 500*2)
+        self.assertEqual(portfolio._long["TSLA"].time_stock_idx, 200*1)
+
+        trade3 = BuyLong("AAPL", 50, 100, 100, "3",
+                            datetime(2021, 2, 1), order=None)
+        portfolio.trade(trade3)
+        self.assertEqual(portfolio._long["AAPL"].time_stock_idx, 500*2)
+        portfolio.update_time_stock_idx(3)
+        self.assertEqual(portfolio._long["AAPL"].time_stock_idx, 500*5 + 200*3)
+        self.assertEqual(portfolio._long["TSLA"].time_stock_idx, 200*4)
+
+
+
+    def test_get_stats(self):
+        portfolio = Portfolio(6.99, False)
+
+        # Long
+        trade1 = BuyLong("AAPL", 100, 250, 250, "1",
+                            datetime(2021, 2, 1), order=None)
+        portfolio.trade(trade1)
+        trade2 = SellLong("AAPL", 125, 100, 0, "2",
+                            datetime(2021, 2, 15), order=None)
+        portfolio.trade(trade2)
+        trade3 = SellLong("AAPL", 150, 400, 0, "3",
+                            datetime(2021, 3, 1), order=None)
+        portfolio.trade(trade3)
+
+        trade4 = BuyLong("MSFT", 110, 100, 0, "4",
+                            datetime(2021, 2, 25), order=None)
+        portfolio.trade(trade4)
+
+        trade5 = SellLong("MSFT", 60, 100, 0, "5",
+                            datetime(2021, 3, 13), order=None)
+        portfolio.trade(trade5)
+
+        trade6 = BuyLong("NVDA", 300, 200, 200, "6",
+                            datetime(2021, 2, 25), order=None)
+        portfolio.trade(trade6)
+
+        trade7 = SellLong("NVDA", 600, 400, 0, "7",
+                            datetime(2021, 3, 20), order=None)
+        portfolio.trade(trade7)
+
+
+        # Short
+        trade8 = SellShort("TSLA", 100, 0, 100, "8",
+                            datetime(2021, 2, 1), order=None)
+        portfolio.trade(trade8)
+
+        trade9 = BuyShort("TSLA", 1, 0, 100, "9",
+                            datetime(2021, 3, 25), order=None)
+        portfolio.trade(trade9)
+
+        trade10 = SellShort("GOOGL", 100, 0, 100, "10",
+                            datetime(2021, 2, 1), order=None)
+        portfolio.trade(trade10)
+        trade11 = BuyShort("GOOGL", 195, 0, 100, "11",
+                            datetime(2021, 3, 25), order=None)
+        portfolio.trade(trade11)
+
+        trade12 = SellShort("AMZN", 100, 0, 100, "12",
+                            datetime(2021, 2, 1), order=None)
+        portfolio.trade(trade12)
+        trade13 = BuyShort("AMZN", 90, 0, 100, "13",
+                            datetime(2021, 3, 25), order=None)
+        portfolio.trade(trade13)
+        expected_stats = {
+            "best_trade": 199.95340542826764,
+            "worst_trade": -95.13980000000001,
+            "win_rate": 71.42857143,            # In percentage
+            "avg_trade": 45.36107003993146,     # In percentage
+            "max_trade_duration": 52.,    # In days
+            "min_trade_duration": 14.,    # In days
+            "avg_trade_duration": 33.857142857142854,    # In days
+            "profit_factor": 10.554138364918405, # Total gains / Total losses
+            "SQN": 1.3070247706570837,           # System Quality Number
+        }
+        self.assertAlmostEqual(expected_stats["best_trade"], portfolio.get_trade_stats()["best_trade"])
+        self.assertAlmostEqual(expected_stats["worst_trade"], portfolio.get_trade_stats()["worst_trade"])
+        self.assertAlmostEqual(expected_stats["win_rate"], portfolio.get_trade_stats()["win_rate"])
+        self.assertAlmostEqual(expected_stats["avg_trade"], portfolio.get_trade_stats()["avg_trade"])
+        self.assertAlmostEqual(expected_stats["max_trade_duration"], portfolio.get_trade_stats()["max_trade_duration"])
+        self.assertAlmostEqual(expected_stats["min_trade_duration"], portfolio.get_trade_stats()["min_trade_duration"])
+        self.assertAlmostEqual(expected_stats["avg_trade_duration"], portfolio.get_trade_stats()["avg_trade_duration"])
+        self.assertAlmostEqual(expected_stats["profit_factor"], portfolio.get_trade_stats()["profit_factor"], delta=1e-5)
+        self.assertAlmostEqual(expected_stats["SQN"], portfolio.get_trade_stats()["SQN"])
+
+
+    def test_get_state(self):
+        portfolio = Portfolio(6.99, False)
+        trade1 = BuyLong("AAPL", 100, 250, 250, "1",
+                            datetime(2021, 2, 1),
+                         order=TradeOrder(datetime(2021, 2, 1), "AAPL",
+                                          (None, None), 250, 250, TradeType.BuyLong, expiry=None))
+        portfolio.trade(trade1)
+        trade2 = SellLong("AAPL", 125, 100, 0, "2",
+                            datetime(2021, 2, 15),
+                          order=TradeOrder(datetime(2021, 2, 1), "AAPL",
+                                          (None, None), 250, 250, TradeType.SellLong, expiry=None))
+        portfolio.trade(trade2)
+        trade3 = SellLong("AAPL", 150, 400, 0, "3",
+                            datetime(2021, 3, 1),
+                          order=TradeOrder(datetime(2021, 2, 1), "AAPL",
+                                          (None, None), 250, 250, TradeType.SellLong, expiry=None))
+        portfolio.trade(trade3)
+
+        trade4 = BuyLong("MSFT", 110, 100, 0, "4",
+                            datetime(2021, 2, 25),
+                          order=TradeOrder(datetime(2021, 2, 1), "MSFT",
+                                          (None, None), 250, 250, TradeType.BuyLong, expiry=None))
+        portfolio.trade(trade4)
+
+        trade5 = SellLong("MSFT", 60, 100, 0, "5",
+                            datetime(2021, 3, 13),
+                          order=TradeOrder(datetime(2021, 2, 1), "MSFT",
+                                          (None, None), 250, 250, TradeType.SellLong, expiry=None))
+        portfolio.trade(trade5)
+        trade10 = SellShort("GOOGL", 100, 0, 100, "10",
+                            datetime(2021, 2, 1),
+                          order=TradeOrder(datetime(2021, 2, 1), "GOOGL",
+                                          (None, None), 0, 250, TradeType.SellShort, expiry=None))
+        portfolio.trade(trade10)
+        trade11 = BuyShort("GOOGL", 195, 0, 100, "11",
+                            datetime(2021, 3, 25),
+                          order=TradeOrder(datetime(2021, 2, 1), "GOOGL",
+                                          (None, None), 0, 250, TradeType.BuyShort, expiry=None))
+        portfolio.trade(trade11)
+
+        trade12 = SellShort("AMZN", 100, 0, 100, "12",
+                            datetime(2021, 2, 1),
+                          order=TradeOrder(datetime(2021, 2, 1), "AMZN",
+                                          (None, None), 0, 250, TradeType.SellShort, expiry=None))
+        portfolio.trade(trade12)
+        trade13 = BuyShort("AMZN", 90, 0, 100, "13",
+                            datetime(2021, 3, 25),
+                          order=TradeOrder(datetime(2021, 2, 1), "AMZN",
+                                          (None, None), 0, 250, TradeType.SellShort, expiry=None))
+        portfolio.trade(trade13)
+
+        state = portfolio.get_state()
+
+        expected = {
+            "type": "Portfolio",
+            "long": {ticker: pos.export() for ticker, pos in portfolio._long.items()},
+            "short": {ticker: pos.export() for ticker, pos in portfolio._short.items()},
+            "trades": [{"type": trade.__class__.__name__, **trade.export()} for trade in portfolio._trades],
+            "transaction_cost": portfolio._transaction_cost,
+            "transaction_relative": portfolio._relative,
+            "transaction_ids": list(portfolio._transaction_ids)
+        }
+
+        self.assertEqual(expected, state)
+
+    def test_load_state(self):
+        portfolio = Portfolio(6.99, False)
+        trade1 = BuyLong("AAPL", 100, 250, 250, "1",
+                            datetime(2021, 2, 1),
+                         order=TradeOrder(datetime(2021, 2, 1), "AAPL",
+                                          (None, None), 250, 250, TradeType.BuyLong, expiry=None))
+        portfolio.trade(trade1)
+        trade2 = SellLong("AAPL", 125, 100, 0, "2",
+                            datetime(2021, 2, 15),
+                          order=TradeOrder(datetime(2021, 2, 1), "AAPL",
+                                          (None, None), 250, 250, TradeType.SellLong, expiry=None))
+        portfolio.trade(trade2)
+        trade3 = SellLong("AAPL", 150, 400, 0, "3",
+                            datetime(2021, 3, 1),
+                          order=TradeOrder(datetime(2021, 2, 1), "AAPL",
+                                          (None, None), 250, 250, TradeType.SellLong, expiry=None))
+        portfolio.trade(trade3)
+
+        trade4 = BuyLong("MSFT", 110, 100, 0, "4",
+                            datetime(2021, 2, 25),
+                          order=TradeOrder(datetime(2021, 2, 1), "MSFT",
+                                          (None, None), 250, 250, TradeType.BuyLong, expiry=None))
+        portfolio.trade(trade4)
+
+        trade5 = SellLong("MSFT", 60, 100, 0, "5",
+                            datetime(2021, 3, 13),
+                          order=TradeOrder(datetime(2021, 2, 1), "MSFT",
+                                          (None, None), 250, 250, TradeType.SellLong, expiry=None))
+        portfolio.trade(trade5)
+        trade10 = SellShort("GOOGL", 100, 0, 100, "10",
+                            datetime(2021, 2, 1),
+                          order=TradeOrder(datetime(2021, 2, 1), "GOOGL",
+                                          (None, None), 0, 250, TradeType.SellShort, expiry=None))
+        portfolio.trade(trade10)
+        trade11 = BuyShort("GOOGL", 195, 0, 100, "11",
+                            datetime(2021, 3, 25),
+                          order=TradeOrder(datetime(2021, 2, 1), "GOOGL",
+                                          (None, None), 0, 250, TradeType.BuyShort, expiry=None))
+        portfolio.trade(trade11)
+
+        trade12 = SellShort("AMZN", 100, 0, 100, "12",
+                            datetime(2021, 2, 1),
+                          order=TradeOrder(datetime(2021, 2, 1), "AMZN",
+                                          (None, None), 0, 250, TradeType.SellShort, expiry=None))
+        portfolio.trade(trade12)
+        trade13 = BuyShort("AMZN", 90, 0, 100, "13",
+                            datetime(2021, 3, 25),
+                          order=TradeOrder(datetime(2021, 2, 1), "AMZN",
+                                          (None, None), 0, 250, TradeType.SellShort, expiry=None))
+        portfolio.trade(trade13)
+
+        state = portfolio.get_state()
+        new_portfolio = Portfolio.load_state(state, {})
+        self.assertEqual(portfolio.get_state(), new_portfolio.get_state())

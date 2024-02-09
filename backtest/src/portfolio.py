@@ -33,6 +33,7 @@ class Position:
         # dividends due to the shareholders.
         # Formula: days * (amount)
         self.time_stock_idx = 0
+        self._number_of_entry = 1
 
     @property
     def purchase_worth(self):
@@ -41,10 +42,10 @@ class Position:
     def __str__(self):
         mrg = "MARGIN" if self.on_margin else ""
         lg = "LONG" if self.long else "SHORT"
-        return f"EQUITY: {self.amount}x{self.ticker} {round(self.average_price, 2)}$ {mrg} {lg}"
+        return f"POSITION: {self.amount}x{self.ticker} {round(self.average_price, 2)}$ {mrg} {lg}"
 
     def __repr__(self):
-        return f"EQUITY: {self.ticker}"
+        return f"POSITION: {self.ticker}"
 
     def update_time_stock_idx(self, timestep_elapsed: int = 1):
         """
@@ -70,6 +71,8 @@ class Position:
         Add a position to the current one.  It will update the average price and the amount, the amount borrowed, the
         average filled time, the last dividends date and the time_stock_idx.
         (for a better calculation of dividends due to shareholders)
+        Note:
+            If adding a trade that doesn't have the same own ratio, the ratio will be updated.
         :param other: The other position or trade to add.
         :return: None
         :raise TypeError: If trying to add long and short positions together
@@ -97,6 +100,7 @@ class Position:
 
             new.last_dividends_dt = (self.last_dividends_dt + timedelta(seconds=(other.last_dividends_dt -
                                                                                  self.last_dividends_dt).total_seconds() / 2))
+            new._number_of_entry = self._number_of_entry + other._number_of_entry
             return new
 
         elif isinstance(other, Trade):
@@ -121,12 +125,14 @@ class Position:
             new.average_price = ((current_amount / total_amount) * self.average_price +
                                  (other_amount / total_amount) * other.security_price)
             new.amount += other.amount + other.amount_borrowed
+            amount_owned = self.amount * self.ratio_owned + other.amount
+            new.ratio_owned = amount_owned / new.amount
             # time stock idx is not updated when adding a trade because the position was not held before.
             new.time_stock_idx += 0
             new.average_filled_time = (self.average_filled_time +
                                        timedelta(seconds=(other.timestamp -
                                                           self.average_filled_time).total_seconds() / 2))
-
+            new._number_of_entry += 1
             if other.timestamp < self.last_dividends_dt:
                 raise RuntimeError("Cannot add a trade that happened before the last dividends [Not causal]")
             new.last_dividends_dt = (self.last_dividends_dt + timedelta(seconds=(other.timestamp -
@@ -163,7 +169,7 @@ class Position:
                 elif other.trade_type != TradeType.SellLong:
                     raise ValueError("Invalid trade type for subtraction to a long position")
             else:  # Short
-                if other.trade_type == TradeType.BuyShort:
+                if other.trade_type == TradeType.SellShort:
                     raise ValueError("Cannot sub a selling trade to a short position")
                 elif other.trade_type != TradeType.BuyShort:
                     raise ValueError("Invalid trade type for subtraction to short position")
@@ -188,7 +194,8 @@ class Position:
             "average_filled_time": str(self.average_filled_time),
             "last_dividends_dt": str(self.last_dividends_dt),
             "time_stock_idx": self.time_stock_idx,
-            "ratio_owned": self.ratio_owned
+            "ratio_owned": self.ratio_owned,
+            "number_of_entry": self._number_of_entry
         }
 
     @classmethod
@@ -202,6 +209,7 @@ class Position:
                    datetime.fromisoformat(data["average_filled_time"]), ratio_owned=data["ratio_owned"])
         self.last_dividends_dt = datetime.fromisoformat(data["last_dividends_dt"])
         self.time_stock_idx = data["time_stock_idx"]
+        self._number_of_entry = data["number_of_entry"]
         return self
 
     def __eq__(self, other):
@@ -371,11 +379,12 @@ class Portfolio:
                 duration = trade.timestamp - self._long[trade.security].average_filled_time
                 average_buy_price = self._long[trade.security].average_price
                 ratio_owned = self._long[trade.security].ratio_owned
+                number_of_entry  = self._long[trade.security]._number_of_entry
                 profit, rel_profit = self.getLongProfit(average_buy_price,
                                                         trade.security_price,
                                                         trade.amount + trade.amount_borrowed,
                                                         ratio_owned,
-                                                        relative_debt)
+                                                        relative_debt, number_of_entry)
                 self._trades.append(
                     TradeStats(trade,
                                duration,
@@ -384,6 +393,8 @@ class Portfolio:
                 # Handle debt record
                 self._debt_record[trade.security] -= relative_debt  # Debt that has been repaid
                 self._long[trade.security] -= trade
+                if self._long[trade.security].amount == 0:
+                    del self._long[trade.security]
 
                 return self._getCost(trade, include_borrow=True, sell=True) - relative_debt
 
@@ -416,16 +427,21 @@ class Portfolio:
                 raise RuntimeError("Cannot buy short more securities than the portfolio has sold short.")
             else:
                 # Compute stats
-                duration = trade.timestamp - self._long[trade.security].average_filled_time
+                duration = trade.timestamp - self._short[trade.security].average_filled_time
                 average_sell_price = self._short[trade.security].average_price
-                trade.amount = 0  # Just to make sure # TODO: Verify utility of this line
+                absolute_profit, rel_profit = self.getShortProfit(average_sell_price, trade.security_price, trade.amount_borrowed)
                 self._trades.append(
                     TradeStats(trade,
                                duration,
-                               *self.getShortProfit(average_sell_price, trade.security_price, trade.amount_borrowed)))
+                               absolute_profit,
+                               rel_profit,
+                               0.))
 
                 # Update portfolio
                 self._short[trade.security] -= trade
+                if self._short[trade.security].amount == 0:
+                    del self._short[trade.security]
+
                 # Compute trade value
                 return -self._getCost(trade, include_borrow=True)
 
@@ -437,15 +453,16 @@ class Portfolio:
         :param qty: The number of shares in the trade
         :return: The profit (positive) or loss (negative) made on the trade, relative profit
         """
+        intial_investment = average_sell_price * qty
         if self._relative:
-            gain = (average_buy_price * qty - average_sell_price * qty) * (1 - self._transaction_cost)
-            return gain, 100 * gain / average_sell_price
+            gain = (intial_investment * (2 - self._transaction_cost)) - (average_buy_price * qty * self._transaction_cost)
+            return gain, 100 * gain / intial_investment
         else:
-            gain = (average_buy_price * qty - average_sell_price * qty) - self._transaction_cost
-            return gain, 100 * gain / average_sell_price
+            gain = (intial_investment - self._transaction_cost) - (average_buy_price * qty + self._transaction_cost)
+            return gain, 100 * gain / intial_investment
 
     def getLongProfit(self, average_buy_price: float, average_sell_price: float, qty: int, ratio_owned: float,
-                      debt: float) -> Tuple[float, float]:
+                      debt: float, number_of_entry: int) -> Tuple[float, float]:
         """
         Calculate the profit made on a long trade
         :param average_buy_price: The price at which the security was bought
@@ -454,6 +471,7 @@ class Portfolio:
         :param ratio_owned: The ratio of the security held in account that are owned by the investor.  (not bought on
                             margin)
         :param debt: The amount of debt used to buy the security
+        :param number_of_entry: The number of time the position was entered.  (Used only if transaction cost is absolute)
         :return: The profit (positive) or loss (negative) made on the trade, relative profit in percentage
         """
         if self._relative:
@@ -463,7 +481,7 @@ class Portfolio:
                     debt)
             return gain, 100 * gain / intial_investment
         else:
-            initial_investment = average_buy_price * qty * ratio_owned + self._transaction_cost
+            initial_investment = average_buy_price * qty * ratio_owned + number_of_entry * self._transaction_cost
             gain = ((average_sell_price * qty - self._transaction_cost) -
                     initial_investment -
                     debt)
@@ -478,16 +496,8 @@ class Portfolio:
         :return: The cost of the trade
         """
         amount = trade.amount + trade.amount_borrowed if include_borrow else trade.amount
-        if self._relative:
-            if sell:
-                return trade.security_price * amount * (2 - self._transaction_cost)
-            else:
-                return trade.security_price * amount * self._transaction_cost
-        else:
-            if sell:
-                return trade.security_price * amount - self._transaction_cost
-            else:
-                return trade.security_price * amount + self._transaction_cost
+        price = trade.security_price
+        return self.estimateCost(price, amount, sell)
 
     def estimateCost(self, price: float, amount: int, sell: bool = False) -> float:
         """
@@ -589,12 +599,12 @@ class Portfolio:
         # df = pd.DataFrame({"Relative Profit": rel_profit, "Absolute Profit": abs_profit, "Duration": duration})
         best_trade = max(rel_profit)
         worst_trade = min(rel_profit)
-        win_rate = len([x for x in rel_profit if x > 0]) / len(rel_profit)
+        win_rate = 100 * len([x for x in rel_profit if x > 0]) / len(rel_profit)
         avg_trade = sum(rel_profit) / len(rel_profit)
         max_trade_duration = max(duration_seconds) / 86_400  # In days
         min_trade_duration = min(duration_seconds) / 86_400  # In days
         avg_trade_duration = (sum(duration_seconds) / len(duration_seconds)) / 86_400  # In days
-        total_gains = abs_profit[abs_profit > 0].sum()
+        total_gains = abs_profit[abs_profit >= 0].sum()
         total_losses = abs_profit[abs_profit < 0].sum()
         rel_profit = np.array(rel_profit, dtype=np.float32)
         sqn = np.sqrt(self.get_trade_count(exit_only=True)) * (rel_profit.mean() / 100) / (
@@ -627,7 +637,8 @@ class Portfolio:
             "short": {ticker: pos.export() for ticker, pos in self._short.items()},
             "trades": [{"type": trade.__class__.__name__, **trade.export()} for trade in self._trades],
             "transaction_cost": self._transaction_cost,
-            "transaction_relative": self._relative
+            "transaction_relative": self._relative,
+            "transaction_ids": list(self._transaction_ids)
         }
 
     @classmethod
@@ -642,7 +653,8 @@ class Portfolio:
         self = cls(data["transaction_cost"], data["transaction_relative"], debt_record)
         self._long = {ticker: Position.load(pos) for ticker, pos in data["long"].items()}
         self._short = {ticker: Position.load(pos) for ticker, pos in data["short"].items()}
-        self._trades = [Trade.load(trade) for trade in data["trades"]]
+        self._trades = [TradeStats.load(trade) if trade["type"] == "TradeStats" else Trade.load(trade) for trade in data["trades"]]
+        self._transaction_ids = set(data["transaction_ids"])
         return self
 
     def empty(self) -> bool:
@@ -651,3 +663,12 @@ class Portfolio:
         :return: True if the portfolio is empty, False otherwise
         """
         return len(self._long) == 0 and len(self._short) == 0
+
+    def __eq__(self, other):
+        return (self._long == other._long and
+                self._short == other._short and
+                self._trades == other._trades and
+                self._transaction_cost == other._transaction_cost and
+                self._relative == other._relative,
+                self._debt_record == other._debt_record,
+                self._transaction_ids == other._transaction_ids)
