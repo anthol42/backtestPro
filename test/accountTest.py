@@ -1,20 +1,23 @@
 from unittest import TestCase
-from backtest.src.account import Account, CollateralUpdate, TransactionType, Transaction
+from backtest.src.account import Account, CollateralUpdate, TransactionType, Transaction, CollateralUpdateType
 from datetime import datetime
+
 class TestCollateralUpdate(TestCase):
-    update1 = CollateralUpdate(100, datetime(2021, 1, 28, 10, 45), "Test")
-    update2 = CollateralUpdate(200_000, datetime(2019, 12, 25, 0, 0), "Christmas")
+    update1 = CollateralUpdate(100, datetime(2021, 1, 28, 10, 45), "Test", CollateralUpdateType.UPDATE)
+    update2 = CollateralUpdate(200_000, datetime(2019, 12, 25, 0, 0), "Christmas", CollateralUpdateType.ADD)
     exp1 = {
         "type": "CollateralUpdate",
         "amount": 100,
         "dt": "2021-01-28 10:45:00",
-        "message": "Test"
+        "message": "Test",
+        "collateral_update_type": "UPDATE"
     }
     exp2 = {
         "type": "CollateralUpdate",
         "amount": 200_000,
         "dt": "2019-12-25 00:00:00",
-        "message": "Christmas"
+        "message": "Christmas",
+        "collateral_update_type": "ADD"
     }
     def test_export(self):
 
@@ -112,6 +115,17 @@ class TestAccount(TestCase):
         self.assertEqual(account2._collateral_history[0].dt, datetime(2021, 1, 29, 15, 30))
         self.assertEqual(account2._collateral_history[0].message, "[ADD] - Test")
 
+    def test_remove_collateral(self):
+        account1 = Account(10_000, False)
+        account1.add_collateral(10_000, datetime(2021, 1, 28, 15, 30), "Test")
+        account1.remove_collateral(5_000, datetime(2021, 1, 29, 15, 45), "Test")
+        self.assertEqual(account1._collateral, 5_000)
+        self.assertEqual(account1._collateral_history[1].amount, 5_000)
+        self.assertEqual(account1._collateral_history[1].dt, datetime(2021, 1, 29, 15, 45))
+        self.assertEqual(account1._collateral_history[1].message, "[REMOVE] - Test")
+        self.assertEqual(account1.get_cash(), 5_000)
+        self.assertRaises(RuntimeError, account1.remove_collateral, 5_001, datetime(2021, 1, 29, 15, 45), "Test")
+
 
     def test_get_cash(self):
         accout1 = Account(10_000, False)
@@ -168,8 +182,8 @@ class TestAccount(TestCase):
             "account_worth": [10_000, 10_100, 9_900, 10_100, 10_000],
             "allow_debt": False,
             "collateral_history": [
-                {"type": "CollateralUpdate", "amount": 5_000, "dt": "2021-01-29 15:30:00", "message": "[UPDATE] - Test"},
-                {"type": "CollateralUpdate", "amount": 5_000, "dt": "2021-01-29 15:30:00", "message": "[ADD] - Test"}
+                {"type": "CollateralUpdate", "amount": 5_000, "dt": "2021-01-29 15:30:00", "message": "[UPDATE] - Test", "collateral_update_type": "UPDATE"},
+                {"type": "CollateralUpdate", "amount": 5_000, "dt": "2021-01-29 15:30:00", "message": "[ADD] - Test", "collateral_update_type": "ADD"}
             ],
             "previous_ids": ["1", "2", "3", "4"],
         })
@@ -206,8 +220,8 @@ class TestAccount(TestCase):
             "account_worth": [10_000, 10_100, 9_900, 10_100, 10_000],
             "allow_debt": False,
             "collateral_history": [
-                {"type": "CollateralUpdate", "amount": 5_000, "dt": "2021-01-29 15:30:00", "message": "[UPDATE] - Test"},
-                {"type": "CollateralUpdate", "amount": 5_000, "dt": "2021-01-29 15:30:00", "message": "[ADD] - Test"}
+                {"type": "CollateralUpdate", "amount": 5_000, "dt": "2021-01-29 15:30:00", "message": "[UPDATE] - Test", "collateral_update_type": "UPDATE"},
+                {"type": "CollateralUpdate", "amount": 5_000, "dt": "2021-01-29 15:30:00", "message": "[ADD] - Test", "collateral_update_type": "ADD"}
             ],
             "previous_ids": ["1", "2", "3", "4"],
         }

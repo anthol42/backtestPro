@@ -384,7 +384,7 @@ class Broker:
         for ticker in self.portfolio.getShort():
             eq_idx = security_names.index(ticker)
             price = tuple(current_tick_data[eq_idx].tolist()) # (Open, High, Low, Close)
-            mk_value = self.portfolio.getShort()[ticker].amount_borrowed * price[3] * (2 - self._comm)
+            mk_value = self.portfolio.getShort()[ticker].amount * price[3] * (2 - self._comm)
             collateral += (1 + self.min_maintenance_margin_short) * mk_value
 
         if available_cash - collateral < 0:
@@ -676,21 +676,15 @@ class Broker:
                     raise RuntimeError(f"Not enough margin to execute the trade.  "
                                        f"Got: {margin_ratio} but the minimum intial margin is: "
                                        f"{self.min_initial_margin}")
-                if self._relative:
-                    total = order.amount * price * self._comm
-                else:
-                    total = order.amount * price + self._comm
+
+                total = self.portfolio.estimateCost(price, order.amount_borrowed)
 
                 if total > self.account.get_cash():  # Not enough cash to complete the trade
                     return False
                 else:
                     trade = order.convertToTrade(price, timestamp, str(self.n))
-                    self.portfolio.trade(trade)
+                    total = self.portfolio.trade(trade)
                     self.account.withdrawal(total, timestamp, str(self.n))
-                    if order.security in self._debt_record:
-                        self._debt_record[order.security] += order.amount_borrowed * price * self._comm
-                    else:
-                        self._debt_record[order.security] = order.amount_borrowed * price * self._comm
                 self.n += 1
                 return True
             else:
@@ -719,15 +713,11 @@ class Broker:
                 else:
                     price = None
             if price is not None:    # We sell
-                if self._relative:
-                    total = (order.amount + order.amount_borrowed) * price * (2 - self._comm)
-                else:
-                    total = (order.amount + order.amount_borrowed) * price - self._comm
+
+                total = self.portfolio.estimateCost(price, order.amount_borrowed)
 
                 trade = order.convertToTrade(price, timestamp, str(self.n))
-                self.portfolio.trade(trade)
-                money = total - self._debt_record[order.security]
-                del self._debt_record[order.security]
+                money = self.portfolio.trade(trade)
                 if money > 0:
                     self.account.deposit(money, timestamp)
                 else:
@@ -773,16 +763,14 @@ class Broker:
                     price = None
 
             if price is not None:    # We sell short
-                if self._relative:
-                    total = order.amount_borrowed * price * (2 - self._comm)
-                else:
-                    total = order.amount_borrowed * price - self._comm
+
+                total = self.portfolio.estimateCost(price, order.amount_borrowed)
 
                 # Verify if we have enough margin to make the trade
                 if self.min_initial_margin_short * total > self.account.get_cash():
-                    self.account.deposit(total, timestamp, transaction_id=str(self.n))
-                    self.account.add_collateral((self.min_maintenance_margin + 1) * total, timestamp, message=order.security)
-                    self.portfolio.trade(order.convertToTrade(price, timestamp, str(self.n)))
+                    money = -self.portfolio.trade(order.convertToTrade(price, timestamp, str(self.n)))
+                    self.account.deposit(money, timestamp, transaction_id=str(self.n))
+                    self.account.add_collateral((self.min_maintenance_margin + 1) * money, timestamp, message=order.security)
                     self.n += 1
                     return True
                 else:
@@ -816,21 +804,20 @@ class Broker:
                     price = None
 
             if price is not None:    # We sell short
-                if self._relative:
-                    total = order.amount_borrowed * price * self._comm
-                else:
-                    total = order.amount_borrowed * price + self._comm
-
-                if total > self.account.get_cash():
-                    self.new_margin_call(total - self.account.get_total_cash(), message="missing_funds")
+                total = self.portfolio.estimateCost(price, order.amount_borrowed)
+                asset_collateral = (1 + self.min_maintenance_margin_short) * total
+                if total > self.account.get_cash() + asset_collateral:
+                    self.new_margin_call(total - (self.account.get_cash() + asset_collateral), message="missing_funds")
                     trade = order.convertToTrade(price, timestamp, str(self.n))
                     self.portfolio.trade(trade)
-                    self.account.withdrawal(total - self.account.get_total_cash(), timestamp, transaction_id=str(self.n))
+                    self.account.remove_collateral(asset_collateral, timestamp, message=f"Bought back short position - {order.security}")
+                    self.account.withdrawal(self.account.get_cash(), timestamp, transaction_id=str(self.n))
                     self.n += 1
                     return True
                 else:
                     trade = order.convertToTrade(price, timestamp, str(self.n))
                     self.portfolio.trade(trade)
+                    self.account.remove_collateral(asset_collateral, timestamp, message=f"Bought back short position - {order.security}")
                     self.account.withdrawal(total, timestamp, transaction_id=str(self.n))
                     self.n += 1
                     return True

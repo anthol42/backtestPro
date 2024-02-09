@@ -1,21 +1,32 @@
 from .transaction import Transaction, TransactionType
 from datetime import datetime
 from typing import List, Optional
+from enum import Enum
 
+class CollateralUpdateType(Enum):
+    ADD = "ADD"
+    REMOVE = "REMOVE"
+    UPDATE = "UPDATE"
+
+
+    def __str__(self):
+        return self.value
 
 class CollateralUpdate:
     """
     Data class holding info about a collateral update
     """
-    def __init__(self, amount: float, dt: datetime, message: str):
+    def __init__(self, amount: float, dt: datetime, message: str, collateral_update_type: CollateralUpdateType):
         """
         :param amount: The amount frozen in the account as collateral (Cannot be used to buy securities)
         :param dt: The datetime of the update.
         :param message: A message explaining the reason of the update.  (Useful for debugging the strategy)
+        :param collateral_update_type: The type of update.  Can be ADD, REMOVE or UPDATE
         """
         self.amount = amount
         self.dt = dt
         self.message = message
+        self.collateral_update_type = collateral_update_type
 
     def export(self) -> dict:
         """
@@ -26,7 +37,8 @@ class CollateralUpdate:
             "type": "CollateralUpdate",
             "amount": self.amount,
             "dt": str(self.dt),
-            "message": self.message
+            "message": self.message,
+            "collateral_update_type": str(self.collateral_update_type)
         }
 
     @classmethod
@@ -36,10 +48,12 @@ class CollateralUpdate:
         :param data: The dictionary to load from
         :return: The CollateralUpdate object
         """
-        return cls(data["amount"], datetime.fromisoformat(data["dt"]), data["message"])
+        return cls(data["amount"], datetime.fromisoformat(data["dt"]), data["message"],
+                   CollateralUpdateType(data["collateral_update_type"]))
 
     def __eq__(self, other):
-        return self.amount == other.amount and self.dt == other.dt and self.message == other.message
+        return (self.amount == other.amount and self.dt == other.dt and self.message == other.message and
+                self.collateral_update_type == other.collateral_update_type)
 
 class Account:
     def __init__(self, initial_cash: float = 100_000, allow_debt: bool = False):
@@ -95,7 +109,8 @@ class Account:
         """
         if amount > self._cash and not self._allow_debt:
             raise RuntimeError("Collateral amount is bigger than current worth of account!")
-        self._collateral_history.append(CollateralUpdate(amount, dt, f"[UPDATE] - {message}"))
+        self._collateral_history.append(CollateralUpdate(amount, dt, f"[UPDATE] - {message}",
+                                                         CollateralUpdateType.UPDATE))
         self._collateral = amount
 
     def add_collateral(self, amount: float, dt: datetime, message: str = "Sold short"):
@@ -110,8 +125,25 @@ class Account:
         """
         if amount + self._collateral > self._cash and not self._allow_debt:
             raise RuntimeError("Collateral amount is bigger than current worth of account!")
-        self._collateral_history.append(CollateralUpdate(amount, dt, f"[ADD] - {message}"))
+        self._collateral_history.append(CollateralUpdate(amount, dt, f"[ADD] - {message}",
+                                                         CollateralUpdateType.ADD))
         self._collateral += amount
+
+    def remove_collateral(self, amount: float, dt: datetime, message: str = "Bought back short"):
+        """
+        Removes collateral from the account.  This is the amount of money held as collateral and cannot
+        be used.  This method could be used when buying back a short position.
+        :raise RuntimeError: If the amount of collateral is bigger than the current cash in the account.
+        :param amount: Value of collateral.
+        :param dt: datetime of the update
+        :param message: Reason of the update.  Can be, for example: "Step update", "Enter short position for {ticker}", etc.
+        :return: None
+        """
+        if amount > self._collateral:
+            raise RuntimeError("Collateral amount is bigger than current worth of account!")
+        self._collateral_history.append(CollateralUpdate(amount, dt, f"[REMOVE] - {message}",
+                                                         CollateralUpdateType.REMOVE))
+        self._collateral -= amount
 
     def get_cash(self):
         """
