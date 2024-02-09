@@ -86,6 +86,9 @@ class BrokerState:
         """
         return BrokerState({key: MarginCall.load(value) for key, value in data["margin_calls"].items()}, data["bankruptcy"])
 
+    def __eq__(self, other):
+        return self.margin_calls == other.margin_calls and self.bankruptcy == other.bankruptcy
+
 class StepState:
     """
     Record the state of the broker at each steps for easier strategy debugging
