@@ -100,6 +100,8 @@ class BackTest:
         prepared_data = [np.array(prepared_data[i])[mask].tolist() for i in range(len(prepared_data))]
 
         # Step 3: Run strategy
+        # Tell the broker what datetime it is, so it can mark trade orders to this timestamp
+        self.broker.set_current_timestamp(timestep)
         self.strategy(prepared_data, timestep)
         # Step 4: Run broker
         # Get security names

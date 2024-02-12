@@ -15,7 +15,7 @@ class TradeType(Enum):
 
 
 class TradeOrder(ABC):
-    def __init__(self, timestamp: datetime, security: str, security_price_limit: Tuple[float, float], amount: int, amount_borrowed: int,
+    def __init__(self, timestamp: datetime, security: str, security_price_limit: Tuple[Optional[float], Optional[float]], amount: int, amount_borrowed: int,
                  trade_type: TradeType, expiry: Optional[datetime]):
         self.timestamp = timestamp
         self.security = security
@@ -99,23 +99,27 @@ class TradeOrder(ABC):
                 self.margin_trade == other.margin_trade)
 
 class BuyLongOrder(TradeOrder):
-    def __init__(self, timestamp: datetime, security: str, security_price_limit: Tuple[float, float], amount: int, amount_borrowed: int,
-                  expiry: datetime):
+    def __init__(self, timestamp: datetime, security: str, security_price_limit: Tuple[Optional[float], Optional[float]],
+                 amount: int, amount_borrowed: int,
+                  expiry: Optional[datetime]):
         super().__init__(timestamp, security, security_price_limit, amount, amount_borrowed, trade_type=TradeType.BuyLong,
                          expiry=expiry)
 class SellLongOrder(TradeOrder):
-    def __init__(self, timestamp: datetime,  security: str, security_price_limit: Tuple[float, float], amount: int, amount_borrowed: int,
-                  expiry: datetime):
+    def __init__(self, timestamp: datetime,  security: str, security_price_limit: Tuple[Optional[float], Optional[float]],
+                 amount: int, amount_borrowed: int,
+                  expiry: Optional[datetime]):
         super().__init__(timestamp, security, security_price_limit, amount, amount_borrowed, trade_type=TradeType.SellLong,
                          expiry=expiry)
 class SellShortOrder(TradeOrder):
-    def __init__(self, timestamp: datetime,  security: str, security_price_limit: Tuple[float, float], amount: int, amount_borrowed: int,
-                  expiry: datetime):
+    def __init__(self, timestamp: datetime,  security: str, security_price_limit: Tuple[Optional[float], Optional[float]],
+                 amount: int, amount_borrowed: int,
+                  expiry: Optional[datetime]):
         super().__init__(timestamp, security, security_price_limit, amount,  amount_borrowed, trade_type=TradeType.SellShort,
                          expiry=expiry)
 class BuyShortOrder(TradeOrder):
-    def __init__(self, timestamp: datetime,  security: str, security_price_limit: Tuple[float, float], amount: int, amount_borrowed: int,
-                  expiry: datetime):
+    def __init__(self, timestamp: datetime,  security: str, security_price_limit: Tuple[Optional[float], Optional[float]],
+                 amount: int, amount_borrowed: int,
+                  expiry: Optional[datetime]):
         super().__init__(timestamp, security, security_price_limit, amount, amount_borrowed, trade_type=TradeType.BuyShort,
                          expiry=expiry)
 

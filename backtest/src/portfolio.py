@@ -18,7 +18,7 @@ class Position:
         self.average_price = average_price
         self.on_margin = ratio_owned < 1.0
         self.long = long
-        if amount <= 0:
+        if amount < 0:
             raise ValueError("Amount cannot be negative nor zero")
         if not long and ratio_owned != 0.:
             raise ValueError("Short position cannot own shares.  Set ratio_owned to 0.")
@@ -86,6 +86,16 @@ class Position:
             if self.ticker != other.ticker:
                 raise ValueError("Cannot add positions of different tickers")
             new = deepcopy(self)
+            if self.amount == 0:
+                # Initiate a new position without changing time_stock_idx in case the position pay dividends.
+                new.amount = other.amount
+                new.ratio_owned = other.ratio_owned
+                new.average_price = other.average_price
+                new.average_filled_time = other.average_filled_time
+                new._number_of_entry = 1
+                new.last_dividends_dt = other.last_dividends_dt
+                new.on_margin = new.ratio_owned < 1.0
+                return new
             # Concatenating positions
             current_amount = self.amount
             other_amount = other.amount
@@ -118,6 +128,17 @@ class Position:
                     raise ValueError("Invalid trade type for addition to short position")
 
             new = deepcopy(self)
+            if self.amount == 0:
+                # Initiate a new position without changing time_stock_idx in case the position pay dividends.
+                new.amount = other.amount + other.amount_borrowed
+                new.ratio_owned = other.amount / new.amount
+                new.average_price = other.security_price
+                new.average_filled_time = other.timestamp
+                new._number_of_entry = 1
+                new.last_dividends_dt = other.timestamp
+                new.on_margin = new.ratio_owned < 1.0
+                return new
+
             # Newly acquired position.  (Was not held before)
             current_amount = self.amount
             other_amount = other.amount + other.amount_borrowed
@@ -323,7 +344,7 @@ class Portfolio:
         else:
             self._transaction_ids.add(trade.transaction_id)
 
-        if isinstance(trade, BuyLong):
+        if trade.trade_type == TradeType.BuyLong:
             """
             What this section is doing:
                 1. Add the trade to the long portfolio (2 case: New position or adding to an existing one)
@@ -354,7 +375,7 @@ class Portfolio:
             self._trades.append(trade)
 
             return -self._getCost(trade, include_borrow=False)
-        elif isinstance(trade, SellLong):
+        elif trade.trade_type == TradeType.SellLong:
             """
             What this section is doing:
                 1. Verify that we have a long open position in the portfolio for this security. (Raise RuntimeError if not)
@@ -393,12 +414,10 @@ class Portfolio:
                 # Handle debt record
                 self._debt_record[trade.security] -= relative_debt  # Debt that has been repaid
                 self._long[trade.security] -= trade
-                if self._long[trade.security].amount == 0:
-                    del self._long[trade.security]
 
                 return self._getCost(trade, include_borrow=True, sell=True) - relative_debt
 
-        elif isinstance(trade, SellShort):
+        elif trade.trade_type == TradeType.SellShort:
             """
             What this section is doing:
                 1. Add the trade to the long portfolio (2 case: New position or adding to an existing one)
@@ -412,7 +431,7 @@ class Portfolio:
                                                        trade.security_price, trade.timestamp, 0)
             self._trades.append(trade)
             return self._getCost(trade, include_borrow=True, sell=True)
-        elif isinstance(trade, BuyShort):
+        elif trade.trade_type == TradeType.BuyShort:
             """
             What this section is doing:
                 1. Verify that we have a short open position in the portfolio for this security. (Raise RuntimeError if not)
@@ -439,8 +458,6 @@ class Portfolio:
 
                 # Update portfolio
                 self._short[trade.security] -= trade
-                if self._short[trade.security].amount == 0:
-                    del self._short[trade.security]
 
                 # Compute trade value
                 return -self._getCost(trade, include_borrow=True)

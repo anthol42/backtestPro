@@ -26,7 +26,7 @@ class MarginCall:
         return f"MARGIN CALL {self.time_remaining} steps for {round(self.amount, 2)}$"
 
     def __repr__(self):
-        return "MARGIN CALL"
+        return f"MARGINCALL({self.time_remaining}, {self.amount})"
 
     def export(self) -> dict:
         """
@@ -93,11 +93,18 @@ class StepState:
     """
     Record the state of the broker at each steps for easier strategy debugging
     """
-    def __init__(self, timestamp: datetime, worth: float, orders: List[TradeOrder], filled_orders: List[TradeOrder],
+    def __init__(self, timestamp: datetime, worth: float, pending_orders: List[TradeOrder], filled_orders: List[TradeOrder],
                  margin_calls: Dict[str, MarginCall]):
+        """
+        :param timestamp: The date and time of the current step
+        :param worth: The worth of the portfolio
+        :param pending_orders: The pending orders that were not executed
+        :param filled_orders: The orders that were executed at the current step
+        :param margin_calls: The margin calls active at the current step
+        """
         self.timestamp = timestamp
         self.worth = worth
-        self.orders = orders
+        self.pending_orders = pending_orders
         self.filled_orders = filled_orders
         self.margin_calls = margin_calls
 
@@ -110,7 +117,7 @@ class StepState:
             "type": "StepState",
             "timestamp": str(self.timestamp),
             "worth": self.worth,
-            "orders": [order.export() for order in self.orders],
+            "pending_orders": [order.export() for order in self.pending_orders],
             "filled_orders": [order.export() for order in self.filled_orders],
             "margin_calls": {key: value.export()
                              for key, value in self.margin_calls.items()}
@@ -124,9 +131,16 @@ class StepState:
         :return: The object state as a dictionary
         """
         return StepState(datetime.fromisoformat(data["timestamp"]), data["worth"],
-                         [TradeOrder.load(order) for order in data["orders"]],
+                         [TradeOrder.load(order) for order in data["pending_orders"]],
                          [TradeOrder.load(order) for order in data["filled_orders"]],
                          {key: MarginCall.load(value) for key, value in data["margin_calls"].items()})
+
+    def __eq__(self, other):
+        return (self.timestamp == other.timestamp and
+                self.worth == other.worth and
+                self.pending_orders == other.pending_orders and
+                self.filled_orders == other.filled_orders and
+                self.margin_calls == other.margin_calls)
 
 
 class Broker:
@@ -141,6 +155,34 @@ class Broker:
                  min_initial_margin: float = 0.5, min_maintenance_margin: float = 0.25,
                  liquidation_delay: int = 2, min_initial_margin_short: float = 0.5,
                  min_maintenance_margin_short: float = 0.25):
+        """
+
+        :param bank_account: The bank account holding cash and collateral with the initial cash set.
+        :param commission: The commission to be paid for each trade.  This parameter cannot be set if relative_commission
+                            is set.  And vice versa.  If commission and relative_commission are both None, the commission
+                            is set to 0.
+        :param relative_commission: The commission to be paid for each trade as a ratio (0-1) of the trade value.  This
+                                    parameter cannot be set if commission is set.  And vice versa.
+        :param margin_interest: The margin interest rate.  It is the interest rate charged on borrowed money.  It is
+                                calculated daily and charged monthly.
+        :param min_initial_margin: The initial margin required to buy a stock on margin.  It is a ratio (0-1) of the
+                                    stock's value.  Example: 50% initial margin is 0.5
+        :param min_maintenance_margin: The minimum margin required to keep a stock on margin before a margin call.
+                                        It is a ratio (0-1) of the stock's value.  Example: 25% maintenance margin is 0.25
+        :param liquidation_delay: The time a margin call has to be active before the broker liquidate positions to pay
+                                    the margin call. (Must be grater than 0, and an int)
+        :param min_initial_margin_short: The minimum initial margin required to sell a stock short.  It is a ratio (0-1)
+        :param min_maintenance_margin_short: The minimum maintenance margin required to keep a stock short before a margin
+                                            call.  It is a ratio (0-1) of the stock's value.
+        :raise ValueError: If both commission and relative_commission are set.
+        :raise ValueError: If relative_commission is not None and not between 0 and 1
+        :raise ValueError: If commission is not None and smaller than 0
+        :raise ValueError: If margin_interest is not between 0 and 1
+        :raise ValueError: min_initial_margin and min_maintenance_margin are not between 0 and 1
+        :raise ValueError: If min_maintenance_margin_short and min_initial_margin_short are not between 0 and 1
+        :raise ValueError: If min_maintenance_margin is greater than or equal to min_initial_margin
+        :raise ValueError: If min_maintenance_margin_short is greater than or equal to min_initial_margin_short
+        """
         if commission is not None and relative_commission is not None:
             raise ValueError("Must choose between relative commission or absolute commission!")
         if commission is None and relative_commission is None:
@@ -152,9 +194,12 @@ class Broker:
             self._comm = 1 + relative_commission
             self._relative = True
         else:
+            if commission < 0.:
+                raise ValueError(f"Commission must be greater or equal to 0.  Got: {commission}")
             self._comm = commission
             self._relative = False
-
+        if margin_interest < 0. or margin_interest > 1.:
+            raise ValueError(f"Margin interest must be between 0 and 1.  Got: {margin_interest}")
         if min_maintenance_margin > 1. or min_maintenance_margin < 0.:
             raise ValueError(f"Minimum maintenance margin must be between 0 and 1.  Got: {min_maintenance_margin}")
 
@@ -164,17 +209,34 @@ class Broker:
         if min_maintenance_margin >= min_initial_margin:
             raise ValueError(f"Minimum maintenance margin must be smaller or equal than minimum initial margin. ")
 
+        if min_initial_margin_short > 1. or min_initial_margin_short < 0.:
+            raise ValueError(f"Minimum initial margin for short must be between 0 and 1.  Got: {min_initial_margin_short}")
+
+        if min_maintenance_margin_short > 1. or min_maintenance_margin_short < 0.:
+            raise ValueError(f"Minimum maintenance margin for short must be between 0 and 1.  Got: {min_maintenance_margin_short}")
+
+        if min_maintenance_margin_short >= min_initial_margin_short:
+            raise ValueError(f"Minimum maintenance margin for short must be smaller or equal than minimum initial margin for short. ")
+
+
         self.min_maintenance_margin = min_maintenance_margin
         self.min_initial_margin = min_initial_margin
         self.margin_interest = margin_interest
         self.min_initial_margin_short = min_initial_margin_short
         self.min_maintenance_margin_short = min_maintenance_margin_short
-        self.liquidation_delay = liquidation_delay
+        if liquidation_delay <= 0:
+            raise ValueError(f"Liquidation delay must be greater than 0.  Got: {liquidation_delay}")
+        self.liquidation_delay = int(liquidation_delay)
 
         # By-stock record of borrowed money {ticker, borrowed_amount}
         self._debt_record: Dict[str, float] = {}
         self._queued_trade_offers = []
-        self.portfolio = Portfolio(self._comm, self._relative, self._debt_record)  # Equities bought with available cash
+        # Convert commission to 0-1 for Porfolio
+        if self._relative:
+            comm = self._comm - 1
+        else:
+            comm = self._comm
+        self.portfolio = Portfolio(comm, self._relative, self._debt_record)  # Equities bought with available cash
         self.account = bank_account
         self.n = 0    # Keeps the count of trades.  (To give trades an id)
         self._month_interests = 0    # The current interests of the month.  They will be charged at the end of the month
@@ -183,33 +245,42 @@ class Broker:
         self._last_day: Optional[date] = None           # Remember the last day so the broker knows how long
                                                         # elapsed between the last step and the current step to charge
                                                         # the correct amount of interest
-        self._last_step = Optional[datetime] = None     # Remember the last step.
+        self._last_step: Optional[datetime] = None     # Remember the last step.
 
         self.message = BrokerState({}, False)
 
         # Stats
         self.historical_states: List[StepState] = []
 
+        # Current timestamp (The timestamp of last datapoint sent to the strategy for the current timestep.
+        # Set by BackTest object)
+        self._current_timestamp: Optional[datetime] = None
+
         # Exposure time in days
         self.exposure_time = 0
 
+    def set_current_timestamp(self, timestamp: datetime):
+        self._current_timestamp = timestamp
 
-    def buy_long(self, ticker: str, amount: int, expiry: datetime, price_limit: Tuple[float, float] = (None, None),
-                 amount_borrowed: int = 0):
-        self._queued_trade_offers.append(BuyLongOrder(ticker, price_limit, amount, amount_borrowed, expiry))
+    def buy_long(self, ticker: str, amount: int, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
+                 price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
+        # TODO: Make sure that orders that expired are deleted from the queue
+        self._queued_trade_offers.append(BuyLongOrder(self._current_timestamp, ticker, price_limit, amount,
+                                                      amount_borrowed, expiry))
 
-    def sell_long(self, ticker: str, amount: int, expiry: datetime, price_limit: Tuple[float, float] = (None, None),
-                 amount_borrowed: int = 0):
-        self._queued_trade_offers.append(SellLongOrder(ticker, price_limit, amount, amount_borrowed, expiry))
+    def sell_long(self, ticker: str, amount: int, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
+                 price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
+        self._queued_trade_offers.append(SellLongOrder(self._current_timestamp, ticker, price_limit, amount, amount_borrowed, expiry))
 
-    def sell_short(self, ticker: str, amount: int, expiry: datetime, price_limit: Tuple[float, float] = (None, None),
-                 amount_borrowed: int = 0):
-        self._queued_trade_offers.append(SellShortOrder(ticker, price_limit, amount, amount_borrowed, expiry))
+    def sell_short(self, ticker: str, amount: int, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
+                 price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
+        self._queued_trade_offers.append(SellShortOrder(self._current_timestamp, ticker, price_limit, amount, amount_borrowed, expiry))
 
-    def buy_short(self, ticker: str, amount: int, expiry: datetime, price_limit: Tuple[float, float] = (None, None),
-                 amount_borrowed: int = 0):
-        self._queued_trade_offers.append(BuyShortOrder(ticker, price_limit, amount, amount_borrowed, expiry))
+    def buy_short(self, ticker: str, amount: int, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
+                 price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
+        self._queued_trade_offers.append(BuyShortOrder(self._current_timestamp, ticker, price_limit, amount, amount_borrowed, expiry))
 
+    # TODO: Test this method
     def tick(self, timestamp: datetime, security_names: List[str], current_tick_data: np.ndarray,
              next_tick_data: np.ndarray, marginables: npt.NDArray[bool], dividends: npt.NDArray[np.float32],
              div_freq: List[DividendFrequency]):
@@ -260,7 +331,8 @@ class Broker:
         for ticker, position in self.portfolio.getLong().items():
             ticker_idx = security_names.index(ticker)
             if dividends[ticker_idx] > 0:
-                dividend_payout = self.compute_dividend_payout(timestamp, position, div_freq[ticker_idx], dividends[ticker_idx])
+                dividend_payout = self.compute_dividend_payout(position, div_freq[ticker_idx], dividends[ticker_idx])
+                position.dividends_got_paid(timestamp)
                 self.account.deposit(dividend_payout,
                                      timestamp, comment=f"Dividends - {ticker}")
 
@@ -343,11 +415,11 @@ class Broker:
             StepState(timestamp, worth, self._queued_trade_offers, filled_orders, self.message.margin_calls)
         )
 
-    def compute_dividend_payout(self, timestamp: datetime, position: Position,
-                                div_freq: DividendFrequency, dividends: np.ndarray) -> float:
+    @staticmethod
+    def compute_dividend_payout(position: Position,
+                                div_freq: DividendFrequency, dividends: float) -> float:
         """
         Compute the dividend payout of a long position
-        :param timestamp: The current timestamp
         :param position: The position to calculate dividend payout
         :param div_freq: The frequency that the security is paying dividends.
         :param dividends: The actual dividends payout for 1 share and for the period in div_freq.
@@ -371,12 +443,13 @@ class Broker:
 
         return dividends * avg_amount
 
-
-    def _get_short_collateral(self, available_cash: float, security_names: List[str],
+    def _get_short_collateral(self, total_cash: float, security_names: List[str],
                               current_tick_data: npt.NDArray[float]) -> float:
         """
         Get the total collateral of short positions  It will also update margin calls at the same time.
-        :param available_cash: The available cash in the account.  (Total - reserved for collateral)
+        If the account doesn't have enough money, a margin call must be emitted.
+        If a short margin call already exists, its value will be updated.  Otherwise, a new one will be created.
+        :param total_cash: The total cash in the account.  (Do not remove collateral)
         :param security_names: A list of all securities where the index of each ticker is the index of the data of the
                                corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
         :param current_tick_data: An array containing prices of each security for the current step shape(n_securities, 4)
@@ -386,23 +459,39 @@ class Broker:
         collateral = 0.
         for ticker in self.portfolio.getShort():
             eq_idx = security_names.index(ticker)
-            price = tuple(current_tick_data[eq_idx].tolist()) # (Open, High, Low, Close)
-            mk_value = self.portfolio.getShort()[ticker].amount * price[3] * (2 - self._comm)
+            o, h, l, close = tuple(current_tick_data[eq_idx].tolist()) # (Open, High, Low, Close)
+
+            # Calculate market value of the short position in a situation where we would want to buy back the position.
+            # In that case, we need to add the commission to the market value.
+            if self._relative:
+                mk_value = self.portfolio.getShort()[ticker].amount * close * self._comm
+            else:
+                mk_value = self.portfolio.getShort()[ticker].amount * close + self._comm
             collateral += (1 + self.min_maintenance_margin_short) * mk_value
 
-        if available_cash - collateral < 0:
+        if total_cash - collateral < 0:
             if "short margin call" in self.message.margin_calls:
-                self.message.margin_calls["short margin call"].amount = collateral - available_cash
+                self.message.margin_calls["short margin call"].amount = collateral - total_cash
+                self._debt_record["short margin call"] = collateral - total_cash
             else:
-                self.new_margin_call(collateral - available_cash, "short margin call")
-        else:
-            self.remove_margin_call("short margin call")
+                self.new_margin_call(collateral - total_cash, "short margin call")
 
-        return collateral
+            return total_cash
+        else:
+            if "short margin call" in self.message.margin_calls:
+                self.remove_margin_call("short margin call")
+            return collateral
 
     def _get_worth(self, security_names: List[str], current_tick_data: np.ndarray) -> float:
         """
-        Get the worth of the portfolio
+        Get the worth of the portfolio.  (Doesn't include the transaction cost as if we would sell the positions)
+        Formula:
+            worth = cash + sum(long_positions) - sum(short_positions)
+
+            where:
+                long_positions = sum(long_position_amount * close_price - debt)
+                short_positions = sum(short_position_amount * close_price)
+                cash: The total cash in portfolio excluding all collateral.
         :param security_names: A list of all securities where the index of each ticker is the index of the data of the
                                  corresponding security in the 'current_tick_data' parameter along the first axis (axis=0).
         :param current_tick_data: An array containing prices of each security for the current step shape(n_securities, 4)
@@ -416,7 +505,7 @@ class Broker:
             debt = self._debt_record.get(ticker)
             if debt is None:
                 debt = 0
-            worth += position.amount * close * close - debt
+            worth += position.amount * close - debt
 
         for ticker, position in self.portfolio.getShort().items():
             eq_idx = security_names.index(ticker)
@@ -425,23 +514,30 @@ class Broker:
             worth -= position.amount * close
 
         return worth
+
+
     def _get_long_collateral(self, available_cash: float, security_names: List[str],
                              current_tick_data: npt.NDArray[float]) -> float:
         """
         Get the total collateral of long positions (Only the one having a margin call impact the collateral requirement)
         It will also update margin calls at the same time ( remove the ones that aren't called anymore and create the
         new ones.)
-        :param available_cash: The available cash in the account.  (Total - reserved for collateral)
+        Note
+            You should run this method after the short collateral has been evaluated.
+
+        :param available_cash: The available cash in the account.  (Total - reserved for short collateral)
         :param security_names: A list of all securities where the index of each ticker is the index of the data of the
                                corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
         :param current_tick_data: An array containing prices of each security for the current step shape(n_securities, 4)
                                   The 4 columns of the array are: Open, High, Low, Close of the next step.
         :return: the collateral of long positions
         """
-        new_call_tickers = set()
+        new_calls = set()
         collateral = 0.
-        for ticker in self._debt_record:
-            long, short = self.portfolio[ticker]
+        for ticker in list(self._debt_record.keys()):    # We only look at the positions that have borrowed money (margin trades)
+            if ticker.startswith("missing_funds") or ticker == "short margin call" or ticker.startswith("long margin call"):
+                continue
+            long, _ = self.portfolio[ticker]
 
             eq_idx = security_names.index(ticker)
             if long is not None:
@@ -455,17 +551,23 @@ class Broker:
                     # Check if true margin call compared with account balance
                     if amount > available_cash:
                         # Only adds it if not in margin call already.  (to not reset the delay)
-                        if ticker not in self.message.margin_calls:
-                            self.new_margin_call(amount - available_cash, ticker)
-                        new_call_tickers.add(ticker)
+                        if f"long margin call {ticker}" not in self.message.margin_calls:
+                            if available_cash > 0:
+                                self.new_margin_call(amount - available_cash, f"long margin call {ticker}")
+                                collateral += available_cash
+                            else:
+                                self.new_margin_call(amount, f"long margin call {ticker}")
+                        new_calls.add(f"long margin call {ticker}")
+                    else:    # If margin call is created, we do not increase the collateral.
+                        collateral += amount
                 available_cash -= amount
-                collateral += amount
+
         # Remove margin calls that are not called anymore
         # new_call_tickers is a set included in the margin_calls keys.  So we can use set difference
-        for ticker in set(self.message.margin_calls.keys()).difference(new_call_tickers):
-            if ticker.startswith("missing_funds") or ticker == "short margin call":
+        for call_name in set(self.message.margin_calls.keys()).difference(new_calls):
+            if call_name.startswith("missing_funds") or call_name == "short margin call":
                 continue
-            self.remove_margin_call(ticker)
+            self.remove_margin_call(call_name)
 
         return collateral
 
@@ -480,7 +582,7 @@ class Broker:
                                   The 4 columns of the array are: Open, High, Low, Close of the next step.
         :return: None
         """
-        total_cash = self.account.get_cash()
+        total_cash = self.account.get_total_cash()
 
         # Step 1: Evaluate short collateral; It also set margin calls if needed
         short_collateral = self._get_short_collateral(total_cash, security_names, current_tick_data)
@@ -617,7 +719,7 @@ class Broker:
     def new_margin_call(self, value: float, message: str = "missing_funds"):
         """
         Create a new margin call and appends it to the other margin calls.  Do not forget to remove money from
-        account if necessary.
+        account if necessary.  It also add the value to the debt record.
         :param value: The value that needs to be added to the account to cover margin call
         :return: None
         """
@@ -830,46 +932,38 @@ class Broker:
         else:
             raise RuntimeError(f"Invalid trade type!  Got: {order.trade_type}")
 
-    def _isMarginCall(self, market_value: float, loan: float, min_maintenance_margin: float) -> Tuple[bool, float]:
+    @staticmethod
+    def _isMarginCall(market_value: float, loan: float, min_maintenance_margin: float) -> Tuple[bool, float]:
         """
-        Check if there is a margin call (long) and how much is the margin call.  If there is enough cash in account,
-        the margin call is ignored.
+        Check if there is a margin call (long) and how much is the margin call.
         :param market_value: The current market value of the investment
         :param loan: The value of the loan
         :param min_maintenance_margin: The minimum maintenance margin ratio [0, 1]
         :return: if it is a margin call, the amount of the margin call (if there is so)
         """
-        if min_maintenance_margin <= 0 or min_maintenance_margin > 1:
-            raise ValueError(f"Invalid minimum maintenance margin.  It must be between ]0,1] and got: "
-                             f"{min_maintenance_margin}")
-        equity = market_value - loan
+        worth = market_value - loan
         abs_maintenance_margin = min_maintenance_margin * market_value
-        if equity <= abs_maintenance_margin:
-            # call_amount = (abs_maintenance_margin - equity)
-            # if call_amount > self.account.get_cash():
-            #     return True, call_amount - self.account.get_cash()
-            # else:
-            #     return False, 0
-            return True, abs_maintenance_margin - equity
+        if worth <= abs_maintenance_margin:
+            return True, abs_maintenance_margin - worth
         else:
             return False, 0
 
-    @staticmethod
-    def _isShortMarginCall(current_cash: float, market_value: float, min_maintenance_margin: float) -> Tuple[bool, float]:
-        """
-        :param current_cash: Current cash in bank account
-        :param market_value: The total market value of short investments
-        :param min_maintenance_margin: Minimum maintenance margin [1, inf[
-        :return: If there is a margin call, amount of the margin call
-        """
-        if min_maintenance_margin <= 0 or min_maintenance_margin > 1:
-            raise ValueError(f"Invalid minimum maintenance margin.  It must be between ]0,1] and got: "
-                             f"{min_maintenance_margin}")
-
-        if current_cash < (1 + min_maintenance_margin) * market_value:
-            return True, (1 + min_maintenance_margin) * market_value - current_cash
-        else:
-            return False, 0
+    # @staticmethod
+    # def _isShortMarginCall(current_cash: float, market_value: float, min_maintenance_margin: float) -> Tuple[bool, float]:
+    #     """
+    #     :param current_cash: Current cash in bank account
+    #     :param market_value: The total market value of short investments
+    #     :param min_maintenance_margin: Minimum maintenance margin [1, inf[
+    #     :return: If there is a margin call, amount of the margin call
+    #     """
+    #     if min_maintenance_margin <= 0 or min_maintenance_margin > 1:
+    #         raise ValueError(f"Invalid minimum maintenance margin.  It must be between ]0,1] and got: "
+    #                          f"{min_maintenance_margin}")
+    #
+    #     if current_cash < (1 + min_maintenance_margin) * market_value:
+    #         return True, (1 + min_maintenance_margin) * market_value - current_cash
+    #     else:
+    #         return False, 0
 
 
     @staticmethod

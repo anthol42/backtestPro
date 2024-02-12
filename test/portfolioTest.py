@@ -753,8 +753,10 @@ class TestPortfolio(TestCase):
         total_rel = portfolio_rel.trade(trade5)
         self.assertEqual(total_abs, 72493.01)
         self.assertEqual(total_rel, 71375)
-        self.assertEqual(portfolio_abs._long, {})
-        self.assertEqual(portfolio_rel._long, {})
+        self.assertEqual(portfolio_abs._long, {"AAPL": Position("AAPL", 0, True, 102,
+                                                        datetime(2021, 2, 13), 0.6)})
+        self.assertEqual(portfolio_rel._long, {"AAPL": Position("AAPL", 0, True, 102,
+                                                        datetime(2021, 2, 13), 0.6)})
         self.assertEqual(portfolio_abs._debt_record, {"AAPL": 0})
         self.assertEqual(portfolio_rel._debt_record, {"AAPL": 0})
         stats_abs = TradeStats(trade5, timedelta(days=28), 41879.03, 136.7970777, 0.6)
@@ -781,8 +783,10 @@ class TestPortfolio(TestCase):
 
         self.assertEqual(total_abs, -12506.99)
         self.assertEqual(total_rel, -12625)
-        self.assertEqual(portfolio_abs._short, {})
-        self.assertEqual(portfolio_rel._short, {})
+        self.assertEqual(portfolio_abs._short, {"TSLA": Position("TSLA", 0, False, 100,
+                                                         datetime(2021, 2, 1), 0.)})
+        self.assertEqual(portfolio_rel._short, {"TSLA": Position("TSLA", 0, False, 100,
+                                                         datetime(2021, 2, 1), 0.)})
         abs_stat = TradeStats(trade6, timedelta(days=52), -2513.98, -25.1398, 0.)
         rel_stat = TradeStats(trade6, timedelta(days=52), -2725, -27.25, 0.)
         self.assertEqual(portfolio_abs._trades[5].trade, abs_stat.trade)
@@ -796,6 +800,23 @@ class TestPortfolio(TestCase):
         self.assertAlmostEqual(portfolio_rel._trades[5].profit, rel_stat.profit)
         self.assertAlmostEqual(portfolio_rel._trades[5].rel_profit, rel_stat.rel_profit)
         self.assertEqual(portfolio_rel._trades[5].ratio_owned, rel_stat.ratio_owned)
+
+        # Re initiate a trade for AAPL
+        trade7 = BuyLong("AAPL", 200, 100, 100, "7",
+                            datetime(2021, 4, 1), order=None)
+        total_abs = portfolio_abs.trade(trade7)
+        total_rel = portfolio_rel.trade(trade7)
+        self.assertEqual(total_abs, -20006.99)
+        self.assertEqual(total_rel, -20200)
+        self.assertEqual(portfolio_abs._long, {"AAPL": Position("AAPL", 200, True, 200,
+                                                        datetime(2021, 4, 1), 0.5)})
+        self.assertEqual(portfolio_rel._long, {"AAPL": Position("AAPL", 200, True, 200,
+                                                        datetime(2021, 4, 1), 0.5)})
+        self.assertEqual(portfolio_abs._debt_record, {"AAPL": 20000})
+        self.assertEqual(portfolio_rel._debt_record, {"AAPL": 20200})
+
+
+
 
     def test_getters(self):
         # ------------------------------
@@ -1051,5 +1072,7 @@ class TestPortfolio(TestCase):
         portfolio.trade(trade13)
 
         state = portfolio.get_state()
+
         new_portfolio = Portfolio.load_state(state, {})
-        self.assertEqual(portfolio.get_state(), new_portfolio.get_state())
+
+        self.assertEqual(portfolio, new_portfolio)
