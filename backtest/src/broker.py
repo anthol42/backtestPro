@@ -546,7 +546,8 @@ class Broker:
                 # Verify if the stock is in margin call for long
                 is_margin_call, amount = self._isMarginCall(long.amount * current_tick_data[eq_idx, -1],
                                                             self._debt_record[ticker],
-                                                            self.min_maintenance_margin)
+                                                            self.min_maintenance_margin,
+                                                            self._comm, self._relative)
                 if is_margin_call:
                     # Check if true margin call compared with account balance
                     if amount > available_cash:
@@ -555,12 +556,22 @@ class Broker:
                             if available_cash > 0:
                                 self.new_margin_call(amount - available_cash, f"long margin call {ticker}")
                                 collateral += available_cash
+                                available_cash = 0
                             else:
                                 self.new_margin_call(amount, f"long margin call {ticker}")
+                        else:    # Update the amount
+                            if available_cash > 0:
+                                self.message.margin_calls[f"long margin call {ticker}"].amount = amount - available_cash
+                                self._debt_record[f"long margin call {ticker}"] = amount - available_cash
+                                collateral += available_cash
+                                available_cash = 0
+                            else:
+                                self.message.margin_calls[f"long margin call {ticker}"].amount = amount
+                                self._debt_record[f"long margin call {ticker}"] = amount
                         new_calls.add(f"long margin call {ticker}")
                     else:    # If margin call is created, we do not increase the collateral.
                         collateral += amount
-                available_cash -= amount
+                        available_cash -= amount
 
         # Remove margin calls that are not called anymore
         # new_call_tickers is a set included in the margin_calls keys.  So we can use set difference
@@ -933,16 +944,20 @@ class Broker:
             raise RuntimeError(f"Invalid trade type!  Got: {order.trade_type}")
 
     @staticmethod
-    def _isMarginCall(market_value: float, loan: float, min_maintenance_margin: float) -> Tuple[bool, float]:
+    def _isMarginCall(market_value: float, loan: float, min_maintenance_margin: float, transaction_cost: float, rel: bool) -> Tuple[bool, float]:
         """
         Check if there is a margin call (long) and how much is the margin call.
         :param market_value: The current market value of the investment
         :param loan: The value of the loan
         :param min_maintenance_margin: The minimum maintenance margin ratio [0, 1]
+        :param transaction_cost: The transaction cost.  Can be absolute or relative to the market value.
+                                If relative, must be between [1, 2]  Where 1% would be 1.01 and 100% would be 2.
+        :param rel: If the transaction cost is relative to the market value or absolute (in dollars)
         :return: if it is a margin call, the amount of the margin call (if there is so)
         """
-        worth = market_value - loan
-        abs_maintenance_margin = min_maintenance_margin * market_value
+        adjusted_market_value = market_value * (2-transaction_cost) if rel else market_value - transaction_cost
+        worth = adjusted_market_value - loan
+        abs_maintenance_margin = min_maintenance_margin * adjusted_market_value
         if worth <= abs_maintenance_margin:
             return True, abs_maintenance_margin - worth
         else:

@@ -301,13 +301,20 @@ class TestBroker(TestCase):
     def test_isMarginCall(self):
         broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
 
-        is_mc, worth = broker._isMarginCall(100_000, 50_000, 0.25)
+        is_mc, worth = broker._isMarginCall(100_000, 50_000, 0.25, 6.99, False)
+        self.assertFalse(is_mc)
+        self.assertEqual(worth, 0)
+        is_mc, worth = broker._isMarginCall(100_000, 50_000, 0.25, 1.01, True)
         self.assertFalse(is_mc)
         self.assertEqual(worth, 0)
 
-        is_mc, worth = broker._isMarginCall(60_000, 50_000, 0.25)
+        is_mc, worth = broker._isMarginCall(60_000, 50_000, 0.25, 6.99, False)
         self.assertTrue(is_mc)
-        self.assertEqual(worth, 5_000)
+        self.assertAlmostEqual(worth, 5_005.2425)
+
+        is_mc, worth = broker._isMarginCall(60_000, 50_000, 0.25, 1.01, True)
+        self.assertTrue(is_mc)
+        self.assertEqual(worth, 5_450)
 
     def test_get_long_collateral(self):
         broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
@@ -352,10 +359,10 @@ class TestBroker(TestCase):
         # We will change the prices to make a need for collateral
         prices = np.array([
             [102, 104, 98, 100],    # Collateral: 0
-            [61, 60, 63, 62.5],    # Collateral: 1562.5
+            [61, 60, 63, 62.5],    # Collateral: 1567.7425
             [302, 304, 298, 300]    # Collateral: 0
                            ], dtype=np.float32)
-        self.assertEqual(broker._get_long_collateral(100_000, security_names, prices), 1562.5)
+        self.assertAlmostEqual(broker._get_long_collateral(100_000, security_names, prices), 1567.7425)
         self.assertEqual(broker.message.margin_calls, {})
         self.assertEqual(broker._debt_record, {
             "AAPL": 5000,
@@ -365,15 +372,42 @@ class TestBroker(TestCase):
 
         # We will change the prices to make a margin call
         prices = np.array([
-            [10.5, 12, 9, 10],    # Collateral: 4250
-            [61, 60, 63, 62.5],    # Collateral: 1562.5
-            [155, 150, 166, 160]    # Collateral: 1750
+            [10.5, 12, 9, 10],    # Collateral: 4255.2425
+            [61, 60, 63, 62.5],    # Collateral: 1567.7425
+            [155, 150, 166, 160]    # Collateral: 1755.2425
                            ], dtype=np.float32)
         self.assertEqual(broker._get_long_collateral(5000, security_names, prices), 5000)
-        self.assertEqual(broker.message.margin_calls["long margin call TSLA"].amount, 812.5)
-        self.assertEqual(broker._debt_record["long margin call TSLA"], 812.5)
-        self.assertEqual(broker.message.margin_calls["long margin call MSFT"].amount, 1750)
-        self.assertEqual(broker._debt_record["long margin call MSFT"], 1750)
+        self.assertAlmostEqual(broker.message.margin_calls["long margin call TSLA"].amount, 822.985)
+        self.assertAlmostEqual(broker._debt_record["long margin call TSLA"], 822.985)
+        self.assertAlmostEqual(broker.message.margin_calls["long margin call MSFT"].amount, 1755.2425)
+        self.assertAlmostEqual(broker._debt_record["long margin call MSFT"], 1755.2425)
+
+        # Now test with relative commission
+        broker = Broker(Account(100_000), relative_commission=0.02, margin_interest=0.02)
+        security_names = ["AAPL", "TSLA", "MSFT"]
+        prices = np.array([
+            [10.5, 12, 9, 10],    # Collateral: 4265
+            [61, 60, 63, 62.5],    # Collateral: 1656.25
+            [155, 150, 166, 160]    # Collateral: 1990
+                           ], dtype=np.float32)
+        # Add positions to the portfolio
+        broker.portfolio._long = {
+            "AAPL": Position("AAPL", 100, True, 100,
+                             datetime(2021, 1, 1), ratio_owned=0.5),    # Collateral: 0
+            "TSLA": Position("TSLA", 100, True, 250,
+                             datetime(2021, 1, 1), ratio_owned=0.75),    # Collateral: 0
+            "MSFT": Position("MSFT", 100, True, 275,
+                             datetime(2021, 1, 1), ratio_owned=0.5),    # Collateral: 0
+        }
+        # Set debt record
+        broker._debt_record["AAPL"] = 5000
+        broker._debt_record["TSLA"] = 6250
+        broker._debt_record["MSFT"] = 13750
+        self.assertEqual(broker._get_long_collateral(5000, security_names, prices), 5000)
+        self.assertAlmostEqual(broker.message.margin_calls["long margin call TSLA"].amount, 921.25)
+        self.assertAlmostEqual(broker._debt_record["long margin call TSLA"], 921.25)
+        self.assertAlmostEqual(broker.message.margin_calls["long margin call MSFT"].amount, 1990)
+        self.assertAlmostEqual(broker._debt_record["long margin call MSFT"], 1990)
 
 
     def test_update_acount_collateral(self):
@@ -403,7 +437,7 @@ class TestBroker(TestCase):
             "AAPL": Position("AAPL", 100, True, 100,
                              datetime(2021, 1, 1), ratio_owned=0.5),    # Collateral: 0
             "TSLA": Position("TSLA", 100, True, 250,
-                             datetime(2021, 1, 1), ratio_owned=0.75),    # Collateral: 1562.5
+                             datetime(2021, 1, 1), ratio_owned=0.75),    # Collateral: 1570
             "MSFT": Position("MSFT", 100, True, 275,
                              datetime(2021, 1, 1), ratio_owned=0.5),    # Collateral: 0
         }
@@ -426,13 +460,13 @@ class TestBroker(TestCase):
         broker._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
         self.assertEqual(broker.account.get_cash(), 0)
         self.assertEqual(broker.message.margin_calls, {"short margin call": MarginCall(2, 37.5),
-                         "long margin call TSLA": MarginCall(2, 1562.5)})
+                         "long margin call TSLA": MarginCall(2, 1570)})
         self.assertEqual(broker._debt_record, {
             "AAPL": 5000,
             "TSLA": 6250,
             "MSFT": 13750,
             "short margin call": 37.5,
-            "long margin call TSLA": 1562.5
+            "long margin call TSLA": 1570
         })
 
 
@@ -443,19 +477,82 @@ class TestBroker(TestCase):
             [302, 304, 298, 300],   # MSFT
             [102, 104, 98, 100],    # V
             [202, 208, 196, 200],   # CAT
-            [302, 304, 298, 2298]    # OLN: Collateral - 37262.5
+            [302, 304, 298, 298]    # OLN: Collateral - 37262.5
                            ], dtype=np.float32)
-        # TODO: Fix bugs in the code to make it pass the test
+        # After short, I have 212.5$ available.
+
         broker._update_account_collateral(datetime(2021, 1, 3), security_names, prices)
         self.assertEqual(broker.account.get_cash(), 0)
-        self.assertEqual(broker.message.margin_calls, {"long margin call TSLA": MarginCall(2, 1350)})
+        self.assertEqual(broker.message.margin_calls, {"long margin call TSLA": MarginCall(2, 1357.5)})
         self.assertEqual(broker._debt_record, {
             "AAPL": 5000,
             "TSLA": 6250,
             "MSFT": 13750,
-            "long margin call TSLA": 1350
+            "long margin call TSLA": 1357.5
         })
 
+        # Test with no short margin call
+        prices = np.array([
+            [102, 104, 98, 100],  # AAPL
+            [83, 84, 82, 83],  # TSLA    # Collateral: 32.5
+            [302, 304, 298, 300],  # MSFT
+            [102, 104, 98, 100],  # V
+            [202, 208, 196, 200],  # CAT
+            [302, 304, 298, 298]  # OLN: Collateral - 37262.5
+        ], dtype=np.float32)
+        # After short, I have 212.5$ available.  Then, we substract the collateral from long position and we get:
+        # 212.5 - 32.5 = 180$
+        broker._update_account_collateral(datetime(2021, 1, 4), security_names, prices)
+        self.assertEqual(broker.account.get_cash(), 180)
+        self.assertEqual(broker.message.margin_calls, {})
+        self.assertEqual(broker._debt_record, {
+            "AAPL": 5000,
+            "TSLA": 6250,
+            "MSFT": 13750,
+        })
 
+        # Now make a simple test with relative commission
+        broker = Broker(Account(75_000), relative_commission=0.01, margin_interest=0.02, min_maintenance_margin_short=0.25)
+        prices = np.array([
+            [102, 104, 98, 100],  # AAPL
+            [61, 60, 63, 62.5],  # TSLA
+            [302, 304, 298, 300],  # MSFT
+            [102, 104, 98, 100],  # V
+            [202, 208, 196, 200],  # CAT
+            [302, 304, 298, 300]  # OLN
+        ], dtype=np.float32)
 
-        # TODO: Add a test for no margin call at all (Without creating anew broker object)
+        # Add long positions
+        broker.portfolio._long = {
+            "AAPL": Position("AAPL", 100, True, 100,
+                             datetime(2021, 1, 1), ratio_owned=0.5),  # Collateral: 0
+            "TSLA": Position("TSLA", 100, True, 250,
+                             datetime(2021, 1, 1), ratio_owned=0.75),  # Collateral: 1609.375
+            "MSFT": Position("MSFT", 100, True, 275,
+                             datetime(2021, 1, 1), ratio_owned=0.5),  # Collateral: 0
+        }
+        # Set debt record
+        broker._debt_record["AAPL"] = 5000
+        broker._debt_record["TSLA"] = 6250
+        broker._debt_record["MSFT"] = 13750
+
+        # Add short positions
+        broker.portfolio._short = {
+            "V": Position("V", 100, False, 125,
+                          datetime(2021, 1, 1), ratio_owned=0),  # Collateral: 12 625
+            "CAT": Position("CAT", 100, False, 203,
+                            datetime(2021, 1, 1), ratio_owned=0),  # Collateral: 25 250
+            "OLN": Position("OLN", 100, False, 300,
+                            datetime(2021, 1, 1), ratio_owned=0),  # Collateral: 37 875
+        }
+        broker._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+        self.assertEqual(broker.account.get_cash(), 0)
+        self.assertEqual(broker.message.margin_calls, {"short margin call": MarginCall(2, 750),
+                                                      "long margin call TSLA": MarginCall(2, 1609.375)})
+        self.assertEqual(broker._debt_record, {
+            "AAPL": 5000,
+            "TSLA": 6250,
+            "MSFT": 13750,
+            "short margin call": 750,
+            "long margin call TSLA": 1609.375
+        })
