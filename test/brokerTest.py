@@ -7,6 +7,7 @@ from backtest.src.tsData import DividendFrequency
 from backtest.src.trade import TradeOrder, TradeType, BuyLongOrder, SellLongOrder, BuyShortOrder, SellShortOrder, TradeOrder
 from unittest import TestCase
 from datetime import datetime
+
 class TestMarginCall(TestCase):
     def test_export(self):
         mc = MarginCall(5, 10_000)
@@ -236,7 +237,9 @@ class TestBroker(TestCase):
                              datetime(2021, 1, 1), ratio_owned=0),    # Collateral: 37 512.5
         }
         self.assertEqual(broker._get_short_collateral(account.get_total_cash(), sec_names, prices), 75_037.5)
-
+        self.assertEqual(broker._cache["short_collateral_contribution"]["AAPL"], 12_512.5)
+        self.assertEqual(broker._cache["short_collateral_contribution"]["TSLA"], 25_012.5)
+        self.assertEqual(broker._cache["short_collateral_contribution"]["MSFT"], 37_512.5)
 
         # We will change the prices to make a margin call
         prices = np.array([
@@ -247,6 +250,9 @@ class TestBroker(TestCase):
         self.assertEqual(broker._get_short_collateral(account.get_total_cash(), sec_names, prices), 100_000)
         self.assertEqual(broker.message.margin_calls["short margin call"].amount, 25_037.5)
         self.assertEqual(broker._debt_record["short margin call"], 25_037.5)
+        self.assertEqual(broker._cache["short_collateral_contribution"]["AAPL"], 25_012.5)
+        self.assertEqual(broker._cache["short_collateral_contribution"]["TSLA"], 37_512.5)
+        self.assertEqual(broker._cache["short_collateral_contribution"]["MSFT"], 62_512.5)
 
         # Now make a short test wit relative commission
         broker = Broker(account, margin_interest=0.02, min_maintenance_margin_short=0.25, relative_commission=0.01)
@@ -263,6 +269,9 @@ class TestBroker(TestCase):
         self.assertEqual(broker._get_short_collateral(account.get_total_cash(), sec_names, prices), 100_000)
         self.assertEqual(broker.message.margin_calls["short margin call"].amount, 26_250)
         self.assertEqual(broker._debt_record["short margin call"], 26_250)
+        self.assertEqual(broker._cache["short_collateral_contribution"]["AAPL"], 25_250)
+        self.assertEqual(broker._cache["short_collateral_contribution"]["TSLA"], 37_875)
+        self.assertEqual(broker._cache["short_collateral_contribution"]["MSFT"], 63_125)
 
     def test_get_worth(self):
         broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
@@ -369,6 +378,7 @@ class TestBroker(TestCase):
             "TSLA": 6250,
             "MSFT": 13750
         })
+        self.assertAlmostEqual(broker._cache["long_collateral_contribution"]["TSLA"], 1567.7425)
 
         # We will change the prices to make a margin call
         prices = np.array([
@@ -381,6 +391,9 @@ class TestBroker(TestCase):
         self.assertAlmostEqual(broker._debt_record["long margin call TSLA"], 822.985)
         self.assertAlmostEqual(broker.message.margin_calls["long margin call MSFT"].amount, 1755.2425)
         self.assertAlmostEqual(broker._debt_record["long margin call MSFT"], 1755.2425)
+        self.assertAlmostEqual(broker._cache["long_collateral_contribution"]["AAPL"], 4255.2425)
+        self.assertAlmostEqual(broker._cache["long_collateral_contribution"]["TSLA"], 744.7575)
+        self.assertAlmostEqual(broker._cache["long_collateral_contribution"]["MSFT"], 0)
 
         # Now test with relative commission
         broker = Broker(Account(100_000), relative_commission=0.02, margin_interest=0.02)
@@ -408,7 +421,9 @@ class TestBroker(TestCase):
         self.assertAlmostEqual(broker._debt_record["long margin call TSLA"], 921.25)
         self.assertAlmostEqual(broker.message.margin_calls["long margin call MSFT"].amount, 1990)
         self.assertAlmostEqual(broker._debt_record["long margin call MSFT"], 1990)
-
+        self.assertAlmostEqual(broker._cache["long_collateral_contribution"]["AAPL"], 4265)
+        self.assertAlmostEqual(broker._cache["long_collateral_contribution"]["TSLA"], 735)
+        self.assertAlmostEqual(broker._cache["long_collateral_contribution"]["MSFT"], 0)
 
     def test_update_acount_collateral(self):
         broker = Broker(Account(75_000), 10., margin_interest=0.02, min_maintenance_margin_short=0.25)
@@ -556,3 +571,567 @@ class TestBroker(TestCase):
             "short margin call": 750,
             "long margin call TSLA": 1609.375
         })
+
+    def test_get_buy_price(self):
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        # Test with no limit
+        price = (100, 102, 98, 101)
+        self.assertEqual(broker._get_buy_price(None, None, price), 100)
+
+        # Test with lower limit
+        # Order pass at limit
+        self.assertEqual(broker._get_buy_price(99, None, price), 99)
+        # Order doesn't pass at limit
+        self.assertEqual(broker._get_buy_price(97, None, price), None)
+        # Order pass at open
+        self.assertEqual(broker._get_buy_price(101, None, price), 100)
+
+        # Test with upper limit
+        # Order pass at limit
+        self.assertEqual(broker._get_buy_price(None, 101, price), 101)
+        # Order doesn't pass at limit
+        self.assertEqual(broker._get_buy_price(None, 103, price), None)
+        # Order pass at open
+        self.assertEqual(broker._get_buy_price(None, 99, price), 100)
+
+        # Test with both limits
+        # Open price is higher than high --> Should return open price
+        self.assertEqual(broker._get_buy_price(98.5, 99, price), 100)
+        # Open price is lower than low --> Should return open price
+        self.assertEqual(broker._get_buy_price(101, 105, price), 100)
+        # Price range gets higher than high and lower than low --> Should return high
+        self.assertEqual(broker._get_buy_price(98.5, 101, price), 101)
+        # Price range gets lower than low --> Should return Low
+        self.assertEqual(broker._get_buy_price(98.5, 105, price), 98.5)
+        # price range gets higher than high --> Should return high
+        self.assertEqual(broker._get_buy_price(97, 101, price), 101)
+        # price range is not within the limits --> Should return None
+        self.assertEqual(broker._get_buy_price(97, 105, price), None)
+
+    def test_get_sell_price(self):
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        # Test with no limit
+        price = (100, 102, 98, 101)
+        self.assertEqual(broker._get_sell_price(None, None, price), 100)
+
+        # Test with lower limit
+        # Order pass at limit
+        self.assertEqual(broker._get_sell_price(99, None, price), 99)
+        # Order doesn't pass at limit
+        self.assertEqual(broker._get_sell_price(97, None, price), None)
+        # Order pass at open
+        self.assertEqual(broker._get_sell_price(101, None, price), 100)
+
+        # Test with upper limit
+        # Order pass at limit
+        self.assertEqual(broker._get_sell_price(None, 101, price), 101)
+        # Order doesn't pass at limit
+        self.assertEqual(broker._get_sell_price(None, 103, price), None)
+        # Order pass at open
+        self.assertEqual(broker._get_sell_price(None, 99, price), 100)
+
+        # Test with both limits
+        # Open price is higher than high --> Should return open price
+        self.assertEqual(broker._get_sell_price(98.5, 99, price), 100)
+        # Open price is lower than low --> Should return open price
+        self.assertEqual(broker._get_sell_price(101, 105, price), 100)
+        # Price range gets higher than high and lower than low --> Should return low
+        self.assertEqual(broker._get_sell_price(98.5, 101, price), 98.5)
+        # Price range gets lower than low --> Should return low
+        self.assertEqual(broker._get_sell_price(98.5, 105, price), 98.5)
+        # price range gets higher than high --> Should return high
+        self.assertEqual(broker._get_sell_price(97, 101, price), 101)
+        # price range is not within the limits --> Should return None
+        self.assertEqual(broker._get_sell_price(97, 105, price), None)
+
+    def test_make_trade_BL(self):
+        """
+        Test the make trade method for a buy long order with relative and absolute commissions.
+        """
+        security_names = ["AAPL", "TSLA", "MSFT", "V", "CAT", "OLN"]
+        prices = np.array([
+            [102, 104, 98, 100],    # AAPL
+            [61, 60, 63, 62.5],     # TSLA
+            [302, 304, 298, 300],   # MSFT
+            [102, 104, 98, 100],    # V
+            [202, 208, 196, 200],   # CAT
+            [302, 304, 298, 300]    # OLN
+                           ], dtype=np.float32)
+
+        # Try to buy a non-marginable security on margin.
+        # (Should do nothing since the security might becom marginable later)
+        broker_abs = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker_rel = Broker(Account(100_000), margin_interest=0.02, relative_commission=0.01)
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, None), 100,
+                           100, TradeType.BuyLong, datetime(2021, 1, 1))
+        self.assertFalse(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                          marginable=False, shortable=False))
+        self.assertFalse(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertEqual(broker_abs.portfolio._long, {})
+        self.assertEqual(broker_abs.account.get_cash(), 100_000)
+        self.assertEqual(broker_abs._debt_record, {})
+        self.assertEqual(broker_rel.portfolio._long, {})
+        self.assertEqual(broker_rel.account.get_cash(), 100_000)
+        self.assertEqual(broker_rel._debt_record, {})
+
+        # Try to buy it with no limit and no margin
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, None), 100,
+                           0, TradeType.BuyLong, datetime(2021, 1, 1))
+        self.assertTrue(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertTrue(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertEqual(broker_abs.portfolio._long, {"AAPL": Position("AAPL", 100, True,
+                                                                   102,
+                                                                   datetime(2021, 1, 2), 1.)})
+        self.assertEqual(broker_rel.portfolio._long, {"AAPL": Position("AAPL", 100, True,
+                                                                   102,
+                                                                   datetime(2021, 1, 2), 1.)})
+        self.assertEqual(broker_abs.account.get_cash(), 89793.01)
+        self.assertEqual(broker_rel.account.get_cash(), 89698)
+        self.assertEqual(broker_abs._debt_record, {"AAPL": 0})
+        self.assertEqual(broker_rel._debt_record, {"AAPL": 0})
+
+        # Test with minimum margin
+        broker_abs = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker_rel = Broker(Account(100_000), margin_interest=0.02, relative_commission=0.01)
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, None), 100,
+                           100, TradeType.BuyLong, datetime(2021, 1, 1))
+        self.assertTrue(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertTrue(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertEqual(broker_abs.portfolio._long, {"AAPL": Position("AAPL", 200, True,
+                                                                   102,
+                                                                   datetime(2021, 1, 2), 0.5)})
+        self.assertEqual(broker_rel.portfolio._long, {"AAPL": Position("AAPL", 200, True,
+                                                                   102,
+                                                                   datetime(2021, 1, 2), 0.5)})
+        self.assertEqual(broker_abs.account.get_cash(), 89793.01)
+        self.assertEqual(broker_rel.account.get_cash(), 89698)
+        self.assertEqual(broker_abs._debt_record, {"AAPL": 10200})
+        self.assertEqual(broker_rel._debt_record, {"AAPL": 10302})
+
+        # Test with smaller margin than authorized
+        broker_abs = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker_rel = Broker(Account(100_000), margin_interest=0.02, relative_commission=0.01)
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, None), 100,
+                           101, TradeType.BuyLong, datetime(2021, 1, 1))
+        self.assertRaises(RuntimeError, broker_abs.make_trade, order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True)
+        self.assertRaises(RuntimeError, broker_rel.make_trade, order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True)
+
+        # Try to buy if not enough cash
+        broker_abs = Broker(Account(10_000), 6.99, margin_interest=0.02)
+        broker_rel = Broker(Account(10_000), margin_interest=0.02, relative_commission=0.01)
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, None), 98,
+                           98, TradeType.BuyLong, datetime(2021, 1, 1))
+        self.assertFalse(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertFalse(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertEqual(broker_abs.portfolio._long, {})
+        self.assertEqual(broker_rel.portfolio._long, {})
+        self.assertEqual(broker_abs.account.get_cash(), 10_000)
+        self.assertEqual(broker_rel.account.get_cash(), 10_000)
+        self.assertEqual(broker_abs._debt_record, {})
+        self.assertEqual(broker_rel._debt_record, {})
+
+        # Now, we will test with limit orders
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker.set_current_timestamp(datetime(2021, 1, 1))
+        # Test with superior limit.  We want to buy at that price or lower. So we buy only if the price has been lower
+        # during the day
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (100, None), 100,
+                           100, TradeType.BuyLong, datetime(2021, 1, 1))
+
+        price = np.array([101, 102, 100.0001,101])    # OHLC
+        self.assertFalse(broker.make_trade(order, security_price=tuple(price), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertEqual(broker.portfolio._long, {})
+        self.assertEqual(broker.account.get_cash(), 100_000)
+        self.assertEqual(broker._debt_record, {})
+
+        price = np.array([101, 102, 99.999999, 101])
+        self.assertTrue(broker.make_trade(order, security_price=tuple(price), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+
+        self.assertEqual(broker.portfolio._long, {"AAPL": Position("AAPL", 200, True,
+                                                                   100,
+                                                                   datetime(2021, 1, 2), 0.5)})
+        self.assertEqual(broker.account.get_cash(), 89993.01)
+        self.assertEqual(broker._debt_record, {"AAPL": 10_000})
+
+        # If open is under the limit, we buy at open
+        price = np.array([99, 102, 100.0001, 101])
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        self.assertTrue(broker.make_trade(order, security_price=tuple(price), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertEqual(broker.portfolio._long, {"AAPL": Position("AAPL", 200, True,
+                                                                   99,
+                                                                   datetime(2021, 1, 2), 0.5)})
+        self.assertEqual(broker.account.get_cash(), 90093.01)
+        self.assertEqual(broker._debt_record, {"AAPL": 9900})
+
+    def test_make_trade_SL(self):
+        """
+        Test the make trade method for a sell long order with relative and absolute commissions.
+        """
+        # Try to sell a position that doesn't exist
+        security_names = ["AAPL", "TSLA", "MSFT", "V", "CAT", "OLN"]
+        prices = np.array([
+            [102, 104, 98, 100],    # AAPL
+            [61, 60, 63, 62.5],     # TSLA
+            [302, 304, 298, 300],   # MSFT
+            [102, 104, 98, 100],    # V
+            [202, 208, 196, 200],   # CAT
+            [302, 304, 298, 300]    # OLN
+                           ], dtype=np.float32)
+
+        broker_abs = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker_rel = Broker(Account(100_000), margin_interest=0.02, relative_commission=0.01)
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, None), 100,
+                           100, TradeType.BuyLong, datetime(2021, 1, 1))
+        self.assertFalse(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertFalse(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertEqual(broker_abs.portfolio._long, {})
+        self.assertEqual(broker_abs.account.get_cash(), 100_000)
+        self.assertEqual(broker_abs._debt_record, {})
+
+        # Now add a position to the portfolio
+        broker_abs.portfolio._long = {
+            "AAPL": Position("AAPL", 200, True, 100,
+                             datetime(2021, 1, 1), ratio_owned=0.5)
+        }
+        broker_rel.portfolio._long = {
+            "AAPL": Position("AAPL", 200, True, 100,
+                             datetime(2021, 1, 1), ratio_owned=0.5)
+        }
+        broker_abs._debt_record["AAPL"] = 10_000
+        broker_rel._debt_record["AAPL"] = 10_000
+
+        # Try to sell more shares than we have
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, None), 201,
+                           0, TradeType.SellLong, datetime(2021, 1, 1))
+        self.assertFalse(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertFalse(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+
+        # Try to sell with gains
+        broker_abs._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+        broker_rel._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+        price = (106, 115, 105, 107)
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, 110), 100,
+                           0, TradeType.SellLong, datetime(2021, 1, 1))
+        self.assertTrue(broker_abs.make_trade(order, security_price=tuple(price), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertTrue(broker_rel.make_trade(order, security_price=tuple(price), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertEqual(broker_abs.account.get_cash(), 105_993.01)
+        self.assertEqual(broker_rel.account.get_cash(), 105_890)
+        self.assertEqual(broker_abs.portfolio._long, {"AAPL": Position("AAPL", 100, True,
+                                                                       100,
+                                                                       datetime(2021, 1, 1),
+                                                                       0.5)})
+        self.assertEqual(broker_rel.portfolio._long, {"AAPL": Position("AAPL", 100, True,
+                                                                       100,
+                                                                       datetime(2021, 1, 1),
+                                                                       0.5)})
+        self.assertEqual(broker_abs._debt_record, {"AAPL": 5_000})
+        self.assertEqual(broker_rel._debt_record, {"AAPL": 5_000})
+
+        # Try to sell with no gains and the debt will make a little loss
+        price = (50, 51, 49, 51)
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (50, 110), 100,
+                           0, TradeType.SellLong, datetime(2021, 1, 1))
+        self.assertTrue(broker_abs.make_trade(order, security_price=tuple(price), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertTrue(broker_rel.make_trade(order, security_price=tuple(price), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertAlmostEqual(broker_abs.account.get_cash(), 105_986.02)
+        self.assertEqual(broker_rel.account.get_cash(), 105_840)
+        self.assertEqual(broker_abs.portfolio._long, {"AAPL": Position("AAPL", 0, True,
+                                                                       100,
+                                                                       datetime(2021, 1, 1),
+                                                                       0.5)})
+        self.assertEqual(broker_rel.portfolio._long, {"AAPL": Position("AAPL", 0, True,
+                                                                       100,
+                                                                       datetime(2021, 1, 1),
+                                                                       0.5)})
+        self.assertEqual(broker_abs._debt_record, {"AAPL": 0})
+        self.assertEqual(broker_rel._debt_record, {"AAPL": 0})
+
+        # Sell at loss and update collateral before selling
+        # the stock if there was one.
+        price = (50, 51, 49, 51)
+        broker_abs.account._cash = 2500
+        broker_rel.account._cash = 2500
+        broker_abs.portfolio._long = {
+            "AAPL": Position("AAPL", 200, True, 100,
+                             datetime(2021, 1, 1), ratio_owned=0.5)
+        }
+        broker_rel.portfolio._long = {
+            "AAPL": Position("AAPL", 200, True, 100,
+                             datetime(2021, 1, 1), ratio_owned=0.5)
+        }
+        broker_abs._debt_record["AAPL"] = 10_000
+        broker_rel._debt_record["AAPL"] = 10_000
+
+        # Now, we should update the collateral and there should have 2355.2425$ of collateral for the long position.
+        # However, we only have 2500$ in our account.  So, we should have 144.7575 left for AAPL for abs
+        # For rel: we should have 2426.5$ in collateral and 73.5$ left in the account.
+        prices[0] = price
+        broker_abs._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+        broker_rel._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+
+        # Now, by selling our position at stoploss price: 50$, we will create a margin call for missing funds.
+        # For abs: we should have 6.99$ in margin call
+        # For rel: we should have 75$ in margin call
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (50, 110), 100,
+                           0, TradeType.SellLong, datetime(2021, 1, 1))
+        self.assertTrue(broker_abs.make_trade(order, security_price=tuple(price), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertTrue(broker_rel.make_trade(order, security_price=tuple(price), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertEqual(broker_abs.account.get_cash(), 2493.01)
+        self.assertEqual(broker_rel.account.get_cash(), 2450)
+        self.assertEqual(broker_abs.message.margin_calls, {})
+        self.assertEqual(broker_rel.message.margin_calls, {})
+        self.assertEqual(broker_abs.portfolio._long, {"AAPL": Position("AAPL", 100, True,
+                                                                       100,
+                                                                       datetime(2021, 1, 1),
+                                                                       0.5)})
+        self.assertEqual(broker_abs.portfolio._long, {"AAPL": Position("AAPL", 100, True,
+                                                                       100,
+                                                                       datetime(2021, 1, 1),
+                                                                       0.5)})
+        self.assertEqual(broker_abs._debt_record, {"AAPL": 5000})
+        self.assertEqual(broker_rel._debt_record, {"AAPL": 5000})
+
+
+        # Now test the same thing with a margin call
+        broker_abs.account._cash = 0
+        broker_rel.account._cash = 0
+
+        # Now, we will update the collateral. since our account is empty, all the collateral will be put as a margin
+        # call.
+        # For abs: we should have 1255.2425$ in margin call
+        # For rel: we should have 1287.5$ in margin call
+        prices[0] = (51, 52, 49, 50)
+        broker_abs._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+        broker_rel._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+        self.assertAlmostEqual(broker_abs.message.margin_calls["long margin call AAPL"].amount, 1255.2425)
+        self.assertAlmostEqual(broker_rel.message.margin_calls["long margin call AAPL"].amount, 1287.5)
+
+        # We will sell the position and check if the margin call is removed.
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (50, 110), 100,
+                           0, TradeType.SellLong, datetime(2021, 1, 1))
+        self.assertTrue(broker_abs.make_trade(order, security_price=tuple(price), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertTrue(broker_rel.make_trade(order, security_price=tuple(price), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertEqual(broker_abs.account.get_cash(), 0)
+        self.assertEqual(broker_abs.account.get_cash(), 0)
+        self.assertEqual(list(broker_abs.message.margin_calls.keys()), ["missing_funds"])
+        self.assertEqual(list(broker_rel.message.margin_calls.keys()), ["missing_funds"])
+        self.assertAlmostEqual(broker_abs.message.margin_calls["missing_funds"].amount, 6.99)
+        self.assertAlmostEqual(broker_rel.message.margin_calls["missing_funds"].amount, 50)
+        self.assertEqual(broker_abs.portfolio._long, {"AAPL": Position("AAPL", 0, True,
+                                                                       100,
+                                                                       datetime(2021, 1, 1),
+                                                                       0.5)})
+        self.assertEqual(broker_abs.portfolio._long, {"AAPL": Position("AAPL", 0, True,
+                                                                       100,
+                                                                       datetime(2021, 1, 1),
+                                                                       0.5)})
+        self.assertEqual(broker_abs._debt_record, {"AAPL": 0, "missing_funds": 6.989999999999782})
+        self.assertEqual(broker_rel._debt_record, {"AAPL": 0, "missing_funds": 50})
+
+    def test_make_trade_SS(self):
+        """
+        Test the make trade method for a sell short order with relative and absolute commissions.
+        """
+        security_names = ["AAPL", "TSLA", "MSFT", "V", "CAT", "OLN"]
+        prices = np.array([
+            [102, 104, 98, 100],  # AAPL
+            [61, 60, 63, 62.5],  # TSLA
+            [302, 304, 298, 300],  # MSFT
+            [102, 104, 98, 100],  # V
+            [202, 208, 196, 200],  # CAT
+            [302, 304, 298, 300]  # OLN
+        ], dtype=np.float32)
+
+        broker_abs = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker_rel = Broker(Account(100_000), margin_interest=0.02, relative_commission=0.02)
+        # Start by trying to sell a position that is not shortable
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, None), 0,
+                           100, TradeType.SellShort, datetime(2021, 1, 1))
+        self.assertFalse(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertFalse(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertEqual(broker_abs.portfolio._short, {})
+        self.assertEqual(broker_abs.account.get_cash(), 100_000)
+        self.assertEqual(broker_abs._debt_record, {})
+        self.assertEqual(broker_rel.portfolio._short, {})
+        self.assertEqual(broker_rel.account.get_cash(), 100_000)
+        self.assertEqual(broker_rel._debt_record, {})
+
+        # Now we will try to sell short a position with less margin than authorized
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (100, None), 0,
+                           800, TradeType.SellShort, datetime(2021, 1, 1))
+        self.assertRaises(RuntimeError, broker_abs.make_trade, order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True)
+        self.assertRaises(RuntimeError, broker_rel.make_trade,order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True)
+        self.assertEqual(broker_abs.portfolio._short, {})
+        self.assertEqual(broker_abs.account.get_cash(), 100_000)
+        self.assertEqual(broker_abs._debt_record, {})
+        self.assertEqual(broker_rel.portfolio._short, {})
+        self.assertEqual(broker_rel.account.get_cash(), 100_000)
+        self.assertEqual(broker_rel._debt_record, {})
+
+        # Now, we will sell short a position that we can sell
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (100, None), 0,
+                           100, TradeType.SellShort, datetime(2021, 1, 1))
+        self.assertTrue(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertTrue(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertEqual(broker_abs.portfolio._short, {"AAPL": Position("AAPL", 100, False,
+                                                                       100,
+                                                                       datetime(2021, 1, 2),
+                                                                       0.)})
+        self.assertEqual(broker_rel.portfolio._short, {"AAPL": Position("AAPL", 100, False,
+                                                                       100,
+                                                                       datetime(2021, 1, 2),
+                                                                       0.)})
+        self.assertAlmostEqual(broker_abs.account.get_cash(), 97_484.2725)
+        self.assertAlmostEqual(broker_rel.account.get_cash(), 97_050)
+        self.assertEqual(broker_abs._debt_record, {})
+        self.assertEqual(broker_rel._debt_record, {})
+        self.assertEqual(broker_abs.message.margin_calls, {})
+        self.assertEqual(broker_rel.message.margin_calls, {})
+
+        # Test with limit order that doesn't pass
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, 105), 0,
+                           100, TradeType.SellShort, datetime(2021, 1, 1))
+        self.assertFalse(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertFalse(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+
+    def test_make_trade_BS(self):
+        """
+        Test the make trade method for a buy short orders with relative and absolute commissions.
+        """
+        security_names = ["AAPL", "TSLA", "MSFT", "V", "CAT", "OLN"]
+        prices = np.array([
+            [102, 104, 98, 100],  # AAPL
+            [61, 60, 63, 62.5],  # TSLA
+            [302, 304, 298, 300],  # MSFT
+            [102, 104, 98, 100],  # V
+            [202, 208, 196, 200],  # CAT
+            [302, 304, 298, 300]  # OLN
+        ], dtype=np.float32)
+        broker_abs = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker_rel = Broker(Account(100_000), margin_interest=0.02, relative_commission=0.02)
+
+        # Try to buy a something that we do not have any position opened
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, None), 0,
+                           100, TradeType.BuyShort, datetime(2021, 1, 1))
+        self.assertFalse(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertFalse(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertEqual(broker_abs.portfolio._short, {})
+        self.assertEqual(broker_abs.account.get_cash(), 100_000)
+        self.assertEqual(broker_abs._debt_record, {})
+        self.assertEqual(broker_rel.portfolio._short, {})
+        self.assertEqual(broker_rel.account.get_cash(), 100_000)
+        self.assertEqual(broker_rel._debt_record, {})
+
+        # Try to buy a position without enough shares
+        broker_abs.portfolio._short = {
+            "AAPL": Position("AAPL", 100, False, 100,
+                             datetime(2021, 1, 1), ratio_owned=0)
+        }
+        broker_rel.portfolio._short = {
+            "AAPL": Position("AAPL", 100, False, 100,
+                             datetime(2021, 1, 1), ratio_owned=0)
+        }
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (None, None), 0,
+                           200, TradeType.BuyShort, datetime(2021, 1, 1))
+        self.assertFalse(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertFalse(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=False, shortable=False))
+        self.assertEqual(broker_abs.portfolio._short, {"AAPL": Position("AAPL", 100, False, 100,
+                             datetime(2021, 1, 1), ratio_owned=0)})
+        self.assertEqual(broker_abs.account.get_cash(), 100_000)
+        self.assertEqual(broker_abs._debt_record, {})
+        self.assertEqual(broker_rel.portfolio._short, {"AAPL": Position("AAPL", 100, False, 100,
+                             datetime(2021, 1, 1), ratio_owned=0)})
+        self.assertEqual(broker_rel.account.get_cash(), 100_000)
+        self.assertEqual(broker_rel._debt_record, {})
+
+        # Try to buy a position that should work
+        broker_abs._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+        broker_rel._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (100, None), 0,
+                           100, TradeType.BuyShort, datetime(2021, 1, 1))
+        self.assertTrue(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertTrue(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertEqual(broker_abs.portfolio._short, {"AAPL": Position("AAPL", 0, False,
+                             100, datetime(2021, 1, 1), ratio_owned=0)})
+        self.assertEqual(broker_abs.account.get_cash(), 89_993.01)
+        self.assertEqual(broker_abs._debt_record, {})
+        self.assertEqual(broker_rel.portfolio._short, {"AAPL": Position("AAPL", 0, False,
+                             100, datetime(2021, 1, 1), ratio_owned=0)})
+        self.assertEqual(broker_rel.account.get_cash(), 89_800)
+        self.assertEqual(broker_rel._debt_record, {})
+
+        # Try to sell short without enough money
+        broker_abs.account._cash = 0
+        broker_rel.account._cash = 0
+        broker_abs.portfolio._short = {
+            "AAPL": Position("AAPL", 100, False, 100,
+                             datetime(2021, 1, 1), ratio_owned=0)
+        }
+        broker_rel.portfolio._short = {
+            "AAPL": Position("AAPL", 100, False, 100,
+                             datetime(2021, 1, 1), ratio_owned=0)
+        }
+        broker_abs._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+        broker_rel._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+        # Now, we should have huge short margin calls
+        # For abs: we should have 12 508.7375$ in margin call
+        # For rel: we should have 12 750$ in margin call
+        self.assertEqual(broker_abs.message.margin_calls["short margin call"].amount, 12508.7375)
+        self.assertEqual(broker_rel.message.margin_calls["short margin call"].amount, 12750)
+        order = TradeOrder(datetime(2021, 1, 1), security_names[0], (100, None), 0,
+                           100, TradeType.BuyShort, datetime(2021, 1, 1))
+        self.assertTrue(broker_abs.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertTrue(broker_rel.make_trade(order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
+                            marginable=True, shortable=True))
+        self.assertEqual(broker_abs.portfolio._short, {"AAPL": Position("AAPL", 0, False,
+                             100, datetime(2021, 1, 1), ratio_owned=0)})
+        self.assertEqual(broker_abs.account.get_cash(), 0)
+        self.assertEqual(broker_abs._debt_record, {"missing_funds": 10_006.99})
+        self.assertEqual(broker_rel.portfolio._short, {"AAPL": Position("AAPL", 0, False,
+                             100, datetime(2021, 1, 1), ratio_owned=0)})
+        self.assertEqual(broker_rel.account.get_cash(), 0)
+        self.assertEqual(broker_rel._debt_record, {"missing_funds": 10_200})
+
+
+
+
+

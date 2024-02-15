@@ -74,6 +74,8 @@ class Account:
             raise RuntimeError("Transaction id already used!")
         else:
             self._previous_ids.add(transaction_id)
+        if amount < 0:
+            raise RuntimeError("Deposit amount should be positive!")
         transaction = Transaction(amount, TransactionType.DEPOSIT, dt, transaction_id, comment)
         self._cash += transaction.amount
         if transaction.transaction_id is None:

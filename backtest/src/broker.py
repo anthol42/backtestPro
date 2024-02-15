@@ -259,6 +259,13 @@ class Broker:
         # Exposure time in days
         self.exposure_time = 0
 
+        # This attribute stores the contribution of each position to the collateral to update the collateral faster
+        # after closing a position
+        self._cache = {
+            "long_collateral_contribution": {},
+            "short_collateral_contribution": {},
+        }
+
     def set_current_timestamp(self, timestamp: datetime):
         self._current_timestamp = timestamp
 
@@ -467,7 +474,9 @@ class Broker:
                 mk_value = self.portfolio.getShort()[ticker].amount * close * self._comm
             else:
                 mk_value = self.portfolio.getShort()[ticker].amount * close + self._comm
-            collateral += (1 + self.min_maintenance_margin_short) * mk_value
+            contrib = (1 + self.min_maintenance_margin_short) * mk_value
+            collateral += contrib
+            self._cache["short_collateral_contribution"][ticker] = contrib
 
         if total_cash - collateral < 0:
             if "short margin call" in self.message.margin_calls:
@@ -556,22 +565,29 @@ class Broker:
                             if available_cash > 0:
                                 self.new_margin_call(amount - available_cash, f"long margin call {ticker}")
                                 collateral += available_cash
+                                self._cache["long_collateral_contribution"][ticker] = available_cash
                                 available_cash = 0
                             else:
                                 self.new_margin_call(amount, f"long margin call {ticker}")
+                                self._cache["long_collateral_contribution"][ticker] = 0
                         else:    # Update the amount
                             if available_cash > 0:
                                 self.message.margin_calls[f"long margin call {ticker}"].amount = amount - available_cash
                                 self._debt_record[f"long margin call {ticker}"] = amount - available_cash
                                 collateral += available_cash
+                                self._cache["long_collateral_contribution"][ticker] = available_cash
                                 available_cash = 0
                             else:
                                 self.message.margin_calls[f"long margin call {ticker}"].amount = amount
                                 self._debt_record[f"long margin call {ticker}"] = amount
+                                self._cache["long_collateral_contribution"][ticker] = 0
                         new_calls.add(f"long margin call {ticker}")
                     else:    # If margin call is created, we do not increase the collateral.
                         collateral += amount
+                        self._cache["long_collateral_contribution"][ticker] = amount
                         available_cash -= amount
+                else:
+                    self._cache["long_collateral_contribution"][ticker] = 0
 
         # Remove margin calls that are not called anymore
         # new_call_tickers is a set included in the margin_calls keys.  So we can use set difference
@@ -750,13 +766,14 @@ class Broker:
     def make_trade(self, order: TradeOrder, security_price: Tuple[float, float, float, float], timestamp: datetime,
                    marginable: bool, shortable: bool) -> bool:
         """
-        This method is call to make trades (convert tradeOrders to trade).  Make the trade if price is in limit
+        This method is call to make trades (convert tradeOrders to trade).  Make the trade if price is within limits
         :param order: TradeOrder
         :param security_price: The security price (Open, High, Low, Close)
         :param timestamp: The time where securities will be bought (Usually the next step)
         :param marginable: If the security is marginable.
         :param shortable: If the security is shortable.
         :return: True if the trade was successful (Needs to remove from pending trades) And False otherwise
+        :raise RuntimeError: If the trade cannot be executed because of margin or cash issues.
         """
         if order.trade_type == TradeType.BuyLong:
             # Early exit if the security is not marginable and stragegy tried to buy it on margin.
@@ -769,43 +786,38 @@ class Broker:
             # If they are both not None, but the price has moved so much that both conditions are met, we apply
             # Murphy's law and use the worst price (high limit).  (Because we can't check intra steps)
             low, high = order.security_price_limit
-            if low is None and high is None:
-                price = security_price[0]    # Open
-            else:
-                if low is None:
-                    if security_price[1] > high:
-                        price = high
-                elif high is None:
-                    if security_price[2] < low:
-                        price = low
-                elif security_price[1] > high:
-                    price = high
-                elif security_price[2] < low:
-                    price = low
-                else:
-                    price = None
+
+            price = self._get_buy_price(low, high, security_price)
 
             if price is not None:  # We bought
                 margin_ratio = order.amount / (order.amount + order.amount_borrowed)
-                if margin_ratio > self.min_initial_margin:
+                if margin_ratio < self.min_initial_margin:
                     # The margin on this investment is smaller than the minimal initial margin
                     raise RuntimeError(f"Not enough margin to execute the trade.  "
                                        f"Got: {margin_ratio} but the minimum intial margin is: "
                                        f"{self.min_initial_margin}")
 
-                total = self.portfolio.estimateCost(price, order.amount_borrowed)
+                total = self.portfolio.estimateCost(price, order.amount)
 
                 if total > self.account.get_cash():  # Not enough cash to complete the trade
                     return False
                 else:
                     trade = order.convertToTrade(price, timestamp, str(self.n))
                     total = self.portfolio.trade(trade)
-                    self.account.withdrawal(total, timestamp, str(self.n))
+                    # Sanity check
+                    if total > 0:
+                        raise RuntimeError("The total should not be positive when buying long")
+                    self.account.withdrawal(-total, timestamp, str(self.n))
                 self.n += 1
                 return True
             else:
                 return False
         elif order.trade_type == TradeType.SellLong:
+            # First, check if we have enough shares to sell
+            if self.portfolio.getLong().get(order.security) is None:
+                return False
+            if order.amount + order.amount_borrowed > self.portfolio.getLong().get(order.security).amount:
+                return False
             # We sell if the price is below the low (Stop loss) or higher than the high (take profit)
             # If low limit is None, there is no stop loss
             # If high limit is None, there is no take profit and only stop loss.
@@ -813,36 +825,32 @@ class Broker:
             # If they are both not None, but the price has moved so much that both conditions are met, we apply
             # Murphy's law and use the worst price.  (Because we can't check intra steps)
             low, high = order.security_price_limit
-            if low is None and high is None:
-                price = security_price[0]    # Open
-            else:
-                if low is None:
-                    if security_price[1] > high:
-                        price = high
-                elif high is None:
-                    if security_price[2] < low:
-                        price = low
-                elif security_price[2] < low:
-                    price = low
-                elif security_price[1] > high:
-                    price = high
-                else:
-                    price = None
+            price = self._get_sell_price(low, high, security_price)
             if price is not None:    # We sell
-
-                total = self.portfolio.estimateCost(price, order.amount_borrowed)
 
                 trade = order.convertToTrade(price, timestamp, str(self.n))
                 money = self.portfolio.trade(trade)
+                # Remove margin calls if there are any for that position
+                if f"long margin call {order.security}" in self.message.margin_calls:
+                    self.remove_margin_call(f"long margin call {order.security}")
+                # Update account collateral to remove the position's contribution
+                if self._cache["long_collateral_contribution"][order.security] > 0:
+                    self.account.remove_collateral(self._cache["long_collateral_contribution"][order.security], timestamp,
+                                               message=f"Sold long position - {order.security}")
                 if money > 0:
-                    self.account.deposit(money, timestamp)
+                    self.account.deposit(money, timestamp, str(self.n))
                 else:
                     # Need to withdraw money from bank account to pay out the bank (Broker)
                     due = -money
                     if due > self.account.get_cash():
-                        self.new_margin_call(due)
+                        if self.account.get_cash() > 0:
+                            remaining = due - self.account.get_cash()
+                            self.account.withdrawal(self.account.get_cash(), timestamp, str(self.n))
+                            self.new_margin_call(remaining)
+                        else:
+                            self.new_margin_call(due)
                     else:
-                        self.account.withdrawal(due, timestamp, "Sold margin position at loss")
+                        self.account.withdrawal(due, timestamp, str(self.n), "Sold margin position at loss")
                 self.n += 1
                 return True
             else:
@@ -862,78 +870,82 @@ class Broker:
             # If there is a limit, we sell at the lowest price of the limit because we cannot look intra-step
             # (Murphy's law)
             low, high = order.security_price_limit
-            if low is None and high is None:
-                price = security_price[0]  # Open
-            else:
-                if low is None:
-                    if security_price[1] > high:
-                        price = high
-                elif high is None:
-                    if security_price[2] < low:
-                        price = low
-                elif security_price[2] < low:
-                    price = low
-                elif security_price[1] > high:
-                    price = high
-                else:
-                    price = None
+            price = self._get_sell_price(low, high, security_price)
 
             if price is not None:    # We sell short
 
-                total = self.portfolio.estimateCost(price, order.amount_borrowed)
+                total = self.portfolio.estimateCost(price, order.amount_borrowed, sell=True)
 
                 # Verify if we have enough margin to make the trade
-                if self.min_initial_margin_short * total > self.account.get_cash():
-                    money = -self.portfolio.trade(order.convertToTrade(price, timestamp, str(self.n)))
+                if self.account.get_cash() / total > 1 + self.min_initial_margin_short:
+                    money = self.portfolio.trade(order.convertToTrade(price, timestamp, str(self.n)))
                     self.account.deposit(money, timestamp, transaction_id=str(self.n))
-                    self.account.add_collateral((self.min_maintenance_margin + 1) * money, timestamp, message=order.security)
+                    if self._relative:
+                        self.account.add_collateral((self.min_maintenance_margin + 1) * price * order.amount_borrowed * self._comm,
+                                                    timestamp, message=order.security)
+                    else:
+                        self.account.add_collateral((self.min_maintenance_margin + 1) * (price * order.amount_borrowed + self._comm),
+                                                    timestamp, message=order.security)
                     self.n += 1
                     return True
                 else:
-                    return False
+                    raise RuntimeError(f"Not enough margin to execute the trade.  "
+                                       f"Got: {self.account.get_cash() / total} "
+                                       f"but the minimum intial margin is: "
+                                       f"{1 + self.min_initial_margin}")
             else:
                 return False
         elif order.trade_type == TradeType.BuyShort:
             # Early exit if the order doesn't buy any borrowed shares.
-            if order.amount_borrowed > 0:
-                return False  # We cannot buy short this security
+            if order.security not in self.portfolio.getShort():
+                return False
+            # We only need to check the amount borrowed because the TradeOrder object cannot have amount bigger than 0
+            # if short.
+            if order.amount_borrowed > self.portfolio.getShort()[order.security].amount:
+                return False
+
             # We buy if the price is below the low, or higher than the high (stop loss).
             # If one of both limits are None, there is no limit on that side.
             # If there is no limit, we buy at market price (Open)
             # If there is a limit, we buy at the highest price of the limit because we cannot look intra-step
             # (Murphy's law)
             low, high = order.security_price_limit
-            if low is None and high is None:
-                price = security_price[0]  # Open
-            else:
-                if low is None:
-                    if security_price[1] > high:
-                        price = high
-                elif high is None:
-                    if security_price[2] < low:
-                        price = low
-                elif security_price[1] > high:
-                    price = high
-                elif security_price[2] < low:
-                    price = low
-                else:
-                    price = None
+            price = self._get_buy_price(low, high, security_price)
 
             if price is not None:    # We sell short
                 total = self.portfolio.estimateCost(price, order.amount_borrowed)
-                asset_collateral = (1 + self.min_maintenance_margin_short) * total
-                if total > self.account.get_cash() + asset_collateral:
-                    self.new_margin_call(total - (self.account.get_cash() + asset_collateral), message="missing_funds")
+                # We check how much the position influenced the collateral.
+                asset_collateral = self._cache["short_collateral_contribution"][order.security]
+                # If we have a margin call, we can deduce the amount from the collateral from it since we do not need to
+                # hold this collateral anymore.
+                if "short margin call" in self.message.margin_calls:
+                    short_mc = self.message.margin_calls["short margin call"].amount
+                    # If the collateral is bigger than the margin call, we remove the margin call and the remaining
+                    # collateral contribution from the account's collateral.
+                    # Otherwise, we only subtract the collateral contribution from the margin call.
+                    if asset_collateral >= short_mc:
+                        asset_collateral -= short_mc
+                        self.remove_margin_call("short margin call")
+                        self.account.remove_collateral(asset_collateral, timestamp, message="Bought back short position")
+                    else:
+                        self.message.margin_calls["short margin call"].amount -= asset_collateral
+
+                # If we do not have any margin calls, we can simply deduce the collateral contribution from the
+                # account's collateral.
+                else:
+                    self.account.remove_collateral(asset_collateral, timestamp, message="Bought back short position")
+
+
+                if total > self.account.get_cash():
+                    self.new_margin_call(total - (self.account.get_cash()), message="missing_funds")
                     trade = order.convertToTrade(price, timestamp, str(self.n))
                     self.portfolio.trade(trade)
-                    self.account.remove_collateral(asset_collateral, timestamp, message=f"Bought back short position - {order.security}")
                     self.account.withdrawal(self.account.get_cash(), timestamp, transaction_id=str(self.n))
                     self.n += 1
                     return True
                 else:
                     trade = order.convertToTrade(price, timestamp, str(self.n))
                     self.portfolio.trade(trade)
-                    self.account.remove_collateral(asset_collateral, timestamp, message=f"Bought back short position - {order.security}")
                     self.account.withdrawal(total, timestamp, transaction_id=str(self.n))
                     self.n += 1
                     return True
@@ -942,6 +954,87 @@ class Broker:
 
         else:
             raise RuntimeError(f"Invalid trade type!  Got: {order.trade_type}")
+
+    @staticmethod
+    def _get_buy_price(low: Optional[float], high: Optional[float], security_price:Tuple[float, float, float, float]) -> Optional[float]:
+        """
+        Get the price at which the order will pass according to the limits.  If the price is not within the limits, it
+        returns None.
+        We buy a stock if the stock price becomes less than the low limit or higher than the high limit.  Because we
+        are working in a discrete space, we will buy at limit price if the limit is within the low-high price range.
+        We will prioritize the high limit if both limits are met to ensure that we do not obtain optimistic results.
+        Finally, if the open price is within the limits, we will buy at open price.  (discontinuity)
+        :param low: The low limit
+        :param high: The high limit
+        :param security_price: The price of the security (Open, High, Low, Close)
+        :return: The price at which we should buy the security
+        """
+        if low is None and high is None:
+            price = security_price[0]  # Open
+        else:
+            if low is None:
+                if security_price[0] > high:
+                    price = security_price[0]  # We buy at open price
+                else:
+                    price = high if security_price[1] >= high else None
+            elif high is None:
+                if security_price[0] < low:
+                    price = security_price[0]  # We buy at open price
+                else:
+                    price = low if security_price[2] <= low else None
+            elif security_price[0] >= high:
+                price = security_price[0]  # We buy at open price
+            elif security_price[0] <= low:
+                price = security_price[0]  # We buy at open price
+            elif security_price[1] >= high:
+                price = high
+            elif security_price[2] <= low:
+                price = low
+            else:
+                price = None
+
+        return price
+
+    @staticmethod
+    def _get_sell_price(low: Optional[float], high: Optional[float], security_price: Tuple[float, float, float, float])\
+            -> Optional[float]:
+        """
+        Get the price at which the sell order will pass according to the limits.  If the price is not within the limits,
+        it returs None.
+        We sell a position if the price becomes less than the low limit or higher than the high limit.  Because we are
+        working in a discrete space, we will sell at limit price if the limit is within the low-high price range.
+        We will prioritize the low limit if both limits are met to ensure that we do not obtain optimistic results.
+        Finally, if the open price is within the limits, we will buy at open price.  (discontinuity)
+        :param low: The low limit  (If None, it means that there is no stop loss)
+        :param high: The high limit (If None, it means that there is no take profit limit)
+        :param security_price: The security price (Open, High, Low, Close)
+        :return: The sell price if within the limits, None otherwise
+        """
+        if low is None and high is None:
+            price = security_price[0]  # Open
+        else:
+            if low is None:
+                if security_price[0] >= high:
+                    price = security_price[0]  # We sell at open price
+                else:
+                    price = high if security_price[1] >= high else None
+            elif high is None:
+                if security_price[0] <= low:
+                    price = security_price[0]  # We sell at open price
+                else:
+                    price = low if security_price[2] <= low else None
+            elif security_price[0] <= low:
+                price = security_price[0]    # We sell at open
+            elif security_price[0] >= high:
+                price = security_price[0]    # We sell at open
+            elif security_price[2] <= low:
+                price = low
+            elif security_price[1] >= high:
+                price = high
+            else:
+                price = None
+
+        return price
 
     @staticmethod
     def _isMarginCall(market_value: float, loan: float, min_maintenance_margin: float, transaction_cost: float, rel: bool) -> Tuple[bool, float]:
@@ -1022,7 +1115,8 @@ class Broker:
             "margin_interest": self.margin_interest,
             "comm": self._comm,
             "relative": self._relative,
-            "n": self.n
+            "n": self.n,
+            "cache": self._cache
         }
 
     @classmethod
@@ -1050,4 +1144,5 @@ class Broker:
         broker._comm = data["comm"]
         broker._relative = data["relative"]
         broker.n = data["n"]
+        broker._cache = data["cache"]
         return broker

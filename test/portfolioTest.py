@@ -384,7 +384,7 @@ class TestPortfolio(TestCase):
         # Buy Long
         # ------------------------------
         portfolio_abs = Portfolio(6.99, False)
-        portfolio_rel = Portfolio(1, True)     # 1% cost
+        portfolio_rel = Portfolio(0.01, True)     # 1% cost
 
         # Add trade to portfolio - New position
         trade1 = BuyLong("AAPL", 150, 50, 50, "1",
@@ -446,7 +446,7 @@ class TestPortfolio(TestCase):
         # Sell Long
         # ------------------------------
         portfolio_abs = Portfolio(6.99, False)
-        portfolio_rel = Portfolio(1, True)     # 1% cost
+        portfolio_rel = Portfolio(0.01, True)     # 1% cost
         # Add shares in portfolio
         trade1 = BuyLong("AAPL", 100, 250, 250, "1",
                          datetime(2021, 2, 1), order=None)
@@ -511,7 +511,7 @@ class TestPortfolio(TestCase):
 
         # Now, we will make a new test with no margin
         portfolio_abs = Portfolio(9.99, False)
-        portfolio_rel = Portfolio(0.5, True)     # 0.5% cost
+        portfolio_rel = Portfolio(0.005, True)     # 0.5% cost
         # Add shares in portfolio
         trade1 = BuyLong("AAPL", 100, 500, 0, "1",
                          datetime(2021, 2, 1), order=None)
@@ -556,7 +556,7 @@ class TestPortfolio(TestCase):
 
         # Test trade stats with small margin (17%)
         portfolio_abs = Portfolio(6.99, False)
-        portfolio_rel = Portfolio(1, True)     # 1% cost
+        portfolio_rel = Portfolio(0.01, True)     # 1% cost
         # Add shares in portfolio
         trade1 = BuyLong("AAPL", 100, 83, 17, "1",
                          datetime(2021, 2, 1), order=None)
@@ -598,7 +598,7 @@ class TestPortfolio(TestCase):
         # Sell Short
         # ------------------------------
         portfolio_abs = Portfolio(6.99, False)
-        portfolio_rel = Portfolio(1, True)     # 1% cost
+        portfolio_rel = Portfolio(0.01, True)     # 1% cost
 
         # Test sell short
         trade1 = SellShort("AAPL", 100, 0, 100, "1",
@@ -630,7 +630,7 @@ class TestPortfolio(TestCase):
         # Buy Short
         # ------------------------------
         portfolio_abs = Portfolio(6.99, False)
-        portfolio_rel = Portfolio(1, True)     # 1% cost
+        portfolio_rel = Portfolio(0.01, True)     # 1% cost
         # Add short position
         trade1 = SellShort("AAPL", 100, 0, 200, "1",
                            datetime(2021, 2, 1), order=None)
@@ -686,7 +686,7 @@ class TestPortfolio(TestCase):
         # Multiple trades
         # ------------------------------
         portfolio_abs = Portfolio(6.99, False)
-        portfolio_rel = Portfolio(1, True)     # 1% cost
+        portfolio_rel = Portfolio(0.01, True)     # 1% cost
 
         # Add shares in portfolio
         trade1 = BuyLong("AAPL", 100, 250, 250, "1",

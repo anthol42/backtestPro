@@ -182,7 +182,7 @@ class TestTrade(TestCase):
         self.assertEqual(trade, expected)
 
 class TestChildClasses(TestCase):
-    def orders(self):
+    def test_orders(self):
         orderBL = BuyLongOrder(datetime(2021, 1, 1), "AAPL",
                            (100, 101), 100, 0,
                                datetime(2021, 1, 2))
@@ -205,7 +205,7 @@ class TestChildClasses(TestCase):
         self.assertEqual(orderBS.trade_type, TradeType.BuyShort)
         self.assertEqual(orderBS.margin_trade, True)
 
-    def trades(self):
+    def test_trades(self):
         orderBL = BuyLongOrder(datetime(2021, 1, 1), "AAPL",
                            (100, 101), 100, 0,
                                datetime(2021, 1, 2))

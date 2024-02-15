@@ -322,7 +322,7 @@ class Portfolio:
         if transaction_relative and transaction_cost > 1:
             raise ValueError("Transaction cost cannot be greater than 1 when relative")
         if transaction_relative:
-            self._transaction_cost = transaction_cost / 100 + 1
+            self._transaction_cost = transaction_cost + 1
         else:
             self._transaction_cost = transaction_cost
         self._relative = transaction_relative
@@ -400,7 +400,7 @@ class Portfolio:
                 duration = trade.timestamp - self._long[trade.security].average_filled_time
                 average_buy_price = self._long[trade.security].average_price
                 ratio_owned = self._long[trade.security].ratio_owned
-                number_of_entry  = self._long[trade.security]._number_of_entry
+                number_of_entry = self._long[trade.security]._number_of_entry
                 profit, rel_profit = self.getLongProfit(average_buy_price,
                                                         trade.security_price,
                                                         trade.amount + trade.amount_borrowed,
