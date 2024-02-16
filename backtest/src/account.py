@@ -172,7 +172,7 @@ class Account:
         }
 
     def __str__(self):
-        return f"BankAccount: {round(self._cash, 2)}$"
+        return f"BankAccount: {round(self.get_cash(), 2)}$"
 
     def get_state(self) -> dict:
         """

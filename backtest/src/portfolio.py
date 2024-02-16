@@ -328,6 +328,8 @@ class Portfolio:
         self._relative = transaction_relative
         self._debt_record: Dict[str, float] = debt_record if debt_record is not None else {}
         self._transaction_ids = set()
+        self._short_len = 0
+        self._long_len = 0
 
     def trade(self, trade: Trade) -> float:
         """
@@ -358,6 +360,7 @@ class Portfolio:
                 self._long[trade.security] = Position(trade.security, trade.amount + trade.amount_borrowed, True,
                                                       trade.security_price, trade.timestamp,
                                                       trade.amount / (trade.amount + trade.amount_borrowed))
+                self._long_len += 1
 
             # Handle debt record
             if self._relative:
@@ -414,6 +417,8 @@ class Portfolio:
                 # Handle debt record
                 self._debt_record[trade.security] -= relative_debt  # Debt that has been repaid
                 self._long[trade.security] -= trade
+                if self._long[trade.security].amount == 0:
+                    self._long_len -= 1
 
                 return self._getCost(trade, include_borrow=True, sell=True) - relative_debt
 
@@ -429,6 +434,7 @@ class Portfolio:
             else:
                 self._short[trade.security] = Position(trade.security, trade.amount_borrowed, False,
                                                        trade.security_price, trade.timestamp, 0)
+                self._short_len += 1
             self._trades.append(trade)
             return self._getCost(trade, include_borrow=True, sell=True)
         elif trade.trade_type == TradeType.BuyShort:
@@ -448,7 +454,7 @@ class Portfolio:
                 # Compute stats
                 duration = trade.timestamp - self._short[trade.security].average_filled_time
                 average_sell_price = self._short[trade.security].average_price
-                absolute_profit, rel_profit = self.getShortProfit(average_sell_price, trade.security_price, trade.amount_borrowed)
+                absolute_profit, rel_profit = self.getShortProfit(average_sell_price, trade.security_price, trade.amount_borrowed + trade.amount)
                 self._trades.append(
                     TradeStats(trade,
                                duration,
@@ -458,9 +464,18 @@ class Portfolio:
 
                 # Update portfolio
                 self._short[trade.security] -= trade
+                if self._short[trade.security].amount == 0:
+                    self._short_len -= 1
 
                 # Compute trade value
                 return -self._getCost(trade, include_borrow=True)
+
+    @property
+    def len_long(self):
+        return self._long_len
+    @property
+    def len_short(self):
+        return self._short_len
 
     def getShortProfit(self, average_sell_price: float, average_buy_price: float, qty: int) -> Tuple[float, float]:
         """

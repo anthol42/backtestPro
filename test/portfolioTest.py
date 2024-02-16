@@ -399,6 +399,8 @@ class TestPortfolio(TestCase):
                                                         True, 150, datetime(2021, 2, 1), 0.5)})
         self.assertEqual(portfolio_rel._long, {"AAPL": Position("AAPL", 100,
                                                         True, 150, datetime(2021, 2, 1), 0.5)})
+        self.assertEqual(portfolio_abs.len_long, 1)
+        self.assertEqual(portfolio_rel.len_long, 1)
         # Verify that the debt record is correctly updated
         self.assertEqual(portfolio_abs._debt_record, {"AAPL": 7500})
         self.assertEqual(portfolio_rel._debt_record, {"AAPL": 7575})
@@ -416,6 +418,8 @@ class TestPortfolio(TestCase):
                                                             datetime(2021, 2, 1), 0.5)})
         self.assertEqual(portfolio_abs._debt_record, {"AAPL": 12500})
         self.assertEqual(portfolio_rel._debt_record, {"AAPL": 12625})
+        self.assertEqual(portfolio_abs.len_long, 1)
+        self.assertEqual(portfolio_rel.len_long, 1)
 
         # With new position
         trade3 = BuyLong("MSFT", 100, 50, 50, "3",
@@ -440,6 +444,8 @@ class TestPortfolio(TestCase):
         self.assertEqual(portfolio_rel._trades, [trade1, trade2, trade3])
         self.assertEqual(portfolio_abs._debt_record, {"AAPL": 12500, "MSFT": 5000})
         self.assertEqual(portfolio_rel._debt_record, {"AAPL": 12625, "MSFT": 5050})
+        self.assertEqual(portfolio_abs.len_long, 2)
+        self.assertEqual(portfolio_rel.len_long, 2)
 
     def test_trade_SL(self):
         # ------------------------------
@@ -482,6 +488,8 @@ class TestPortfolio(TestCase):
         # rel: 0.15 * 25250 = 3787.5$
         self.assertAlmostEqual(portfolio_abs._debt_record["AAPL"], 21250)
         self.assertAlmostEqual(portfolio_rel._debt_record["AAPL"], 21462.5)
+        self.assertEqual(portfolio_abs.len_long, 1)
+        self.assertEqual(portfolio_rel.len_long, 1)
 
         # Test Calculation of worth of the trade
         self.assertEqual(total_abs, 7493.01)
@@ -554,7 +562,7 @@ class TestPortfolio(TestCase):
         self.assertEqual(portfolio_rel._trades[1].ratio_owned, rel_stat.ratio_owned)
 
 
-        # Test trade stats with small margin (17%)
+        # Test trade stats with big margin (83%)
         portfolio_abs = Portfolio(6.99, False)
         portfolio_rel = Portfolio(0.01, True)     # 1% cost
         # Add shares in portfolio
@@ -592,6 +600,16 @@ class TestPortfolio(TestCase):
         self.assertAlmostEqual(portfolio_rel._trades[1].profit, rel_stat.profit)
         self.assertAlmostEqual(portfolio_rel._trades[1].rel_profit, rel_stat.rel_profit)
 
+        # Test emptying the position
+        trade3 = SellLong("AAPL", 50, 50, 0, "4",
+                            datetime(2021, 2, 15), order=None)
+        total_abs = portfolio_abs.trade(trade3)
+        total_rel = portfolio_rel.trade(trade3)
+        self.assertEqual(portfolio_abs._long, {"AAPL": Position("AAPL", 0, True, 100,
+                                                        datetime(2021, 2, 1), 0.83)})
+        self.assertEqual(portfolio_abs.len_long, 0)
+        self.assertEqual(portfolio_rel.len_long, 0)
+
 
     def test_trade_ss(self):
         # ------------------------------
@@ -615,6 +633,8 @@ class TestPortfolio(TestCase):
                                                          datetime(2021, 2, 1), 0.)})
         self.assertEqual(portfolio_rel._short, {"AAPL": Position("AAPL", 100, False, 100,
                                                             datetime(2021, 2, 1), 0.)})
+        self.assertEqual(portfolio_abs.len_short, 1)
+        self.assertEqual(portfolio_rel.len_short, 1)
 
         trade2 = SellShort("MSFT", 100, 0, 100, "2",
                            datetime(2021, 2, 1), order=None)
@@ -624,6 +644,8 @@ class TestPortfolio(TestCase):
         # Test if the historical trades are saved.
         self.assertEqual(portfolio_abs._trades, [trade1, trade2])
         self.assertEqual(portfolio_rel._trades, [trade1, trade2])
+        self.assertEqual(portfolio_abs.len_short, 2)
+        self.assertEqual(portfolio_rel.len_short, 2)
 
     def test_trade_bs(self):
         # ------------------------------
@@ -664,6 +686,8 @@ class TestPortfolio(TestCase):
                                                          datetime(2021, 2, 1), 0.)})
         self.assertEqual(portfolio_rel._short, {"AAPL": Position("AAPL", 100, False, 100,
                                                             datetime(2021, 2, 1), 0.)})
+        self.assertEqual(portfolio_abs.len_short, 1)
+        self.assertEqual(portfolio_rel.len_short, 1)
 
         # Test if stats are correctly computed
         abs_stat = TradeStats(trade2, timedelta(weeks=2), 4986.02, 49.8602, 0.)
@@ -679,6 +703,19 @@ class TestPortfolio(TestCase):
         self.assertAlmostEqual(portfolio_rel._trades[1].profit, rel_stat.profit)
         self.assertAlmostEqual(portfolio_rel._trades[1].rel_profit, rel_stat.rel_profit)
         self.assertEqual(portfolio_rel._trades[1].ratio_owned, rel_stat.ratio_owned)
+
+        # Test with emptying the position
+        trade3 = BuyShort("AAPL", 100, 100, 0, "3",
+                            datetime(2021, 2, 15), order=None)
+        total_abs = portfolio_abs.trade(trade3)
+        total_rel = portfolio_rel.trade(trade3)
+        self.assertEqual(portfolio_abs._short, {"AAPL": Position("AAPL", 0, False, 100,
+                                                         datetime(2021, 2, 1), 0.)})
+        self.assertEqual(portfolio_rel._short, {"AAPL": Position("AAPL", 0, False, 100,
+                                                                 datetime(2021, 2, 1), 0.)})
+        self.assertEqual(portfolio_abs.len_short, 0)
+        self.assertEqual(portfolio_rel.len_short, 0)
+
 
 
     def test_trade_multi(self):

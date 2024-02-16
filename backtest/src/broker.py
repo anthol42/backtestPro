@@ -3,7 +3,7 @@ from .account import Account
 from .trade import BuyLongOrder, SellLongOrder, BuyShortOrder, SellShortOrder, TradeOrder, TradeType
 from .portfolio import Portfolio, Position
 from datetime import datetime, date
-from typing import Dict, Tuple, List, Optional
+from typing import Dict, Tuple, List, Optional, Set
 from copy import deepcopy
 import numpy.typing as npt
 from .tsData import DividendFrequency
@@ -288,13 +288,14 @@ class Broker:
         self._queued_trade_offers.append(BuyShortOrder(self._current_timestamp, ticker, price_limit, amount, amount_borrowed, expiry))
 
     # TODO: Test this method
-    def tick(self, timestamp: datetime, security_names: List[str], current_tick_data: np.ndarray,
+    def tick(self, timestamp: datetime, next_timestamp, security_names: List[str], current_tick_data: np.ndarray,
              next_tick_data: np.ndarray, marginables: npt.NDArray[bool], dividends: npt.NDArray[np.float32],
              div_freq: List[DividendFrequency]):
         """
         The simulation calls this method after the strategy has run.  It will calculate interests and margin call if
         applicable.  It will do trades that can be done in the trade queue at the next open.
         :param timestamp: The date and time of the current step
+        :param next_timestamp: The date and time of the next step where orders will be evaluated/bought
         :param security_names: A list of all securities where the index of each ticker is the index of the data of the
                                corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
         :param current_tick_data: An array of prices of each security for the current step(n_securities, 4)
@@ -361,41 +362,15 @@ class Broker:
                                         comment="Missing funds")
         self._update_account_collateral(timestamp, security_names, current_tick_data)
 
-        # Step 4: Execute trades that can be executed
-        filled_orders = []
-        for order in self._queued_trade_offers:
-            if order.expiry <= timestamp:
-                continue
-            eq_idx = security_names.index(order.ticker)
 
-            result = self.make_trade(order, next_tick_data[eq_idx], timestamp, marginables[eq_idx, 0], marginables[eq_idx, 1])
-            if result:
-                filled_orders.append(order)
-
-        for order in filled_orders:
-            self._queued_trade_offers.remove(order)
-
-        # Step 5: If there is borrowed money, reduce the delay of margin calls.  (It is normal that newly initialized
+        # Step 4: If there is borrowed money, reduce the delay of margin calls.  (It is normal that newly initialized
         # margin call's delay will already be reduced.  It is took into account in the liquidation process)
         if borrowed_money > 0:
             # Decrement margin call delay until liquidation.  If it reaches -1, the position is liquidated
             for key in self.message.margin_calls:
                 self.message.margin_calls[key] -= 1
 
-        # Step 6: Charge interests if it's the first day of the month
-        # Interest are deducted from account.  If there is not enough money in the account to payout interests,
-        # the account, we crrate a new margin call for missing funds and interests will be charged on these because.
-        if timestamp.month != self._current_month:
-            self._current_month = timestamp.month
-            if self.account.get_cash() > self._month_interests:
-                self.account.withdrawal(self._month_interests, timestamp, comment="Interest payment")
-                self._month_interests = 0
-            else:
-                # Put interests as debt and as margin call that the user needs to pay
-                self.new_margin_call(self._month_interests)
-                self._month_interests = 0
-
-        # Step 6: Liquidate expired margin calls
+        # Step 5: Liquidate expired margin calls
         pos_to_liquidate = [ticker for ticker in self.message.margin_calls if self.message.margin_calls[ticker] == -1]
         for ticker in pos_to_liquidate:
             if ticker.startswith("missing_funds") or ticker == "short margin call":
@@ -417,10 +392,77 @@ class Broker:
                 self._liquidate(self.message.margin_calls[miss_fund_call].amount, timestamp, security_names,
                                 next_tick_data)
 
-        # Step 6: Save states
+        # Step 6: Execute trades that can be executed
+        filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
+
+        # Step 7: Charge interests if it's the first day of the month
+        # Interest are deducted from account.  If there is not enough money in the account to payout interests,
+        # the account, we crrate a new margin call for missing funds and interests will be charged on these because.
+        if timestamp.month != self._current_month:
+            self._current_month = timestamp.month
+            if self.account.get_cash() > self._month_interests:
+                self.account.withdrawal(self._month_interests, timestamp, comment="Interest payment")
+                self._month_interests = 0
+            else:
+                # Put interests as debt and as margin call that the user needs to pay
+                self.new_margin_call(self._month_interests)
+                self._month_interests = 0
+
+        # Step 8: Save states
         self.historical_states.append(
             StepState(timestamp, worth, self._queued_trade_offers, filled_orders, self.message.margin_calls)
         )
+
+    def _execute_trades(self, next_timestep: datetime, security_names: List[str], next_tick_data: np.ndarray,
+                        marginables: npt.NDArray[bool]) -> List[TradeOrder]:
+        """
+        Execute trades that can be executed.  (Price becomes within limits)
+        :param next_timestep: The next timestep timestamp (Where orders will be evaluated/completed)
+        :param security_names: A list of all securities where the index of each ticker is the index of the data of the
+                               corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
+        :param next_tick_data: An array containing prices of each security for the next step shape(n_securities, 4)
+                               The 4 columns of the array are: Open, High, Low, Close of the next step.
+        :param marginables: A boolean array of shape (n_securities, 2) [Marginable, Shortable) where True means that
+                            the security can be bought on margin / sold short and False means that it cannot be bought on
+                            margin / sold short.
+        :return: Teh filled orders
+        """
+        filled_orders = []
+        expired_orders = []
+        for order in self._queued_trade_offers:
+            if order.expiry is not None and order.expiry < next_timestep:
+                expired_orders.append(order)
+                continue
+
+            eq_idx = security_names.index(order.security)
+
+            result = self.make_trade(order, next_tick_data[eq_idx], next_timestep, marginables[eq_idx, 0], marginables[eq_idx, 1])
+            if result:
+                filled_orders.append(order)
+
+        # At the end of the timestep, when all trades that could have been done are executed, we update the collateral.
+        self._update_account_collateral(next_timestep, security_names, next_tick_data, message="Trade execution")
+
+        if self.account.get_cash() > 0 and "missing_funds" in self.message.margin_calls:
+            if self.message.margin_calls["missing_funds"].amount < self.account.get_cash():
+                self.account.withdrawal(self.message.margin_calls["missing_funds"].amount, next_timestep,
+                                        comment="Paying Missing funds after doing trades")
+                self.remove_margin_call("missing_funds")
+            else:
+                self.message.margin_calls["missing_funds"].amount -= self.account.get_cash()
+                self._debt_record["missing_funds"] -= self.account.get_cash()
+                self.account.withdrawal(self.account.get_cash(), next_timestep, comment="Paying Missing funds after doing trades")
+
+        # Remove filled orders from pending orders
+        for order in filled_orders:
+            self._queued_trade_offers.remove(order)
+
+        # Remove expired orders from pending orders
+        for order in expired_orders:
+            self._queued_trade_offers.remove(order)
+
+        return filled_orders
+
 
     @staticmethod
     def compute_dividend_payout(position: Position,
@@ -465,6 +507,8 @@ class Broker:
         """
         collateral = 0.
         for ticker in self.portfolio.getShort():
+            if self.portfolio.getShort()[ticker].amount == 0:
+                continue
             eq_idx = security_names.index(ticker)
             o, h, l, close = tuple(current_tick_data[eq_idx].tolist()) # (Open, High, Low, Close)
 
@@ -552,6 +596,8 @@ class Broker:
             if long is not None:
                 if long.ticker in self.message.margin_calls:
                     continue
+                if long.amount == 0:
+                    continue
                 # Verify if the stock is in margin call for long
                 is_margin_call, amount = self._isMarginCall(long.amount * current_tick_data[eq_idx, -1],
                                                             self._debt_record[ticker],
@@ -598,7 +644,8 @@ class Broker:
 
         return collateral
 
-    def _update_account_collateral(self, timestamp: datetime, security_names: List[str], current_tick_data: np.ndarray):
+    def _update_account_collateral(self, timestamp: datetime, security_names: List[str], current_tick_data: np.ndarray,
+                                   message: str = "Step Update"):
         """
         Updates the amount of collateral in the account.  This is the amount of money held as collateral and cannot
         be used.  This should be updated at each step because it should be dependent to the current value of the
@@ -607,6 +654,7 @@ class Broker:
         :param security_names: An array of the name of each security
         :param current_tick_data: An array of prices of each security for the current step(n_securities, 4)
                                   The 4 columns of the array are: Open, High, Low, Close of the next step.
+        :param message: A message to be added to the account history describing why we are doing a collateral update.
         :return: None
         """
         total_cash = self.account.get_total_cash()
@@ -621,11 +669,11 @@ class Broker:
         long_collateral = self._get_long_collateral(total_cash, security_names, current_tick_data)
 
         # Step 4: Update the collateral so we know how much money is available for trading (Buying power)
-        self.account.update_collateral(long_collateral + short_collateral, timestamp)
+        self.account.update_collateral(long_collateral + short_collateral, timestamp, message=message)
 
 
     def _liquidate(self, call_amount: float, timestamp: datetime, security_names: List[str],
-             next_tick_data: np.ndarray):
+             tick_data: np.ndarray):
         """
         Liquidate positions to cover margin call.  It starts by short positions.  If there are no short positions or
         are all liquidated and there is still a margin call, it will liquidate long positions.
@@ -635,7 +683,7 @@ class Broker:
         :param timestamp: The date and time of the current step
         :param security_names: A list of all securities where the index of each ticker is the index of the data of the
                                corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
-        :param next_tick_data: An array containing prices of each security for the next step shape(n_securities, 4)
+        :param tick_data:      An array containing prices of each security for the current step shape(n_securities, 4)
                                The 4 columns of the array are: Open, High, Low, Close of the next step.
         :return: None
         """
@@ -643,79 +691,84 @@ class Broker:
         # We liquidate positions that the worth is the closest to the call value.
         # If there is no short positions remaining because the call value is too big, we will liquidate
         # long positions.
-        while call_amount > 0 and len(self.portfolio.getShort()) > 0:
+        mask = np.zeros(self.portfolio.len_short, dtype=bool)
+        liquidated_short = 0
+        while call_amount > 1e-8 and liquidated_short < self.portfolio.len_short:
             positions = list(self.portfolio.getShort().values())
-            delta = self._get_deltas(call_amount, security_names, next_tick_data)
+            delta = self._get_deltas(call_amount, security_names, tick_data, i=3)
+            delta[mask] = -np.inf
             delta_inf = deepcopy(delta)
             delta_inf[delta_inf < 0] = np.inf
             if delta_inf.min() == np.inf:  # No positions are worth enough to payout margin call
                 idx = delta.argmax()  # delta are all negatives, so we take the one that is the less negative
-                delta[idx] = -np.inf
-                eq = positions[idx]
+                pos = positions[idx]
                 # Buy this security
-                eq_idx = security_names.index(eq)
-                price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
-                if self._relative:
-                    cash = eq.amount * price[0] * (2 - self._comm)
-                else:
-                    cash = eq.amount * price[0] - self._comm
-                call_amount -= cash
-                order = BuyShortOrder(timestamp, eq.ticker, (None, None), 0, eq.amount, None)
-                self.make_trade(order, price, timestamp)
+                cash_back = delta[idx] + call_amount
+                call_amount -= cash_back
+                mask[idx] = True
+                self.buy_short(pos.ticker, 0, pos.amount, None, (None, None))
             else:
-                eq = positions[delta_inf.argmin()]
+                pos = positions[delta_inf.argmin()]
                 # Buy this security that was sold short
-                eq_idx = security_names.index(eq)
-                price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
-                order = BuyShortOrder(timestamp, eq.ticker, (None, None), 0, eq.amount, None)
-                self.make_trade(order, price, timestamp)
+                self.buy_short(pos.ticker, 0, pos.amount, None, (None, None))
                 call_amount = 0
+            liquidated_short += 1
 
         # We liquidated all short positions.  We need to liquidate long position to cover.
-        if len(self.portfolio.getShort()) == 0 and call_amount > 0:
+        if self.portfolio.len_short == liquidated_short and call_amount > 1e-8:
             while call_amount > 0 and len(self.portfolio.getLong()) > 0:
                 positions = list(self.portfolio.getLong().values())
-                delta = self._get_deltas(call_amount, security_names, next_tick_data, short=False)
+                delta = self._get_deltas(call_amount, security_names, tick_data, short=False, i=3)
                 delta_inf = deepcopy(delta)
                 delta_inf[delta_inf < 0] = np.inf
                 if delta_inf.min() == np.inf:  # No positions are worth enough to payout margin call
                     idx = delta.argmax()  # delta are all negatives, so we take the one that is the less negative
                     delta[idx] = -np.inf
-                    eq = positions[idx]
+                    pos = positions[idx]
                     # Sell this security
-                    eq_idx = security_names.index(eq)
-                    price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
+                    eq_idx = security_names.index(pos.ticker)
+                    price = tuple(tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
                     if self._relative:
-                        amount = eq.amount
-                        cash = amount * price[0] * (2 - self._comm) - self._debt_record[eq.ticker]
+                        amount = pos.amount
+                        cash = amount * price[0] * (2 - self._comm) - self._debt_record[pos.ticker]
                     else:
-                        amount = eq.amount
-                        cash = amount * price[0] - self._comm - self._debt_record[eq.ticker]
+                        amount = pos.amount
+                        cash = amount * price[0] - self._comm - self._debt_record[pos.ticker]
                     call_amount -= cash
-                    order = SellLongOrder(eq.ticker, (None, None), eq.amount, 0, None)
-                    self.make_trade(order, price, timestamp)
+                    self.sell_long(pos.ticker, pos.amount, 0, None, (None, None))
                 else:
-                    eq = positions[delta_inf.argmin()]
-                    # Buy this security
-                    eq_idx = security_names.index(eq)
-                    price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
-                    order = SellLongOrder(eq.ticker, (None, None), eq.amount, 0, None)
-                    self.make_trade(order, price, timestamp)
+                    pos = positions[delta_inf.argmin()]
+                    # Sell this security
+                    self.sell_long(pos.ticker, pos.amount, 0, None, (None, None))
                     call_amount = 0
 
             if len(self.portfolio.getLong()) == 0 and call_amount > 0:
                 self.message.bankruptcy = True
                 return
 
-    def _get_deltas(self, call_amount: float, security_names: List[str], next_tick_data: npt.NDArray[float], short: bool = True)\
+    def _get_deltas(self, reference_amount: float, security_names: List[str], next_tick_data: npt.NDArray[float], short: bool = True,
+                    i: int = 0)\
             -> npt.NDArray[float]:
         """
         Get the difference between each short/long position worth and a given price.
-        :param call_amount: The price to compare
+        It can be used to compute which position will be the best suited to liquidate to cover a margin call.
+        It also include the commission and the collateral contribution in the delta.
+        Example:
+            # Short
+            reference_amount = 10 000, security = [AAPL, MSFT, TSLA], prices = [[100, 101, 99, 100],
+                                                                                 [50, 51, 49, 50],
+                                                                                 [200, 201, 199, 200]]
+            position_size: [100, 50, 150]
+            commission: 6.99 (absolute)
+            returns: [-7498.2525, -9373.2525, -2498.2525]
+
+        :param reference_amount: The price to compare
         :param security_names: A list of all securities where the index of each ticker is the index of the data of the
                                corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
         :param next_tick_data: An array containing prices of each security for the next step shape(n_securities, 4)
                                The 4 columns of the array are: Open, High, Low, Close of the next step.
+        :param i: The index of the price we want to compare with in Open, High Low Close.  (0, 1, 2, 3)
+        :param short: If we want to get the delta for short positions.  If False, it will be for long positions.
         :return: Array of the difference between each position worth and the price.  Array shape(n_short_pos, )
         """
         if short:
@@ -725,21 +778,33 @@ class Broker:
                 price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
                 # If positive, it means that the trade will cover the call.
                 if self._relative:
-                    delta.append(eq.amount * price[0] * (2 - self._comm) - call_amount)
+                    delta.append(self.min_maintenance_margin_short * (eq.amount * price[i] * self._comm) - reference_amount)
                 else:
-                    delta.append(eq.amount * price[0] - self._comm - call_amount)
+                    delta.append(self.min_maintenance_margin_short * (eq.amount * price[i] + self._comm) - reference_amount)
         else:
             delta = []
+            # Formula to get long collateral:
+            # We cannot use cache collateral contribution because we can be looking at the next open data.
+            # abs: mk(min_margin - 1) - com(min_margin-1) + debt
+            # rel: mk*(2-comm)*(min_margin-1) + debt
             for eq in self.portfolio.getLong().values():
                 eq_idx = security_names.index(eq.ticker)
                 price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
                 # If positive, it means that the trade will cover the call.
                 if self._relative:
                     amount = eq.amount
-                    delta.append(amount * price[0] * (2 - self._comm) - self._debt_record[eq.ticker] - call_amount)
+                    mk_value = price[i]*amount
+                    m = self.min_maintenance_margin - 1    # Precompute the (min_margin - 1) value
+                    collateral_contrib = mk_value * (2-self._comm) * m + self._debt_record[eq.ticker]
+                    collateral_contrib = collateral_contrib if collateral_contrib > 0 else 0
+                    delta.append(mk_value * (2 - self._comm) - self._debt_record[eq.ticker] + collateral_contrib - reference_amount)
                 else:
                     amount = eq.amount
-                    delta.append(amount * price[0] - self._comm - self._debt_record[eq.ticker] - call_amount)
+                    mk_value = price[i] * amount
+                    m = self.min_maintenance_margin - 1  # Precompute the (min_margin - 1) value
+                    collateral_contrib = mk_value*m - self._comm * m + self._debt_record[eq.ticker]
+                    collateral_contrib = collateral_contrib if collateral_contrib > 0 else 0
+                    delta.append(mk_value - self._comm - self._debt_record[eq.ticker] + collateral_contrib - reference_amount)
 
         return np.array(delta)
 
@@ -750,9 +815,12 @@ class Broker:
         :param value: The value that needs to be added to the account to cover margin call
         :return: None
         """
-        new_key = self._findId(message, set(self.message.margin_calls.keys()))
-        self.message.margin_calls[new_key] = MarginCall(self.liquidation_delay, value)
-        self._debt_record[new_key] = value
+        if message in self.message.margin_calls:
+            self.message.margin_calls[message].amount += value
+            self._debt_record[message] += value
+        else:
+            self.message.margin_calls[message] = MarginCall(self.liquidation_delay, value)
+            self._debt_record[message] = value
 
     def remove_margin_call(self, key: str):
         """
@@ -925,11 +993,14 @@ class Broker:
                     # Otherwise, we only subtract the collateral contribution from the margin call.
                     if asset_collateral >= short_mc:
                         asset_collateral -= short_mc
+                        mc_time_remaining = self.message.margin_calls["short margin call"].time_remaining
                         self.remove_margin_call("short margin call")
+                        # Removing remaining virtual collateral and real collateral from account's collateral
                         self.account.remove_collateral(asset_collateral, timestamp, message="Bought back short position")
                     else:
                         self.message.margin_calls["short margin call"].amount -= asset_collateral
-
+                        self._debt_record["short margin call"] -= asset_collateral
+                        self.account.remove_collateral(asset_collateral, timestamp, message="Bought back short position")
                 # If we do not have any margin calls, we can simply deduce the collateral contribution from the
                 # account's collateral.
                 else:
@@ -937,9 +1008,10 @@ class Broker:
 
 
                 if total > self.account.get_cash():
-                    self.new_margin_call(total - (self.account.get_cash()), message="missing_funds")
                     trade = order.convertToTrade(price, timestamp, str(self.n))
                     self.portfolio.trade(trade)
+                    self.new_margin_call(total - (self.account.get_cash()), message="missing_funds")
+                    # Restore old margin call with updated amount
                     self.account.withdrawal(self.account.get_cash(), timestamp, transaction_id=str(self.n))
                     self.n += 1
                     return True
