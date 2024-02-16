@@ -1421,3 +1421,94 @@ class TestBroker(TestCase):
 
         # Finally, test if we can get a bankruptcy
         # Reset broker and change next_prices
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker.portfolio._long = {
+            "AAPL": Position("AAPL", 200, True, 100,
+                             datetime(2021, 1, 1), ratio_owned=0.5),
+            "TSLA": Position("TSLA", 150, True, 150,
+                             datetime(2021, 1, 1), ratio_owned=0.5),  # 4223.9925$ in collateral
+            "MSFT": Position("MSFT", 100, True, 200,
+                             datetime(2021, 1, 1), ratio_owned=1.)
+        }
+        broker.portfolio._long_len = 3
+        broker._debt_record["AAPL"] = 10_000
+        broker._debt_record["TSLA"] = 11_250
+        broker._debt_record["MSFT"] = 0
+
+        broker.portfolio._short = {
+            "V": Position("V", 100, False, 100,
+                          datetime(2021, 1, 1), ratio_owned=0.),  # 12 758.7375 in collateral
+            "CAT": Position("CAT", 150, False, 150,
+                            datetime(2021, 1, 1), ratio_owned=0.),  # 37 883.7375 in collateral
+            "OLN": Position("OLN", 200, False, 200,
+                            datetime(2021, 1, 1), ratio_owned=0.)  # 75 508.7375
+        }
+        broker.portfolio._short_len = 3
+        prices = np.array([
+            [25, 26, 20, 21],  # AAPL
+            [31, 32, 29, 29],  # TSLA
+            [30, 31, 30, 31],  # MSFT
+            [10, 11, 9, 10],  # V
+            [400, 421, 380, 400],  # CAT
+            [600, 605, 595, 602]  # OLN
+        ], dtype=np.float32)
+        next_prices = np.array([
+            [25, 26, 20, 21],  # AAPL
+            [31, 32, 29, 29],  # TSLA
+            [30, 31, 30, 31],  # MSFT
+            [10, 11, 9, 10],  # V
+            [400, 421, 380, 400],  # CAT
+            [600, 605, 595, 602]  # OLN
+        ], dtype=np.float32)
+        broker._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
+        # Collateral:
+        # Short:
+        #   V: 1258.7375;
+        #   CAT: 75 008.7375;
+        #   OLN: 150 508.7375;
+        # Total short collateral: 226 776.2125; Short margin call: 126 776.2125
+        # Long (Collateral and margin call):
+        #   AAPL: 6855.2425$
+        #   TSLA: 7992.7425$
+        self.assertEqual(broker.account.get_cash(), 0)
+        self.assertAlmostEqual(broker._debt_record["short margin call"], 126776.2125)
+        self.assertAlmostEqual(broker.message.margin_calls["short margin call"].amount, 126776.2125)
+        self.assertAlmostEqual(broker._debt_record["long margin call TSLA"], 7992.7425)
+        self.assertAlmostEqual(broker.message.margin_calls["long margin call TSLA"].amount, 7992.7425)
+        self.assertAlmostEqual(broker._debt_record["long margin call AAPL"], 6855.2425)
+        self.assertAlmostEqual(broker.message.margin_calls["long margin call AAPL"].amount, 6855.2425)
+
+        broker._liquidate(141_624.1975, datetime(2021, 1, 2), security_names, prices)
+        broker._execute_trades(datetime(2021, 1, 2), security_names, next_prices, marginables)
+        # Now, each margin calls should be erased, but another margin call for missing funds should be created.
+        # All position should be liquidated and bankruptcy should be declared.
+        # How much we should lose by position:
+        #   V: 1006.99
+        #   CAT: 60 006.99
+        #   OLN: 120 006.99
+        #   AAPL: 5006.99
+        #   TSLA: 6606.99
+        #   We should gain 2993.01$ for MSFT since it isn't bought on margin.
+        # Overall, we should lose 189 641.94$ from 100 000$.  We should end up with a margin call for missing funds of
+        # 89 641.94$ and a bankruptcy notice.
+        self.assertEqual(broker.portfolio._short, {
+            "V": Position("V", 0, False, 100,
+                          datetime(2021, 1, 1), ratio_owned=0.),
+            "CAT": Position("CAT", 0, False, 150,
+                            datetime(2021, 1, 1), ratio_owned=0.),
+            "OLN": Position("OLN", 0, False, 200,
+                            datetime(2021, 1, 1), ratio_owned=0.)
+        })
+        self.assertEqual(broker.portfolio._long, {
+            "AAPL": Position("AAPL", 0, True, 100,
+                             datetime(2021, 1, 1), ratio_owned=0.5),
+            "TSLA": Position("TSLA", 0, True, 150,
+                             datetime(2021, 1, 1), ratio_owned=0.5),  # 4223.9925$ in collateral
+            "MSFT": Position("MSFT", 0, True, 200,
+                             datetime(2021, 1, 1), ratio_owned=1.)
+        })
+        self.assertAlmostEqual(broker.account.get_total_cash(), 0)
+        self.assertAlmostEqual((broker.account.get_cash()), 0)
+        self.assertAlmostEqual(broker._debt_record["missing_funds"], 89_641.94)
+        self.assertAlmostEqual(broker.message.margin_calls["missing_funds"].amount, 89_641.94)
+        self.assertTrue(broker.message.bankruptcy)

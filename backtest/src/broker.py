@@ -716,9 +716,12 @@ class Broker:
 
         # We liquidated all short positions.  We need to liquidate long position to cover.
         if self.portfolio.len_short == liquidated_short and call_amount > 1e-8:
-            while call_amount > 0 and len(self.portfolio.getLong()) > 0:
+            mask = np.zeros(self.portfolio.len_short, dtype=bool)
+            liquidated_long = 0
+            while call_amount > 1e-8 and liquidated_long < self.portfolio.len_long:
                 positions = list(self.portfolio.getLong().values())
                 delta = self._get_deltas(call_amount, security_names, tick_data, short=False, i=3)
+                delta[mask] = -np.inf
                 delta_inf = deepcopy(delta)
                 delta_inf[delta_inf < 0] = np.inf
                 if delta_inf.min() == np.inf:  # No positions are worth enough to payout margin call
@@ -728,13 +731,10 @@ class Broker:
                     # Sell this security
                     eq_idx = security_names.index(pos.ticker)
                     price = tuple(tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
-                    if self._relative:
-                        amount = pos.amount
-                        cash = amount * price[0] * (2 - self._comm) - self._debt_record[pos.ticker]
-                    else:
-                        amount = pos.amount
-                        cash = amount * price[0] - self._comm - self._debt_record[pos.ticker]
+                    amount = pos.amount
+                    cash = self.portfolio.estimateCost(price[0], amount, sell=True) - self._debt_record[pos.ticker]
                     call_amount -= cash
+                    mask[idx] = True
                     self.sell_long(pos.ticker, pos.amount, 0, None, (None, None))
                 else:
                     pos = positions[delta_inf.argmin()]
@@ -742,7 +742,9 @@ class Broker:
                     self.sell_long(pos.ticker, pos.amount, 0, None, (None, None))
                     call_amount = 0
 
-            if len(self.portfolio.getLong()) == 0 and call_amount > 0:
+                liquidated_long += 1
+
+            if liquidated_long == self.portfolio.len_long and call_amount > 1e-8:
                 self.message.bankruptcy = True
                 return
 
