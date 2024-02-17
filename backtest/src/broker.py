@@ -333,71 +333,74 @@ class Broker:
 
 
         # Step 1: Get the total borrowed money, cash and portfolio worth
-        borrowed_money = sum(self._debt_record.values())
+        borrowed_money = self._get_borrowed_money()
 
         # Cash in dividends
-        for ticker, position in self.portfolio.getLong().items():
-            ticker_idx = security_names.index(ticker)
-            if dividends[ticker_idx] > 0:
-                dividend_payout = self.compute_dividend_payout(position, div_freq[ticker_idx], dividends[ticker_idx])
-                position.dividends_got_paid(timestamp)
-                self.account.deposit(dividend_payout,
-                                     timestamp, comment=f"Dividends - {ticker}")
+        self._cashin_dividends(timestamp, security_names, dividends, div_freq)
 
         # Evaluate the worth of the portfolio
         worth = self._get_worth(security_names, current_tick_data)
 
         # Step 2: If the portfolio has borrowed money: we calculate current interests and add them to monthly interests.
         # Interest rates are calculated daily but charged monthly.
-        days_elapsed: int = (timestamp.date() - self._last_day).days
-        if borrowed_money > 0:
-            self._month_interests += days_elapsed * self.margin_interest * borrowed_money / 360
+        self._update_interests(timestamp, borrowed_money)
 
         # Step 3: Update the account collateral after paying debts and interests, if it wasn't paid the previous steps
-        missing_funds_calls = [ticker for ticker in self.message.margin_calls if ticker.startswith("missing_funds")]
-        for miss_fund_call in missing_funds_calls:
-            if self.account.get_cash() > self.message.margin_calls[miss_fund_call].amount:
-                self.remove_margin_call(miss_fund_call)
-                self.account.withdrawal(self.message.margin_calls[miss_fund_call].amount, timestamp,
-                                        comment="Missing funds")
+        self._pay_missing_funds(timestamp)
         self._update_account_collateral(timestamp, security_names, current_tick_data)
 
 
         # Step 4: If there is borrowed money, reduce the delay of margin calls.  (It is normal that newly initialized
         # margin call's delay will already be reduced.  It is took into account in the liquidation process)
-        if borrowed_money > 0:
-            # Decrement margin call delay until liquidation.  If it reaches -1, the position is liquidated
-            for key in self.message.margin_calls:
-                self.message.margin_calls[key] -= 1
+        self._decrement_margin_call(borrowed_money)
 
         # Step 5: Liquidate expired margin calls
-        pos_to_liquidate = [ticker for ticker in self.message.margin_calls if self.message.margin_calls[ticker] == -1]
-        for ticker in pos_to_liquidate:
-            if ticker.startswith("missing_funds") or ticker == "short margin call":
-                continue
-            eq_idx = security_names.index(ticker)
-            price = tuple(next_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
-            # We sell at this price if it is long
-            long, short = self.portfolio[ticker]  # Can be long AND short even though it does not make that much sense
-            if long is not None:
-                order = SellLongOrder(ticker, (None, None), long.amount, long.amount_borrowed, None)
-                self.make_trade(order, price, timestamp)
-
-        if self.message.margin_calls["short margin call"].time_remaining == -1:
-            self._liquidate(self.message.margin_calls["short margin call"].amount, timestamp, security_names,
-                            next_tick_data)
-        missing_funds_call = [ticker for ticker in self.message.margin_calls if ticker.startswith("missing_funds")]
-        for miss_fund_call in missing_funds_call:
-            if self.message.margin_calls[miss_fund_call].time_remaining == -1:
-                self._liquidate(self.message.margin_calls[miss_fund_call].amount, timestamp, security_names,
-                                next_tick_data)
+        self._liquidate_expired_mc(timestamp, security_names, next_tick_data)
 
         # Step 6: Execute trades that can be executed
         filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
 
         # Step 7: Charge interests if it's the first day of the month
         # Interest are deducted from account.  If there is not enough money in the account to payout interests,
-        # the account, we crrate a new margin call for missing funds and interests will be charged on these because.
+        # the account, we create a new margin call for missing funds and interests will be charged on these because.
+        self._charge_interests(timestamp)
+
+        # Step 8: Save states
+        self.historical_states.append(
+            StepState(timestamp, worth, self._queued_trade_offers, filled_orders, self.message.margin_calls)
+        )
+
+    def _liquidate_expired_mc(self, timestamp: datetime, security_names: List[str], next_tick_data: np.ndarray):
+        """
+        Liquidate expired margin calls.  Long and short
+        :param timestamp: The date and time of the current step
+        :param security_names: A list of all securities where the index of each ticker is the index of the data of the
+                               corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
+        :param next_tick_data: An array containing prices of each security for the next step shape(n_securities, 4)
+        :return: None
+        """
+        # Long evaluation and liquidation
+        pos_to_liquidate = [ticker for ticker in self.message.margin_calls if self.message.margin_calls[ticker] == -1]
+        for call_name in pos_to_liquidate:
+            if call_name.startswith("missing_funds") or call_name == "short margin call":
+                continue
+            ticker = call_name.replace("long margin call ", "")
+            # We sell at this price if it is long
+            long, _ = self.portfolio[ticker]  # Can be long AND short even though it does not make that much sense
+            if long is not None:
+                self.sell_long(ticker, long.amount, 0, None, (None, None))
+
+        # Short evaluation and liquidation
+        if self.message.margin_calls["short margin call"].time_remaining == -1:
+            self._liquidate(self.message.margin_calls["short margin call"].amount, timestamp, security_names,
+                            next_tick_data)
+
+    def _charge_interests(self, timestamp: datetime):
+        """
+        Charge interests to the account at each new month.  Plus it updates the current month
+        :param timestamp: The date and time of the current step
+        :return: None
+        """
         if timestamp.month != self._current_month:
             self._current_month = timestamp.month
             if self.account.get_cash() > self._month_interests:
@@ -405,13 +408,78 @@ class Broker:
                 self._month_interests = 0
             else:
                 # Put interests as debt and as margin call that the user needs to pay
-                self.new_margin_call(self._month_interests)
+                self.new_margin_call(self._month_interests - self.account.get_cash())
                 self._month_interests = 0
+                self.account.withdrawal(self.account.get_cash(), timestamp,
+                                        comment="Interest payment")
 
-        # Step 8: Save states
-        self.historical_states.append(
-            StepState(timestamp, worth, self._queued_trade_offers, filled_orders, self.message.margin_calls)
-        )
+    def _decrement_margin_call(self, borrowed_money: float):
+        """
+        Decrement the margin call delay until liquidation.  If it reaches -1, the position is
+        liquidated(not in this method)
+        :param borrowed_money: The amount of money borrowed.  (Shares sold short, bought on margin, and missing funds)
+        :return:
+        """
+        if borrowed_money > 0:
+            # Decrement margin call delay until liquidation.  If it reaches -1, the position is liquidated
+            for key in self.message.margin_calls:
+                self.message.margin_calls[key].time_remaining -= 1
+
+    def _pay_missing_funds(self, timestamp: datetime):
+        """
+        If there are missing funds, it takes the remaining cash in the account and pays the missing funds.
+        :param timestamp: The date and time of the current step
+        :return: None
+        """
+        if "missing_funds" not in self.message.margin_calls:
+            return
+        if self.account.get_cash() > self.message.margin_calls["missing_funds"].amount:
+            self.account.withdrawal(self.message.margin_calls["missing_funds"].amount, timestamp,
+                                    comment="Missing funds")
+            self.remove_margin_call("missing_funds")
+        else:
+            if self.account.get_cash() > 0:
+                self.message.margin_calls["missing_funds"].amount -= self.account.get_cash()
+                self._debt_record["missing_funds"] -= self.account.get_cash()
+                self.account.withdrawal(self.account.get_cash(), timestamp, comment="Missing funds")
+
+    def _get_borrowed_money(self) -> float:
+        """
+        Get the total borrowed money.  (Shares sold short, bought on margin, and missing funds)
+        :return: The total borrowed money
+        """
+        return sum([amount for name, amount in self._debt_record.items() if "margin call" not in name])
+
+    def _update_interests(self, timestamp: datetime, borrowed_money):
+        """
+        Update the interests of the account
+        :param timestamp: The date and time of the current step
+        :param borrowed_money: The amount of money borrowed.  (Shares sold short, bought on margin, and missing funds)
+        :return: None
+        """
+        days_elapsed: int = (timestamp.date() - self._last_day).days
+        if borrowed_money > 0:
+            self._month_interests += days_elapsed * self.margin_interest * borrowed_money / 360
+    def _cashin_dividends(self, timestamp: datetime, security_names: List[str], dividends: npt.NDArray[np.float32],
+                            div_freq: List[DividendFrequency]):
+            """
+            Cash in dividends
+            :param timestamp: The date and time of the current step
+            :param security_names: A list of all securities where the index of each ticker is the index of the data of the
+                                 corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
+            :param dividends: A float array of shape (n_securities, ) containing the dividends of each security for the
+                                current step.
+            :param div_freq: The frequency that the security is paying dividends.
+            :return: None
+            """
+            for ticker, position in self.portfolio.getLong().items():
+                ticker_idx = security_names.index(ticker)
+                if dividends[ticker_idx] > 0:
+                    dividend_payout = self.compute_dividend_payout(position, div_freq[ticker_idx],
+                                                                   dividends[ticker_idx])
+                    position.dividends_got_paid(timestamp)
+                    self.account.deposit(dividend_payout,
+                                         timestamp, comment=f"Dividends - {ticker}")
 
     def _execute_trades(self, next_timestep: datetime, security_names: List[str], next_tick_data: np.ndarray,
                         marginables: npt.NDArray[bool]) -> List[TradeOrder]:
