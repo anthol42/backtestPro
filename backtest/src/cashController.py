@@ -17,8 +17,11 @@ class CashController(ABC):
 
     DO NOT override the '_init' method. Instead, override the __init__ method if you need to initialize some variables.
     """
+    def __init__(self):
+        self.broker = None
+        self.account = None
 
-    def _init(self, account: Account, broker: Broker):
+    def init(self, account: Account, broker: Broker):
         """
         :param account: The account
         :param broker: The broker [Shoudl not be modified!!]

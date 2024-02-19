@@ -8,7 +8,12 @@ from datetime import datetime
 
 
 class Strategy(ABC):
-    def __init__(self, account: Account, broker: Broker):
+
+    def __init__(self):
+        self.account = None
+        self.broker = None
+
+    def init(self, account: Account, broker: Broker):
         """
         YOU SHOULD NOT OVERRIDE THIS METHOD
         :param account: The account object
@@ -16,13 +21,6 @@ class Strategy(ABC):
         """
         self.account = account
         self.broker = broker
-
-    def init(self):
-        """
-        This method has no parameters and is used to initialize the strategy.
-        It is called at the beginning of the simulation, before the first call to eval.
-        """
-        pass
 
     @abstractmethod
     def run(self, data: List[List[Record]], timestep: datetime):

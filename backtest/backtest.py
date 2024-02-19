@@ -44,7 +44,7 @@ class BackTest:
         self.broker = broker(self.account, commission, relative_commission / 100, margin_interest / 100,
                              min_initial_margin / 100, min_maintenance_margin / 100, liquidation_delay,
                              min_initial_margin_short / 100, min_maintenance_margin_short / 100)
-        self.strategy = strategy(self.account, self.broker)
+        self.strategy = strategy.init(self.account, self.broker)
         self.main_timestep = main_timestep    # The index of the timeseries data in data list to use as the main series.
                                               # i.e. the frequency at hich the strategy is runned.
                                               # The other timeseries will be passed to the strategy as additional data.
@@ -78,7 +78,7 @@ class BackTest:
             "sell_at_the_end": sell_at_the_end,
             "cash_controller": cash_controller.__class__.__name__
         }
-        self.cash_controller = cash_controller._init(self.account, self.broker)
+        self.cash_controller = cash_controller.init(self.account, self.broker)
 
     def _step(self, i: int, timestep: datetime):
         # Step 1: Prepare the data
