@@ -12,6 +12,7 @@ from src.record import Record
 from tqdm import tqdm
 import warnings
 from src.metadata import Metadata
+from .src.cashController import CashController
 
 class UnexpectedBehaviorRisk(Warning):
     pass
@@ -31,7 +32,8 @@ class BackTest:
                  default_shortable: bool = False,
                  risk_free_rate: float = 1.5,
                  default_short_rate: float = 1.5,
-                 sell_at_the_end: bool = True):
+                 sell_at_the_end: bool = True,
+                 cash_controller: CashController = CashController()):
 
 
         self._data = data
@@ -73,8 +75,10 @@ class BackTest:
             "default_shortable": default_shortable,
             "risk_free_rate": risk_free_rate,
             "default_short_rate": default_short_rate,
-            "sell_at_the_end": sell_at_the_end
+            "sell_at_the_end": sell_at_the_end,
+            "cash_controller": cash_controller.__class__.__name__
         }
+        self.cash_controller = cash_controller._init(self.account, self.broker)
 
     def _step(self, i: int, timestep: datetime):
         # Step 1: Prepare the data
@@ -185,7 +189,22 @@ class BackTest:
 
 
         # Step 2: Run simulation
+        last_timestep: Optional[datetime] = None
         for i, timestep in enumerate(tqdm(timesteps_list, desc="Backtesting...")):
+            # Run the cash controller
+            if last_timestep is None:
+                last_timestep = timestep
+            else:
+                if timestep.day != last_timestep.day:
+                    self.cash_controller.every_day(timestep)
+                elif timestep.date().isocalendar()[1] != last_timestep.date().isocalendar()[1]:
+                    self.cash_controller.every_week(timestep)
+                elif timestep.month != last_timestep.month:
+                    self.cash_controller.every_month(timestep)
+                elif timestep.year != last_timestep.year:
+                    self.cash_controller.every_year(timestep)
+                last_timestep = timestep
+
             self._step(i, timestep)
 
         if self.sell_at_the_end:
