@@ -30,7 +30,8 @@ class BackTest:
                  window: int = 50, default_marginable: bool = False,
                  default_shortable: bool = False,
                  risk_free_rate: float = 1.5,
-                 default_short_rate: float = 1.5):
+                 default_short_rate: float = 1.5,
+                 sell_at_the_end: bool = True):
 
 
         self._data = data
@@ -54,6 +55,7 @@ class BackTest:
         self.default_shortable = default_shortable
         self.default_short_rate = default_short_rate / 100
         self.metadata = metadata
+        self.sell_at_the_end = sell_at_the_end
         self._backtest_parameters = {
             "strategy": strategy.__class__.__name__,
             "main_timestep": main_timestep,
@@ -71,6 +73,7 @@ class BackTest:
             "default_shortable": default_shortable,
             "risk_free_rate": risk_free_rate,
             "default_short_rate": default_short_rate,
+            "sell_at_the_end": sell_at_the_end
         }
 
     def _step(self, i: int, timestep: datetime):
@@ -172,6 +175,7 @@ class BackTest:
 
         # This adds freedom to the user if he has custom data
         timesteps_list = self.stadardize_timesteps(timesteps_list)
+        assert len(timesteps_list) > 0, "There is no data to backtest."
 
         # Initialize metadata with dynamic parameters
         self.metadata.init(self.strategy, backtest_parameters=self._backtest_parameters, tickers=tickers, features=features)
@@ -183,6 +187,9 @@ class BackTest:
         # Step 2: Run simulation
         for i, timestep in enumerate(tqdm(timesteps_list, desc="Backtesting...")):
             self._step(i, timestep)
+
+        if self.sell_at_the_end:
+            self._sell_all(timesteps_list[-1])
 
 
         # Step 3: Prepare and save stats
@@ -198,6 +205,36 @@ class BackTest:
         # Now we can set the duration (After everything has been computed)
         self.results.metadata.run_duration = run_duration
         return self.results
+
+    def _sell_all(self, timestep: datetime):
+        self.broker.set_current_timestamp(timestep)
+
+        # Prepare the data for main timestep
+        prepared_data = self._prepare_data(self._data, self.main_timestep, timestep)
+        # Get security names
+        security_names = [name for name, data in self._data[self.main_timestep].items()]
+
+        # Prepare current data for broker
+        current_data = np.array([record.chart.iloc[-1].to_list() for record in prepared_data], dtype=np.float32)
+        next_tick_data = np.array([record.next_tick.to_list() for record in prepared_data], dtype=np.float32)
+        marginables = np.array([[record.marginable, record.shortable] for record in prepared_data], dtype=np.bool)
+        dividends = np.array([record.chart["Dividends"].iloc[-1] if record.has_dividends else 0. for record in prepared_data], dtype=np.float32)
+        div_freq = [record.div_freq for record in prepared_data]
+        short_rate = np.array([record.short_rate for record in prepared_data], dtype=np.float32)
+
+        # Now, sell everything at market price
+        long = self.broker.portfolio.getLong()
+        for ticker, position in long.items():
+            if position.amount > 0:
+                self.broker.sell_long(ticker, position.amount, 0, None, (None, None))
+
+        short = self.broker.portfolio.getShort()
+        for ticker, position in short.items():
+            if position.amount > 0:
+                self.broker.buy_short(ticker, position.amount, None, (None, None))
+
+        self.broker.tick(timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq, short_rate)
+
     def _prepare_data(self, data: List[Dict[str, TSData]], current_time_res: int, timestep: datetime) -> List[Record]:
         """
         Prepare the data for the current timestep.  This method assumes that nan are padding.  This means that it is

@@ -1875,3 +1875,57 @@ class TestBroker(TestCase):
         self.assertEqual(broker.portfolio._long["TSLA"].time_stock_idx, 0)
 
 
+    def test_get_state(self):
+        """
+        Run few times, it is sometimes failing because of set that are cast to list and aren't in the same order
+        """
+        def setup_broker():
+            broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+            broker.set_current_timestamp(datetime(2021, 1, 1))
+            security_names = ["AAPL", "TSLA", "MSFT", "V", "CAT", "OLN"]
+            prices = np.array([
+                [128, 132, 126, 130],  # AAPL
+                [61, 60, 63, 62.5],  # TSLA
+                [302, 304, 298, 300],  # MSFT
+                [102, 104, 98, 100],  # V
+                [202, 208, 196, 200],  # CAT
+                [302, 304, 298, 300]  # OLN
+            ], dtype=np.float32)
+            next_prices = np.array([
+                [128, 132, 126, 130],  # AAPL
+                [61, 60, 63, 62.5],  # TSLA
+                [302, 304, 298, 300],  # MSFT
+                [102, 104, 98, 100],  # V
+                [202, 208, 196, 200],  # CAT
+                [302, 304, 298, 300]  # OLN
+            ], dtype=np.float32)
+            marginables = np.ones((6, 2), dtype=bool)
+            dividends = np.zeros(6, dtype=np.float32)
+            div_freq = [DividendFrequency.QUARTERLY, DividendFrequency.NO_DIVIDENDS, DividendFrequency.YEARLY,
+                        DividendFrequency.YEARLY, DividendFrequency.QUARTERLY, DividendFrequency.QUARTERLY]
+            short_rates = np.array([0.2, 0.1, 0.15, 0.1, 0.07, 0.2])
+
+            broker.buy_long("AAPL", 75, 25, datetime(2021, 1, 14), (128, None))
+            broker.sell_short("V", 50, datetime(2021, 1, 14), (None, 102))
+            broker.tick(datetime(2021, 1, 1), datetime(2021, 1, 2), security_names,
+                        prices, next_prices, marginables, dividends, div_freq, short_rates)
+
+            # Now, update prices and add new position to the portfolio
+            prices = next_prices
+            next_prices = np.array([
+                [130, 133, 129, 131],  # AAPL
+                [100, 102, 98, 101],  # TSLA
+                [302, 304, 298, 303],  # MSFT
+                [98, 100, 94, 95],  # V
+                [202, 208, 196, 200],  # CAT
+                [302, 304, 298, 300]  # OLN
+            ], dtype=np.float32)
+            broker.buy_long("TSLA", 100, 100, datetime(2021, 1, 14), (103, None))
+            broker.tick(datetime(2021, 1, 3), datetime(2021, 1, 4), security_names,
+                        prices, next_prices, marginables, dividends, div_freq, short_rates)
+
+            return broker
+        broker = setup_broker()
+        state = broker.get_state()
+        self.assertEqual(Broker.load_state(state, broker.account).get_state(), state)
+

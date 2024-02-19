@@ -1279,6 +1279,7 @@ class Broker:
             "queued_trade_offers": [offer.export() for offer in self._queued_trade_offers],
             "current_month": self._current_month,
             "last_day": self._last_day,
+            "last_step": self._last_step,
             "message": self.message.export(),
             "debt_record": deepcopy(self._debt_record),
             "historical_states": [state.export() for state in self.historical_states],
@@ -1291,7 +1292,9 @@ class Broker:
             "comm": self._comm,
             "relative": self._relative,
             "n": self.n,
-            "cache": self._cache
+            "cache": self._cache,
+            "exposure_time": self.exposure_time,
+            "current_timestamp": self._current_timestamp,
         }
 
     @classmethod
@@ -1303,6 +1306,9 @@ class Broker:
         :return: The broker
         """
         broker = cls(account)
+        broker._last_step = data["last_step"]
+        broker._current_timestamp = data["current_timestamp"]
+        broker.exposure_time = data["exposure_time"]
         broker._debt_record = deepcopy(data["debt_record"])
         broker.portfolio = Portfolio.load_state(data["portfolio"], broker._debt_record)
         broker._queued_trade_offers = [TradeOrder.load(offer) for offer in data["queued_trade_offers"]]
@@ -1321,3 +1327,29 @@ class Broker:
         broker.n = data["n"]
         broker._cache = data["cache"]
         return broker
+
+    def __eq__(self, other):
+        if not isinstance(other, Broker):
+            return False
+        return (self._comm == other._comm and
+                self._relative == other._relative and
+                self._current_month == other._current_month and
+                self.min_maintenance_margin == other.min_maintenance_margin and
+                self.min_initial_margin == other.min_initial_margin and
+                self.min_maintenance_margin_short == other.min_maintenance_margin_short and
+                self.min_initial_margin_short == other.min_initial_margin_short and
+                self.margin_interest == other.margin_interest and
+                self.liquidation_delay == other.liquidation_delay and
+                self._debt_record == other._debt_record and
+                self.message == other.message and
+                self._queued_trade_offers == other._queued_trade_offers and
+                self.portfolio == other.portfolio and
+                self.account == other.account and
+                self.n == other.n and
+                self._month_interests == other._month_interests and
+                self._last_step == other._last_step and
+                self._last_day == other._last_day and
+                self.historical_states == other.historical_states and
+                self._current_timestamp == other._current_timestamp and
+                self.exposure_time == other.exposure_time and
+                self._cache == other._cache)
