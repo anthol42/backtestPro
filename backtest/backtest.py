@@ -23,22 +23,24 @@ class BackTest:
                  initial_cash: float = 100_000,
                  commission: float = None,
                  relative_commission: float = None, margin_interest: float = 0,
-                 min_initial_margin: float = 0.5, min_maintenance_margin: float = 0.25,
-                 liquidation_delay: int = 2, min_initial_margin_short: float = 0.5,
-                 min_maintenance_margin_short: float = 0.25,
+                 min_initial_margin: float = 50, min_maintenance_margin: float = 25,
+                 liquidation_delay: int = 2, min_initial_margin_short: float = 50,
+                 min_maintenance_margin_short: float = 25,
                  broker: Type[Broker] = Broker, account: Type[Account] = Account,
                  window: int = 50, default_marginable: bool = False,
                  default_shortable: bool = False,
-                 risk_free_rate: float = 1.5):
+                 risk_free_rate: float = 1.5,
+                 default_short_rate: float = 1.5):
+
 
         self._data = data
         self._initial_cash = initial_cash
         self.market_index = market_index
-        self.risk_free_rate = risk_free_rate
+        self.risk_free_rate = risk_free_rate / 100
         self.account = account(initial_cash)
-        self.broker = broker(self.account, commission, relative_commission, margin_interest, min_initial_margin,
-                             min_maintenance_margin, liquidation_delay, min_initial_margin_short,
-                             min_maintenance_margin_short)
+        self.broker = broker(self.account, commission, relative_commission / 100, margin_interest / 100,
+                             min_initial_margin / 100, min_maintenance_margin / 100, liquidation_delay,
+                             min_initial_margin_short / 100, min_maintenance_margin_short / 100)
         self.strategy = strategy(self.account, self.broker)
         self.main_timestep = main_timestep    # The index of the timeseries data in data list to use as the main series.
                                               # i.e. the frequency at hich the strategy is runned.
@@ -50,6 +52,7 @@ class BackTest:
         self.default_marginable = default_marginable
         # Use this value if it is not specified in the data (Column Shorable)
         self.default_shortable = default_shortable
+        self.default_short_rate = default_short_rate / 100
         self.metadata = metadata
         self._backtest_parameters = {
             "strategy": strategy.__class__.__name__,
@@ -65,7 +68,9 @@ class BackTest:
             "min_maintenance_margin_short": min_maintenance_margin_short,
             "window": window,
             "default_marginable": default_marginable,
-            "default_shortable": default_shortable
+            "default_shortable": default_shortable,
+            "risk_free_rate": risk_free_rate,
+            "default_short_rate": default_short_rate,
         }
 
     def _step(self, i: int, timestep: datetime):
@@ -113,7 +118,8 @@ class BackTest:
         marginables = np.array([[record.marginable, record.shortable] for record in prepared_data[self.main_timestep]], dtype=np.bool)
         dividends = np.array([record.chart["Dividends"].iloc[-1] if record.has_dividends else 0. for record in prepared_data[self.main_timestep]], dtype=np.float32)
         div_freq = [record.div_freq for record in prepared_data[self.main_timestep]]
-        self.broker.tick(timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq)
+        short_rate = np.array([record.short_rate for record in prepared_data[self.main_timestep]], dtype=np.float32)
+        self.broker.tick(timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq, short_rate)
 
     def run(self) -> BackTestResult:
         """
@@ -238,6 +244,10 @@ class BackTest:
                 shortable = ts.data["Shortable"].iloc[end_idx - 1]
             else:
                 shortable = self.default_shortable
+            if "Short_rate" in ts.data.columns:
+                short_rate = ts.data["Short_rate"].iloc[end_idx - 1]
+            else:
+                short_rate = self.default_short_rate
 
             # Normalize the price and volume of window according to splits
             cropped = cropped.iloc[start_idx:]
@@ -248,7 +258,7 @@ class BackTest:
             cropped["Close"] /= multiplier
             cropped["Volume"] *= multiplier
             prepared_data.append(Record(cropped, ticker, current_time_res,
-                                        marginable, shortable,
+                                        marginable, shortable, short_rate,
                                         ts.data[["Open", "High", "Low", "Close", "Volume"]].iloc[end_idx]))
 
         return prepared_data

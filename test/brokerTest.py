@@ -157,14 +157,14 @@ class TestBroker(TestCase):
         self.assertEqual(broker._queued_trade_offers[1], expected)
 
         # Test buy_short
-        broker.buy_short("AAPL", 0, 100, datetime(2021, 1, 15),
+        broker.buy_short("AAPL", 100, datetime(2021, 1, 15),
                         price_limit=(50, 100))
         expected = BuyShortOrder(datetime(2021, 1, 1),"AAPL", (50, 100),
                                 0, 100, datetime(2021, 1, 15))
         self.assertEqual(broker._queued_trade_offers[2], expected)
 
         # Test sell_short
-        broker.sell_short("AAPL", 0, 100, datetime(2021, 1, 15),
+        broker.sell_short("AAPL", 100, datetime(2021, 1, 15),
                         price_limit=(150, None))
         expected = SellShortOrder(datetime(2021, 1, 1),"AAPL", (150, None),
                                 0, 100, datetime(2021, 1, 15))
@@ -1512,3 +1512,366 @@ class TestBroker(TestCase):
         self.assertAlmostEqual(broker._debt_record["missing_funds"], 89_641.94)
         self.assertAlmostEqual(broker.message.margin_calls["missing_funds"].amount, 89_641.94)
         self.assertTrue(broker.message.bankruptcy)
+
+    def test_cashin_dividends(self):
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        security_names = ["AAPL", "TSLA", "MSFT", "V", "CAT", "OLN"]
+        dividends = np.array([0., 0., 0.5, 1., 0., 0.])
+        broker.portfolio._long = {
+            "AAPL": Position("AAPL", 200, True, 100,
+                             datetime(2021, 1, 1), ratio_owned=0.5),
+            "TSLA": Position("TSLA", 150, True, 150,
+                             datetime(2021, 1, 1), ratio_owned=0.5),
+            "MSFT": Position("MSFT", 100, True, 200,
+                             datetime(2021, 1, 1), ratio_owned=1.)
+        }
+        broker.portfolio._long_len = 3
+        broker._debt_record["AAPL"] = 10_000
+        broker._debt_record["TSLA"] = 11_250
+        broker._debt_record["MSFT"] = 0
+        broker.portfolio._short = {    # Shouldn't be included in dividends calculation
+            "V": Position("V", 100, False, 100,
+                          datetime(2021, 1, 1), ratio_owned=0.),
+            "CAT": Position("CAT", 150, False, 150,
+                            datetime(2021, 1, 1), ratio_owned=0.),
+            "OLN": Position("OLN", 200, False, 200,
+                            datetime(2021, 1, 1), ratio_owned=0.)
+        }
+        broker.portfolio._short_len = 3
+        div_freq = [DividendFrequency.QUARTERLY, DividendFrequency.NO_DIVIDENDS, DividendFrequency.YEARLY,
+                    DividendFrequency.YEARLY, DividendFrequency.QUARTERLY, DividendFrequency.QUARTERLY]
+        broker._cashin_dividends(datetime(2021, 1, 2), security_names, dividends, div_freq)
+        # We didn't held the stocks
+        self.assertAlmostEqual(broker.account.get_cash(), 100_000)
+        broker.portfolio.update_time_stock_idx(30) # 30 days later
+        broker._cashin_dividends(datetime(2021, 2, 1), security_names, dividends, div_freq)
+        # We should cashin only the dividends from MSFT because V is shorted.
+        self.assertAlmostEqual(broker.account.get_cash(), 100_004.109589041)
+
+    def test_update_interests(self):
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        security_names = ["AAPL", "TSLA", "MSFT", "V", "CAT", "OLN"]
+        broker._last_day = datetime(2021, 1, 1).date()
+        broker._last_step = datetime(2021, 1, 1)
+        broker._month_interests = 0.
+        today = datetime(2021, 1, 2)
+        broker._update_interests(today, 10_000)
+        self.assertEqual(broker.account.get_cash(), 100_000)
+        self.assertAlmostEqual(broker._month_interests, 0.547945205)
+
+        # Now, try with three days elapsed
+        today = datetime(2021, 1, 5)
+        broker._last_day = datetime(2021, 1, 2).date()
+        broker._last_step = datetime(2021, 1, 2)
+        broker._update_interests(today, 10_000)
+        self.assertEqual(broker.account.get_cash(), 100_000)
+        self.assertAlmostEqual(broker._month_interests, 2.191780821)
+
+        # Now, try with no borrowed money
+        today = datetime(2021, 1, 6)
+        broker._last_day = datetime(2021, 1, 5).date()
+        broker._last_step = datetime(2021, 1, 5)
+        broker._update_interests(today, 0)
+        self.assertEqual(broker.account.get_cash(), 100_000)
+        self.assertAlmostEqual(broker._month_interests, 2.191780821)
+
+    def test_update_interests_short(self):
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        security_names = ["AAPL", "TSLA", "MSFT", "V", "CAT", "OLN"]
+        broker.portfolio._short = {
+            "AAPL": Position("AAPL", 100, False, 140,
+                             datetime(2021, 1, 1), ratio_owned=0.),
+            "V": Position("V", 100, False, 100,
+                          datetime(2021, 1, 1), ratio_owned=0.),
+            "CAT": Position("CAT", 150, False, 150,
+                            datetime(2021, 1, 1), ratio_owned=0.),
+            "OLN": Position("OLN", 200, False, 200,
+                            datetime(2021, 1, 1), ratio_owned=0.)
+        }
+        broker.portfolio._short_len = 3
+        short_rates = np.array([0.2, 0.1, 0.15, 0.1, 0.07, 0.2])
+        prices = np.array([
+            [128, 132, 126, 130],  # AAPL <- 0.2
+            [61, 60, 63, 62.5],  # TSLA x not shorted
+            [302, 304, 298, 300],  # MSFT x not shorted
+            [102, 104, 98, 100],  # V <- 0.1
+            [202, 208, 196, 200],  # CAT <- 0.07
+            [302, 304, 298, 300]  # OLN <- 0.2
+        ], dtype=np.float32)
+
+        # First, try with daily trading (No intraday)
+        timestamp = datetime(2021, 1, 2)
+        next_timestamp = datetime(2021, 1, 3)
+        broker._update_interests_short(timestamp, next_timestamp, security_names, prices, short_rates)
+        self.assertEqual(broker.account.get_cash(), 100_000)
+        self.assertAlmostEqual(broker._month_interests, 48.49315068)
+
+        # Now, try with intraday trading -- Shouldn't update anything
+        timestamp = datetime(2021, 1, 2, 12, 30)
+        next_timestamp = datetime(2021, 1, 2, 13, 0)
+        broker._update_interests_short(timestamp, next_timestamp, security_names, prices, short_rates)
+        self.assertEqual(broker.account.get_cash(), 100_000)
+        self.assertAlmostEqual(broker._month_interests, 48.49315068)
+
+        # Now. try with intraday resolution, but hold the position overnight
+        timestamp = datetime(2021, 1, 2, 15, 30)
+        next_timestamp = datetime(2021, 1, 3, 9, 30)
+        broker._update_interests_short(timestamp, next_timestamp, security_names, prices, short_rates)
+        self.assertEqual(broker.account.get_cash(), 100_000)
+        self.assertAlmostEqual(broker._month_interests, 96.98630136)
+
+        # Now, simulate that we hold for a weekend.  (no open days in between)
+        timestamp = datetime(2021, 1, 2, 15, 30)
+        next_timestamp = datetime(2021, 1, 5, 9, 30)
+        broker._update_interests_short(timestamp, next_timestamp, security_names, prices, short_rates)
+        self.assertEqual(broker.account.get_cash(), 100_000)
+        self.assertAlmostEqual(broker._month_interests, 242.4657534)
+
+    def test_get_borrowed_money(self):
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker._debt_record["AAPL"] = 10_000
+        broker._debt_record["TSLA"] = 11_250
+        broker._debt_record["MSFT"] = 0
+        broker._debt_record["missing_funds"] = 1057
+        broker._debt_record["short margin call"] = 25026.2125
+        self.assertEqual(broker._get_borrowed_money(), 22_307)
+
+    def test_pay_missing_funds(self):
+        # Start with an account that has enough money to pay the missing funds
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker._debt_record["AAPL"] = 10_000
+        broker._debt_record["TSLA"] = 11_250
+        broker._debt_record["MSFT"] = 0
+        broker.new_margin_call(1057, "missing_funds")
+        broker.new_margin_call(25026.2125, "short margin call")
+
+        broker._pay_missing_funds(datetime(2021, 1, 2))
+        self.assertEqual(broker.account.get_cash(), 100_000 - 1057)
+        self.assertEqual(broker._debt_record, {
+            "AAPL": 10_000,
+            "TSLA": 11_250,
+            "MSFT": 0,
+            "short margin call": 25026.2125
+        })
+        self.assertEqual(list(broker.message.margin_calls.keys()), ["short margin call"])
+
+        # Try with no missing funds
+        broker._pay_missing_funds(datetime(2021, 1, 2))
+        self.assertEqual(broker.account.get_cash(), 100_000 - 1057)
+        self.assertEqual(broker._debt_record, {
+            "AAPL": 10_000,
+            "TSLA": 11_250,
+            "MSFT": 0,
+            "short margin call": 25026.2125
+        })
+        self.assertEqual(list(broker.message.margin_calls.keys()), ["short margin call"])
+
+        # Try with not enough money to pay the missing funds
+        broker = Broker(Account(1000), 6.99, margin_interest=0.02)
+        broker._debt_record["AAPL"] = 10_000
+        broker._debt_record["TSLA"] = 11_250
+        broker._debt_record["MSFT"] = 0
+        broker.new_margin_call(1057, "missing_funds")
+        broker.new_margin_call(25026.2125, "short margin call")
+        broker._pay_missing_funds(datetime(2021, 1, 2))
+        self.assertEqual(broker.account.get_cash(), 0)
+        self.assertEqual(broker._debt_record, {
+            "AAPL": 10_000,
+            "TSLA": 11_250,
+            "MSFT": 0,
+            "missing_funds": 57,
+            "short margin call": 25026.2125
+        })
+        self.assertEqual(set(broker.message.margin_calls.keys()), {"short margin call", "missing_funds"})
+
+        # Try with an account with 0$ in cash
+        broker = Broker(Account(0), 6.99, margin_interest=0.02)
+        broker._debt_record["AAPL"] = 10_000
+        broker._debt_record["TSLA"] = 11_250
+        broker._debt_record["MSFT"] = 0
+        broker.new_margin_call(1057, "missing_funds")
+        broker.new_margin_call(25026.2125, "short margin call")
+        broker._pay_missing_funds(datetime(2021, 1, 2))
+        self.assertEqual(broker.account.get_cash(), 0)
+        self.assertEqual(broker._debt_record, {
+            "AAPL": 10_000,
+            "TSLA": 11_250,
+            "MSFT": 0,
+            "missing_funds": 1057,
+            "short margin call": 25026.2125
+        })
+        self.assertEqual(set(broker.message.margin_calls.keys()), {"short margin call", "missing_funds"})
+
+    def test_decrement_margin_call(self):
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker.new_margin_call(1057, "missing_funds")
+        broker.new_margin_call(25026.2125, "short margin call")
+        broker._decrement_margin_call()
+        self.assertEqual(broker.message.margin_calls["missing_funds"].time_remaining, 1)
+        self.assertEqual(broker.message.margin_calls["short margin call"].time_remaining, 1)
+
+    def test_charge_interests(self):
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker._current_month = 12
+        broker._month_interests = 0
+        broker._charge_interests(datetime(2021, 1, 2))
+        self.assertEqual(broker.account.get_cash(), 100_000)
+        self.assertEqual(broker._month_interests, 0)
+        self.assertEqual(broker._current_month, 1)
+
+        broker._month_interests = 10
+        broker._charge_interests(datetime(2021, 1, 2))
+        self.assertEqual(broker.account.get_cash(), 100_000)
+        self.assertEqual(broker._month_interests, 10)
+        self.assertEqual(broker._current_month, 1)
+
+        broker._charge_interests(datetime(2021, 2, 2))
+        self.assertEqual(broker.account.get_cash(), 100_000 - 10)
+        self.assertEqual(broker._month_interests, 0)
+        self.assertEqual(broker._current_month, 2)
+
+        broker.account._cash = 100
+        broker._month_interests = 200
+        broker._charge_interests(datetime(2021, 3, 2))
+        self.assertEqual(broker.account.get_cash(), 0)
+        self.assertEqual(broker._month_interests, 0)
+        self.assertEqual(broker._current_month, 3)
+        self.assertEqual(broker.message.margin_calls["missing_funds"].amount, 100)
+        self.assertEqual(broker._debt_record["missing_funds"], 100)
+
+        broker.account._cash = 0
+        broker._month_interests = 200
+        broker._charge_interests(datetime(2021, 4, 15))
+        self.assertEqual(broker.account.get_cash(), 0)
+        self.assertEqual(broker._month_interests, 0)
+        self.assertEqual(broker._current_month, 4)
+        self.assertEqual(broker.message.margin_calls["missing_funds"].amount, 300)
+        self.assertEqual(broker._debt_record["missing_funds"], 300)
+
+    def test_liquidate_expired_mc(self):
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker.set_current_timestamp(datetime(2021, 1, 2))
+        broker.portfolio._long = {
+            "AAPL": Position("AAPL", 200, True, 100,
+                             datetime(2021, 1, 1), ratio_owned=0.5),
+            "TSLA": Position("TSLA", 150, True, 150,
+                             datetime(2021, 1, 1), ratio_owned=0.5),
+            "MSFT": Position("MSFT", 100, True, 200,
+                             datetime(2021, 1, 1), ratio_owned=1.)
+        }
+        broker.portfolio._long_len = 3
+        broker.new_margin_call(100, "long margin call AAPL")
+        broker.new_margin_call(200, "long margin call TSLA")
+        broker.portfolio._short = {
+            "V": Position("V", 100, False, 100,
+                          datetime(2021, 1, 1), ratio_owned=0.),
+            "CAT": Position("CAT", 150, False, 150,
+                            datetime(2021, 1, 1), ratio_owned=0.),
+            "OLN": Position("OLN", 200, False, 200,
+                            datetime(2021, 1, 1), ratio_owned=0.)
+        }
+        broker.portfolio._short_len = 3
+        broker.new_margin_call(200, "short margin call")
+        broker.message.margin_calls["long margin call AAPL"].time_remaining = -1
+        broker.message.margin_calls["long margin call TSLA"].time_remaining = 0
+        broker.message.margin_calls["short margin call"].time_remaining = -1
+
+        security_names = ["AAPL", "TSLA", "MSFT", "V", "CAT", "OLN"]
+        next_prices = np.array([
+            [128, 132, 126, 130],  # AAPL
+            [61, 60, 63, 62.5],  # TSLA
+            [302, 304, 298, 300],  # MSFT
+            [102, 104, 98, 100],  # V
+            [202, 208, 196, 200],  # CAT
+            [302, 304, 298, 300]  # OLN
+        ], dtype=np.float32)
+        broker._liquidate_expired_mc(datetime(2021, 1, 2), security_names, next_prices)
+        self.assertEqual(broker._queued_trade_offers, [
+            SellLongOrder(datetime(2021, 1, 2), "AAPL", (None, None),
+                          200, 0, expiry=None),
+            BuyShortOrder(datetime(2021, 1, 2), "V", (None, None),
+                            0, 100, expiry=None),
+        ])
+
+    def test_tick(self):
+        """
+        Integrative test
+        :return: None
+        """
+        broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
+        broker.set_current_timestamp(datetime(2021, 1, 1))
+        security_names = ["AAPL", "TSLA", "MSFT", "V", "CAT", "OLN"]
+        prices = np.array([
+            [128, 132, 126, 130],  # AAPL
+            [61, 60, 63, 62.5],  # TSLA
+            [302, 304, 298, 300],  # MSFT
+            [102, 104, 98, 100],  # V
+            [202, 208, 196, 200],  # CAT
+            [302, 304, 298, 300]  # OLN
+        ], dtype=np.float32)
+        next_prices = np.array([
+            [128, 132, 126, 130],  # AAPL
+            [61, 60, 63, 62.5],  # TSLA
+            [302, 304, 298, 300],  # MSFT
+            [102, 104, 98, 100],  # V
+            [202, 208, 196, 200],  # CAT
+            [302, 304, 298, 300]  # OLN
+        ], dtype=np.float32)
+        marginables = np.ones((6,2), dtype=bool)
+        dividends = np.zeros(6, dtype=np.float32)
+        div_freq = [DividendFrequency.QUARTERLY, DividendFrequency.NO_DIVIDENDS, DividendFrequency.YEARLY,
+                    DividendFrequency.YEARLY, DividendFrequency.QUARTERLY, DividendFrequency.QUARTERLY]
+        short_rates = np.array([0.2, 0.1, 0.15, 0.1, 0.07, 0.2])
+
+        broker.buy_long("AAPL", 75, 25, datetime(2021, 1, 14), (128, None))
+        broker.sell_short("V", 50, datetime(2021, 1, 14), (None, 102))
+        broker.tick(datetime(2021, 1, 1), datetime(2021, 1, 2), security_names,
+                    prices, next_prices, marginables, dividends, div_freq, short_rates)
+        self.assertEqual(broker.portfolio._long, {
+                         "AAPL": Position("AAPL", 100, True, 128,
+                             datetime(2021, 1, 2), ratio_owned=0.75)
+        })
+        self.assertEqual(broker.portfolio._short, {
+                            "V": Position("V", 50, False, 102,
+                            datetime(2021, 1, 2), ratio_owned=0.)
+            })
+        self.assertEqual(broker._queued_trade_offers, [])
+        self.assertEqual(broker._debt_record, {"AAPL": 3200})
+        self.assertEqual(broker.account.get_total_cash(), 100_000 - 9606.99 + 5093.01)
+        self.assertAlmostEqual(broker.account.get_cash(), 95486.02 - 6258.7375)
+
+        # Try a new tick with no new offers
+        broker.tick(datetime(2021, 1, 2), datetime(2021, 1, 3), security_names,
+                    prices, next_prices, marginables, dividends, div_freq, short_rates)
+        self.assertEqual(broker._queued_trade_offers, [])
+        self.assertEqual(broker._debt_record, {"AAPL": 3200})
+        self.assertEqual(broker.account.get_total_cash(), 100_000 - 9606.99 + 5093.01)
+        self.assertAlmostEqual(broker.account.get_cash(), 95486.02 - 6258.7375)
+        self.assertEqual(broker.portfolio._long["AAPL"].time_stock_idx, 100)
+        self.assertEqual(broker.portfolio._short["V"].time_stock_idx, 0)
+
+        # Now, update prices and add new position to the portfolio
+        prices = next_prices
+        next_prices = np.array([
+            [130, 133, 129, 131],  # AAPL
+            [100, 102, 98, 101],  # TSLA
+            [302, 304, 298, 303],  # MSFT
+            [98, 100, 94, 95],  # V
+            [202, 208, 196, 200],  # CAT
+            [302, 304, 298, 300]  # OLN
+        ], dtype=np.float32)
+        broker.buy_long("TSLA", 100, 100, datetime(2021, 1, 14), (103, None))
+        broker.tick(datetime(2021, 1, 3), datetime(2021, 1, 4), security_names,
+                    prices, next_prices, marginables, dividends, div_freq, short_rates)
+
+        self.assertEqual(broker.portfolio._long["TSLA"], Position("TSLA", 200, True, 100,
+                                datetime(2021, 1, 4), ratio_owned=0.5))
+        self.assertEqual(broker._queued_trade_offers, [])
+        self.assertEqual(broker._debt_record, {"AAPL": 3200, "TSLA": 10_000})
+        self.assertEqual(broker.account.get_total_cash(), 100_000 - 9606.99 + 5093.01 - 10_006.99)
+        self.assertAlmostEqual(broker.account.get_cash(), 85479.03 - 5946.2375)
+        self.assertEqual(broker.portfolio._long["AAPL"].time_stock_idx, 200)
+        self.assertEqual(broker.portfolio._short["V"].time_stock_idx, 0)
+        self.assertEqual(broker.portfolio._long["TSLA"].time_stock_idx, 0)
+
+

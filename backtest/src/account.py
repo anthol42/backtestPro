@@ -73,6 +73,8 @@ class Account:
         if transaction_id in self._previous_ids:
             raise RuntimeError("Transaction id already used!")
         else:
+            if transaction_id is None:
+                transaction_id = f'DefaultID: {self.n}'
             self._previous_ids.add(transaction_id)
         if amount < 0:
             raise RuntimeError("Deposit amount should be positive!")
@@ -91,6 +93,8 @@ class Account:
         if transaction_id in self._previous_ids:
             raise RuntimeError("Transaction id already used!")
         else:
+            if transaction_id is None:
+                transaction_id = f'DefaultID: {self.n}'
             self._previous_ids.add(transaction_id)
         self._cash -= transaction.amount
         if transaction.transaction_id is None:

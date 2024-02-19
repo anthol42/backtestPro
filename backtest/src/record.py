@@ -8,10 +8,12 @@ class Record:
     """
     def __init__(self, chart: pd.DataFrame, ticker: str, time_res: int, marginable: bool, shortable: bool,
                  div_freq: DividendFrequency,
+                 short_rate: float,
                  next_tick: Optional[pd.Series] = None):
         self.chart = chart
         # The strategy should not use this attribute.  It is only for the broker
         self._next_tick: pd.Series = next_tick
+        self.short_rate = short_rate
         self.ticker = ticker
         self.time_res = time_res
         self.marginable = marginable

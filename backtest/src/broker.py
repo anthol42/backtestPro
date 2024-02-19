@@ -279,18 +279,17 @@ class Broker:
                  price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
         self._queued_trade_offers.append(SellLongOrder(self._current_timestamp, ticker, price_limit, amount, amount_borrowed, expiry))
 
-    def sell_short(self, ticker: str, amount: int, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
+    def sell_short(self, ticker: str, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
                  price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
-        self._queued_trade_offers.append(SellShortOrder(self._current_timestamp, ticker, price_limit, amount, amount_borrowed, expiry))
+        self._queued_trade_offers.append(SellShortOrder(self._current_timestamp, ticker, price_limit, 0, amount_borrowed, expiry))
 
-    def buy_short(self, ticker: str, amount: int, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
+    def buy_short(self, ticker: str, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
                  price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
-        self._queued_trade_offers.append(BuyShortOrder(self._current_timestamp, ticker, price_limit, amount, amount_borrowed, expiry))
+        self._queued_trade_offers.append(BuyShortOrder(self._current_timestamp, ticker, price_limit, 0, amount_borrowed, expiry))
 
-    # TODO: Test this method
     def tick(self, timestamp: datetime, next_timestamp, security_names: List[str], current_tick_data: np.ndarray,
              next_tick_data: np.ndarray, marginables: npt.NDArray[bool], dividends: npt.NDArray[np.float32],
-             div_freq: List[DividendFrequency]):
+             div_freq: List[DividendFrequency], short_rates: npt.NDArray[np.float32]):
         """
         The simulation calls this method after the strategy has run.  It will calculate interests and margin call if
         applicable.  It will do trades that can be done in the trade queue at the next open.
@@ -308,6 +307,7 @@ class Broker:
         :param dividends: A float array of shape (n_securities, ) containing the dividends of each security for the
                             current step.
         :param div_freq: The frequency that the security is paying dividends.
+        :param short_rates: The interest rates for each security that the user held overnight.  Shape(n_securities, )
         :return: None
         """
 
@@ -319,7 +319,6 @@ class Broker:
             self._last_day = timestamp.date()
         else:
             n_days_elapsed_since_last_step = (timestamp.date() - self._last_day).days
-            self.exposure_time += n_days_elapsed_since_last_step
             # We update the time stock index for each stock in the portfolio to know how long each asset has been held
             # for later dividend calculation
             self.portfolio.update_time_stock_idx(n_days_elapsed_since_last_step)
@@ -344,6 +343,7 @@ class Broker:
         # Step 2: If the portfolio has borrowed money: we calculate current interests and add them to monthly interests.
         # Interest rates are calculated daily but charged monthly.
         self._update_interests(timestamp, borrowed_money)
+        self._update_interests_short(timestamp, next_timestamp, security_names, current_tick_data, short_rates)
 
         # Step 3: Update the account collateral after paying debts and interests, if it wasn't paid the previous steps
         self._pay_missing_funds(timestamp)
@@ -352,7 +352,7 @@ class Broker:
 
         # Step 4: If there is borrowed money, reduce the delay of margin calls.  (It is normal that newly initialized
         # margin call's delay will already be reduced.  It is took into account in the liquidation process)
-        self._decrement_margin_call(borrowed_money)
+        self._decrement_margin_call()
 
         # Step 5: Liquidate expired margin calls
         self._liquidate_expired_mc(timestamp, security_names, next_tick_data)
@@ -369,6 +369,10 @@ class Broker:
         self.historical_states.append(
             StepState(timestamp, worth, self._queued_trade_offers, filled_orders, self.message.margin_calls)
         )
+
+        # Update states
+        self._last_day = timestamp.date()
+        self._last_step = timestamp
 
     def _liquidate_expired_mc(self, timestamp: datetime, security_names: List[str], next_tick_data: np.ndarray):
         """
@@ -391,7 +395,7 @@ class Broker:
                 self.sell_long(ticker, long.amount, 0, None, (None, None))
 
         # Short evaluation and liquidation
-        if self.message.margin_calls["short margin call"].time_remaining == -1:
+        if self.message.margin_calls.get("short margin call") and self.message.margin_calls["short margin call"].time_remaining == -1:
             self._liquidate(self.message.margin_calls["short margin call"].amount, timestamp, security_names,
                             next_tick_data)
 
@@ -407,23 +411,25 @@ class Broker:
                 self.account.withdrawal(self._month_interests, timestamp, comment="Interest payment")
                 self._month_interests = 0
             else:
-                # Put interests as debt and as margin call that the user needs to pay
-                self.new_margin_call(self._month_interests - self.account.get_cash())
-                self._month_interests = 0
-                self.account.withdrawal(self.account.get_cash(), timestamp,
-                                        comment="Interest payment")
+                if self.account.get_cash() > 0:
+                    # Put interests as debt and as margin call that the user needs to pay
+                    self.new_margin_call(self._month_interests - self.account.get_cash())
+                    self._month_interests = 0
+                    self.account.withdrawal(self.account.get_cash(), timestamp,
+                                            comment="Interest payment")
+                else:
+                    self.new_margin_call(self._month_interests)
+                    self._month_interests = 0
 
-    def _decrement_margin_call(self, borrowed_money: float):
+    def _decrement_margin_call(self):
         """
         Decrement the margin call delay until liquidation.  If it reaches -1, the position is
         liquidated(not in this method)
-        :param borrowed_money: The amount of money borrowed.  (Shares sold short, bought on margin, and missing funds)
         :return:
         """
-        if borrowed_money > 0:
-            # Decrement margin call delay until liquidation.  If it reaches -1, the position is liquidated
-            for key in self.message.margin_calls:
-                self.message.margin_calls[key].time_remaining -= 1
+        # Decrement margin call delay until liquidation.  If it reaches -1, the position is liquidated
+        for key in self.message.margin_calls:
+            self.message.margin_calls[key].time_remaining -= 1
 
     def _pay_missing_funds(self, timestamp: datetime):
         """
@@ -445,21 +451,48 @@ class Broker:
 
     def _get_borrowed_money(self) -> float:
         """
-        Get the total borrowed money.  (Shares sold short, bought on margin, and missing funds)
+        Get the total borrowed money.  (shares bought on margin, and missing funds)
         :return: The total borrowed money
         """
         return sum([amount for name, amount in self._debt_record.items() if "margin call" not in name])
 
+    def _update_interests_short(self, timestamp: datetime, next_timestamp: datetime, security_names: List[str],
+                                current_tick_data: np.ndarray, short_rates: npt.NDArray[np.float32]):
+        """
+        The counterpart of _update_interests for short positions.  It will update the interests of the account based on
+        the securities the user held overnight.  The interests rates are provided from a timeseries by the backtest,
+        object.  (Passed through the tick method of the broker, then here.)
+        Note:
+            This method expects to be called before executing trade orders.
+        :param timestamp: The current timestamp.
+        :param next_timestamp: The next timestamp.  (Where orders will be evaluated/completed)
+        :param security_names: Aa list of all securities where the index of each ticker is the index of the data of the
+                                 corresponding security in the 'current_tick_data' parameter along the first axis (axis=0).
+        :param current_tick_data: An array containing prices of each security for the next step shape(n_securities, 4)
+        :param short_rates: The interest rates for each security that the user held overnight.  Shape(n_securities, )
+        :return: None
+        """
+        if timestamp.date() == next_timestamp.date():    # Intraday
+            return
+
+        delta = (next_timestamp.date() - timestamp.date()).days
+        for ticker in self.portfolio.getShort():
+            if self.portfolio.getShort()[ticker].amount > 0:
+                ticker_idx = security_names.index(ticker)
+                rate = short_rates[ticker_idx]
+                mk_value = current_tick_data[ticker_idx, 3] * self.portfolio.getShort()[ticker].amount
+                self._month_interests += delta * rate * mk_value / 365
+
     def _update_interests(self, timestamp: datetime, borrowed_money):
         """
-        Update the interests of the account
+        Update the interests of the account.  If the amount of borrowed money is 0, it won't do nothing.
         :param timestamp: The date and time of the current step
         :param borrowed_money: The amount of money borrowed.  (Shares sold short, bought on margin, and missing funds)
         :return: None
         """
         days_elapsed: int = (timestamp.date() - self._last_day).days
         if borrowed_money > 0:
-            self._month_interests += days_elapsed * self.margin_interest * borrowed_money / 360
+            self._month_interests += days_elapsed * self.margin_interest * borrowed_money / 365
     def _cashin_dividends(self, timestamp: datetime, security_names: List[str], dividends: npt.NDArray[np.float32],
                             div_freq: List[DividendFrequency]):
             """
@@ -774,11 +807,11 @@ class Broker:
                 cash_back = delta[idx] + call_amount
                 call_amount -= cash_back
                 mask[idx] = True
-                self.buy_short(pos.ticker, 0, pos.amount, None, (None, None))
+                self.buy_short(pos.ticker, pos.amount, None, (None, None))
             else:
                 pos = positions[delta_inf.argmin()]
                 # Buy this security that was sold short
-                self.buy_short(pos.ticker, 0, pos.amount, None, (None, None))
+                self.buy_short(pos.ticker, pos.amount, None, (None, None))
                 call_amount = 0
             liquidated_short += 1
 
