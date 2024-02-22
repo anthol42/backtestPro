@@ -6,7 +6,7 @@ class Record:
     """
     This class contains information about a stock and is pass to the strategy.
     """
-    def __init__(self, chart: pd.DataFrame, ticker: str, time_res: int, marginable: bool, shortable: bool,
+    def __init__(self, chart: Optional[pd.DataFrame], ticker: str, time_res: int, marginable: bool, shortable: bool,
                  div_freq: DividendFrequency,
                  short_rate: float,
                  next_tick: Optional[pd.Series] = None):

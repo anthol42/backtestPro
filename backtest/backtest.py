@@ -1,14 +1,16 @@
 import pandas as pd
-from typing import List, Dict, Union, Callable, Tuple
+from typing import Tuple
 from src.account import Account
 from src.broker import Broker
 import numpy as np
+import numpy.typing as npt
 from datetime import datetime, timedelta
 from src.tsData import TSData
 from src.strategy import Strategy
 from typing import List, Dict, Type, Optional
 from src.backtestResult import BackTestResult
 from src.record import Record
+from src.tsData import DividendFrequency
 from tqdm import tqdm
 import warnings
 from src.metadata import Metadata
@@ -82,51 +84,96 @@ class BackTest:
 
     def _step(self, i: int, timestep: datetime):
         # Step 1: Prepare the data
-        time_res = self.available_time_res[self.main_timestep]
-        prepared_data: List[Optional[List[Record]]] = [None for _ in range(len(self.available_time_res))]
-
-        # Prepare the data for main timestep
-        prepared_data[self.main_timestep] = self._prepare_data(self._data, self.main_timestep, timestep)
-
-        # Check if there exists time resolution bigger than the main timesteps.  In that case, we need to crop the data.
-        time_res_bigger_idx = [i for i, res in enumerate(self.available_time_res) if res > time_res]
-        time_res_smaller_idx = [i for i, res in enumerate(self.available_time_res) if res < time_res]
-        for idx in time_res_smaller_idx:
-            prepared_data[idx] = self._prepare_data(self._data, idx, timestep)
-
-        # Forge new candles for the one with bigger time resolution  to avoid peeking into the future.  (Data leaking)
-        for idx in time_res_bigger_idx:
-            series = self._prepare_data(self._data, idx, timestep)
-            last_candles = self.forge_last_candle(self._data, prepared_data, idx, timestep)
-            for i, record in enumerate(series):
-                if record.chart is not None:
-                    record.chart.iloc[-1] = pd.Series(last_candles[i][:-1], index=["Open", "High", "Low", "Close", "Volume"])
-                    assert record.ticker == last_candles[i][:-1], "An error happened, securities are no longer aligned"
-            prepared_data[idx] = series
+        prepared_data: List[List[Record]] = self._prep_data(timestep)
 
         # Step 2: Filter stock data to remove the ones that are not currently available (Chart is None for main res)
-        mask = np.ones(len(prepared_data[self.main_timestep]), dtype=bool)
-        for idx, record in enumerate(prepared_data[self.main_timestep]):
-            if record.chart is None:
-                mask[idx] = False    # Flip the mask to remove the record
-        prepared_data = [np.array(prepared_data[i])[mask].tolist() for i in range(len(prepared_data))]
+        mask = self._get_mask(prepared_data[self.main_timestep])
+        prepared_data: List[npt.NDArray[Record]] = [np.array(prepared_data[i])[mask].tolist() for i in range(len(prepared_data))]
 
         # Step 3: Run strategy
         # Tell the broker what datetime it is, so it can mark trade orders to this timestamp
         self.broker.set_current_timestamp(timestep)
         self.strategy(prepared_data, timestep)
+
         # Step 4: Run broker
+        current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names = (
+            self._prep_brokers_data(prepared_data[self.main_timestep].tolist()))
+        self.broker.tick(timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq, short_rate)
+
+    def _prep_brokers_data(self, prepared_data: List[Record]) \
+            -> Tuple[npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[bool], npt.NDArray[np.float32],
+            List[DividendFrequency], npt.NDArray[np.float32], List[str]]:
+        """
+        Prepare the data to feed the broker when it will do its tick.
+        :param prepared_data: The main timestep data that was fed to the strategy
+        :return: current data, the next tick data, the marginables, the dividends, the dividend frequency, the short rate
+        and the security names
+        """
         # Get security names
-        security_names = [record.ticker for record in prepared_data[self.main_timestep]]
+        security_names = [record.ticker for record in prepared_data]
 
         # Prepare current data for broker
-        current_data = np.array([record.chart.iloc[-1].to_list() for record in prepared_data[self.main_timestep]], dtype=np.float32)
-        next_tick_data = np.array([record.next_tick.to_list() for record in prepared_data[self.main_timestep]], dtype=np.float32)
-        marginables = np.array([[record.marginable, record.shortable] for record in prepared_data[self.main_timestep]], dtype=np.bool)
-        dividends = np.array([record.chart["Dividends"].iloc[-1] if record.has_dividends else 0. for record in prepared_data[self.main_timestep]], dtype=np.float32)
-        div_freq = [record.div_freq for record in prepared_data[self.main_timestep]]
-        short_rate = np.array([record.short_rate for record in prepared_data[self.main_timestep]], dtype=np.float32)
-        self.broker.tick(timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq, short_rate)
+        current_data = np.array([record.chart.iloc[-1].to_list() for record in prepared_data], dtype=np.float32)
+        next_tick_data = np.array([record.next_tick.to_list() for record in prepared_data], dtype=np.float32)
+        marginables = np.array([[record.marginable, record.shortable] for record in prepared_data], dtype=bool)
+        dividends = np.array([record.chart["Dividends"].iloc[-1] if record.has_dividends else 0. for record in prepared_data], dtype=np.float32)
+        div_freq = [record.div_freq for record in prepared_data]
+        short_rate = np.array([record.short_rate for record in prepared_data], dtype=np.float32)
+
+        return current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names
+
+
+    def _get_mask(self, main_data: List[Record]) -> npt.NDArray[bool]:
+        """
+        Get the mask to filter the data that are currently available.  (When Chart is not None)
+        Where True means to keep it and False means to remove it.
+        :param main_data: The main timestep data.
+        :return: A boolean mask
+        """
+        mask = np.ones(len(main_data), dtype=bool)
+        for idx, record in enumerate(main_data):
+            if record.chart is None:
+                mask[idx] = False    # Flip the mask to remove the record
+        return mask
+
+    def _prep_data(self, timestep: datetime) -> List[List[Record]]:
+        """
+        Prepare the data for the current timestep with a lookback period of size window.  The lookback period is the
+        number of datapoint in the main timesteps.  It will be more for smaller resolution series and less for bigger
+        ones.  This method assumes that nan are padding.  Nans means that the security didn't exist at the given
+        timestep.  It is important to fill nan in data preprocessing steps before starting the backtest for in-data nans.
+        :param timestep: The current backtest timestep
+        :return: The prepared data
+        """
+        time_res = self.available_time_res[self.main_timestep]
+        prepared_data: List[Optional[List[Record]]] = [None for _ in range(len(self.available_time_res))]
+
+        # Prepare the data for main timestep
+        prepared_data[self.main_timestep] = self._prepare_data(self._data, self.main_timestep, timestep, self.window,
+                                                               self.default_marginable, self.default_shortable,
+                                                               self.default_short_rate)
+
+        # Check if there exists time resolution bigger than the main timesteps.  In that case, we need to crop the data.
+        time_res_bigger_idx = [i for i, res in enumerate(self.available_time_res) if res > time_res]
+        time_res_smaller_idx = [i for i, res in enumerate(self.available_time_res) if res < time_res]
+        for idx in time_res_smaller_idx:
+            prepared_data[idx] = self._prepare_data(self._data, self.main_timestep, timestep, self.window,
+                                                    self.default_marginable, self.default_shortable,
+                                                    self.default_short_rate)
+
+        # Forge new candles for the one with bigger time resolution  to avoid peeking into the future.  (Data leaking)
+        for idx in time_res_bigger_idx:
+            series = self._prepare_data(self._data, self.main_timestep, timestep, self.window,
+                                        self.default_marginable, self.default_shortable,
+                                        self.default_short_rate)
+            last_candles = self.forge_last_candle(self._data, prepared_data, idx, timestep)
+            for i, record in enumerate(series):
+                if record.chart is not None:
+                    record.chart.iloc[-1] = pd.Series(last_candles[i][:-1],
+                                                      index=["Open", "High", "Low", "Close", "Volume"])
+                    assert record.ticker == last_candles[i][:-1], "An error happened, securities are no longer aligned"
+            prepared_data[idx] = series
+        return prepared_data
 
     def run(self) -> BackTestResult:
         """
@@ -141,48 +188,17 @@ class BackTest:
         # Initialize strategy
         self.strategy.init()
 
-        # For metadata
-        features = None
-        tickers = None
-        timesteps_list = []
-        # Evaluate if data is valid + make timestep list.
-        available_time_res: List[timedelta] = []
-        # Many groups of time series
-        for i, ts_group in enumerate(self._data):
-            available_time_res.append(ts_group[ts_group.keys()[0]].time_res)
-            # Check if all the data has the same time resolution + renorm data
-            last_index = None
-            for ticker, ts in ts_group.items():
-                if ts.time_res != available_time_res[i]:
-                    raise ValueError(f"All the timeseries data must have the same time resolution.\n"
-                                     f"Ticker: {ticker} for data in group {i} has a different time resolution than the "
-                                     f"other data in the same group.")
-                if last_index is None:
-                    last_index = ts.data.index
-                else:
-                    if last_index!= ts.data.index:
-                        raise ValueError(f"All the timeseries data in the same group must have the same index.\n"
-                                            f"Ticker: {ticker} for data in group {i} has a different index than the "
-                                            f"other data in the same group.")
-
-                # Renormalize data by undoing splits:
-                ts.data = self.reverse_split_norm(ts.data)
-
-                if i == self.main_timestep:
-                    if features is None:
-                        features = list(ts.data.columns)
-                    if tickers is None:
-                        tickers = list(ts_group.keys())
-                    if len(ts.data) > len(timesteps_list):
-                        timesteps_list = list(ts.data.index)
-        self.available_time_res = available_time_res
+        # Initialize the backtest by checking if the data is valid and preparing the timestep list.  It also gets the
+        # columns names (features) and the tickers names.
+        features, tickers, timesteps_list = self._initialize_bcktst()
 
         # This adds freedom to the user if he has custom data
         timesteps_list = self.stadardize_timesteps(timesteps_list)
         assert len(timesteps_list) > 0, "There is no data to backtest."
 
         # Initialize metadata with dynamic parameters
-        self.metadata.init(self.strategy, backtest_parameters=self._backtest_parameters, tickers=tickers, features=features)
+        self.metadata.init(self.strategy, backtest_parameters=self._backtest_parameters, tickers=tickers,
+                           features=features)
 
         if self.metadata.time_res is None:
             self.metadata.time_res = self.available_time_res[self.main_timestep].total_seconds()
@@ -225,21 +241,56 @@ class BackTest:
         self.results.metadata.run_duration = run_duration
         return self.results
 
+    def _initialize_bcktst(self) -> Tuple[List[str], List[str], List[datetime]]:
+        """
+        Initialize the backtest by checking if the data is valid and preparing the timestep list.  It also gets the
+        columns names (features) and the tickers names.
+        :return: features, the tickers and the timesteps list
+        """
+        # For metadata
+        features: List[str] = []
+        tickers: List[str] = []
+        timesteps_list: List[datetime] = []
+        # Evaluate if data is valid + make timestep list.
+        available_time_res: List[timedelta] = []
+        # Many groups of time series
+        for i, ts_group in enumerate(self._data):
+            available_time_res.append(ts_group[ts_group.keys()[0]].time_res)
+            # Check if all the data has the same time resolution + renorm data
+            last_index = None
+            for ticker, ts in ts_group.items():
+                if ts.time_res != available_time_res[i]:
+                    raise ValueError(f"All the timeseries data must have the same time resolution.\n"
+                                     f"Ticker: {ticker} for data in group {i} has a different time resolution than the "
+                                     f"other data in the same group.")
+                if last_index is None:
+                    last_index = ts.data.index
+                else:
+                    if last_index!= ts.data.index:
+                        raise ValueError(f"All the timeseries data in the same group must have the same index.\n"
+                                            f"Ticker: {ticker} for data in group {i} has a different index than the "
+                                            f"other data in the same group.")
+
+                # Renormalize data by undoing splits:
+                ts.data = self.reverse_split_norm(ts.data)
+
+                if i == self.main_timestep:
+                    if features is None:
+                        features = list(ts.data.columns)
+                    if tickers is None:
+                        tickers = list(ts_group.keys())
+                    if len(ts.data) > len(timesteps_list):
+                        timesteps_list = list(ts.data.index)
+        self.available_time_res = available_time_res
+        return features, tickers, timesteps_list
+
     def _sell_all(self, timestep: datetime):
         self.broker.set_current_timestamp(timestep)
 
         # Prepare the data for main timestep
         prepared_data = self._prepare_data(self._data, self.main_timestep, timestep)
-        # Get security names
-        security_names = [name for name, data in self._data[self.main_timestep].items()]
-
-        # Prepare current data for broker
-        current_data = np.array([record.chart.iloc[-1].to_list() for record in prepared_data], dtype=np.float32)
-        next_tick_data = np.array([record.next_tick.to_list() for record in prepared_data], dtype=np.float32)
-        marginables = np.array([[record.marginable, record.shortable] for record in prepared_data], dtype=np.bool)
-        dividends = np.array([record.chart["Dividends"].iloc[-1] if record.has_dividends else 0. for record in prepared_data], dtype=np.float32)
-        div_freq = [record.div_freq for record in prepared_data]
-        short_rate = np.array([record.short_rate for record in prepared_data], dtype=np.float32)
+        current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names = (
+            self._prep_brokers_data(prepared_data))
 
         # Now, sell everything at market price
         long = self.broker.portfolio.getLong()
@@ -254,16 +305,24 @@ class BackTest:
 
         self.broker.tick(timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq, short_rate)
 
-    def _prepare_data(self, data: List[Dict[str, TSData]], current_time_res: int, timestep: datetime) -> List[Record]:
+    @staticmethod
+    def _prepare_data(data: List[Dict[str, TSData]], current_time_res: int, timestep: datetime,
+                      window: int, default_marginable: bool, default_shortable: bool, default_short_rate: float)\
+            -> List[Record]:
         """
         Prepare the data for the current timestep.  This method assumes that nan are padding.  This means that it is
         assumed that the security didn't exist at the time where there is nan.  It is important to fill nan in data
         preprocessing steps before starting the backtest.  If you do not want to impute value, you can override this
         method.  This method will also handle splits by dividing the price by split value and multiplying the volume by
         the split value.  (This is the default behavior of yfinance)
+        If the security does not exist yet, it will return a Record with None as chart and None as a next tick.
         :param data: The data
         :param current_time_res: The current time resolution
         :param timestep: The current timestep
+        :param window: The window size (How long in the past the strategy can see)
+        :param default_marginable: The default value for marginable if it is not in the data
+        :param default_shortable: The default value for shortable if it is not in the data
+        :param default_short_rate: The default value for short rate if it is not in the data
         :return: The prepared data
         """
         prepared_data: List[Record] = []
@@ -289,33 +348,37 @@ class BackTest:
                 continue
 
             # Check if window is too big
-            if end_idx - start_idx > self.window:
-                start_idx = end_idx - self.window
+            if end_idx - start_idx > window:
+                start_idx = end_idx - window
 
             if "Marginable" in ts.data.columns:
                 marginable = ts.data["Marginable"].iloc[end_idx - 1]
             else:
-                marginable = self.default_marginable
+                marginable = default_marginable
             if "Shortable" in ts.data.columns:
                 shortable = ts.data["Shortable"].iloc[end_idx - 1]
             else:
-                shortable = self.default_shortable
+                shortable = default_shortable
             if "Short_rate" in ts.data.columns:
                 short_rate = ts.data["Short_rate"].iloc[end_idx - 1]
             else:
-                short_rate = self.default_short_rate
+                short_rate = default_short_rate
 
             # Normalize the price and volume of window according to splits
             cropped = cropped.iloc[start_idx:]
-            multiplier = cropped["Stock Splits"].max()
-            cropped["Open"] /= multiplier
-            cropped["High"] /= multiplier
-            cropped["Low"] /= multiplier
-            cropped["Close"] /= multiplier
-            cropped["Volume"] *= multiplier
-            prepared_data.append(Record(cropped, ticker, current_time_res,
-                                        marginable, shortable, short_rate,
-                                        ts.data[["Open", "High", "Low", "Close", "Volume"]].iloc[end_idx]))
+            if start_idx != end_idx:
+                multiplier = cropped["Stock Splits"].max()
+                cropped["Open"] /= multiplier
+                cropped["High"] /= multiplier
+                cropped["Low"] /= multiplier
+                cropped["Close"] /= multiplier
+                cropped["Volume"] *= multiplier
+                prepared_data.append(Record(cropped, ticker, current_time_res,
+                                            marginable, shortable, ts.div_freq, short_rate,
+                                            ts.data[["Open", "High", "Low", "Close", "Volume"]].iloc[end_idx]))
+            else:
+                prepared_data.append(Record(None, ticker, current_time_res, marginable, shortable, ts.div_freq,
+                                            short_rate,None))
 
         return prepared_data
 
@@ -367,11 +430,11 @@ class BackTest:
         warnings.warn("This method is not guaranteed to work for your setup.  You should override it, or make sure it "
                       "works for your setup if you have series that have a higher resolution than the main resolution.",
                       UnexpectedBehaviorRisk)
-        return self.default_forge_last_candle(data, prepared_data, current_time_res, timestep)
+        return self.default_forge_last_candle(data, current_time_res, timestep, self.main_timestep)
 
-
-    def default_forge_last_candle(self, data: List[Dict[str, TSData]], prepared_data: List[List[Record]], current_time_res: int,
-                      timestep: datetime) -> List[Tuple[float, float, float, float, float, str]]:
+    @staticmethod
+    def default_forge_last_candle(data: List[Dict[str, TSData]], current_time_res: int,
+                      timestep: datetime, main_timestep: int) -> List[Tuple[float, float, float, float, float, str]]:
         """
         Forge new candle by cropping the last candle for the data with bigger time resolution than the main timestep to avoid
         peeking into the future.  (Data leaking)
@@ -393,9 +456,9 @@ class BackTest:
         DO NOT OVERRIDE THIS METHOD:
             If you need to override a candle forging method, override the method 'forge_last_candle' instead.
         :param data: The data
-        :param prepared_data: The already prepared data.
         :param current_time_res: The current time resolution
         :param timestep: The current timestep
+        :param main_timestep: The main timestep
         :return: A list of the forged candles: List[Tuple[Open, High, Low, Close, Volume, ticker]]
         """
         newly_forged_candles = []
@@ -406,7 +469,7 @@ class BackTest:
             start_index = last_candle.name
 
             # Step 2: Find the last candle for the ticker with main resolution.  (Get index and Close)
-            main_res_data = data[self.main_timestep][ticker].data
+            main_res_data = data[main_timestep][ticker].data
             main_res_last_candle = main_res_data.data.loc[:timestep].iloc[-1]
             candle_close = main_res_last_candle["Close"]
             end_index = main_res_last_candle.name

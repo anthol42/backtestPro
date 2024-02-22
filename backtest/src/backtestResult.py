@@ -90,6 +90,31 @@ class BackTestResult:
         self.broker_state = broker.get_state()
         self.equity_history = equity_history.tolist()
 
+    def __str__(self):
+        return (f"Backtest results for {self.strategy_name} from {self.start} to {self.end}:\n"
+                f"\tDuration: {self.duration}\n"
+                f"\tExposure time: {self.exposure_time}\n"
+                f"\tEquity final: {self.equity_final}\n"
+                f"\tEquity peak: {self.equity_peak}\n"
+                f"\tReturns: {self.returns}\n"
+                f"\tIndex Returns: {self.index_returns}\n"
+                f"\tAnnual returns: {self.annual_returns}\n"
+                f"\tSharp ratio: {self.sharp_ratio}\n"
+                f"\tSortino ratio: {self.sortino_ratio}\n"
+                f"\tMax drawdown: {self.max_drawdown}\n"
+                f"\tAvg drawdown: {self.avg_drawdown}\n"
+                f"\tCalmar ratio: {self.calmar_ratio}\n"
+                f"\tNum trades: {self.num_trades}\n"
+                f"\tWin rate: {self.win_rate}\n"
+                f"\tBest trade: {self.best_trade}\n"
+                f"\tWorst trade: {self.worst_trade}\n"
+                f"\tAvg trade: {self.avg_trade}\n"
+                f"\tMax trade duration: {self.max_trade_duration}\n"
+                f"\tAvg trade duration: {self.avg_trade_duration}\n"
+                f"\tMin trade duration: {self.min_trade_duration}\n"
+                f"\tProfit factor: {self.profit_factor}\n"
+                f"\tSQN: {self.sqn}\n")
+
     @staticmethod
     def _get_annual_returns(duration: timedelta, returns: float):
         """
