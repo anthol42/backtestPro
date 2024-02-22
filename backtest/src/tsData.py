@@ -45,8 +45,12 @@ class TSData:
         :param time_res: The resolution of the data
         :param div_freq: The frequency that the security is paying dividends.  If None, then the frequency is approximated.
         """
+        if type(data.index) != pd.DatetimeIndex and type(data.index[0]) != pd.Timestamp:
+            data.index = pd.DatetimeIndex(["-".join(str(x).split("-")[:-1]) for x in data.index])
+        else:    # Remove tz from index
+            data.index = pd.Index([pd.Timestamp("-".join(str(ts).split("-")[:-1])) for ts in data.index])
         self.data = data
-        self.time_res: timedelta = data.index.diff().min() if time_res is None else time_res
+        self.time_res: timedelta = data.index.diff().median() if time_res is None else time_res
         self.name = name
 
         # Find start and end of data since data is padded using nan

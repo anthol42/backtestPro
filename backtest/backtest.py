@@ -1,26 +1,26 @@
 import pandas as pd
 from typing import Tuple
-from src.account import Account
-from src.broker import Broker
+from .src.account import Account
+from .src.broker import Broker
 import numpy as np
 import numpy.typing as npt
 from datetime import datetime, timedelta
-from src.tsData import TSData
-from src.strategy import Strategy
+from .src.tsData import TSData
+from .src.strategy import Strategy
 from typing import List, Dict, Type, Optional
-from src.backtestResult import BackTestResult
-from src.record import Record
-from src.tsData import DividendFrequency
+from .src.backtestResult import BackTestResult
+from .src.record import Record
+from .src.tsData import DividendFrequency
 from tqdm import tqdm
 import warnings
-from src.metadata import Metadata
+from .src.metadata import Metadata
 from .src.cashController import CashController
 
 class UnexpectedBehaviorRisk(Warning):
     pass
 
 class BackTest:
-    def __init__(self, data: List[Dict[str, TSData]], strategy: Type[Strategy], *, metadata: Metadata = Metadata(),
+    def __init__(self, data: List[Dict[str, TSData]], strategy: Strategy, *, metadata: Metadata = Metadata(),
                  market_index: TSData = None,
                  main_timestep: int = 0,
                  initial_cash: float = 100_000,
@@ -43,10 +43,11 @@ class BackTest:
         self.market_index = market_index
         self.risk_free_rate = risk_free_rate / 100
         self.account = account(initial_cash)
-        self.broker = broker(self.account, commission, relative_commission / 100, margin_interest / 100,
+        self.broker = broker(self.account, commission, relative_commission and relative_commission / 100, margin_interest / 100,
                              min_initial_margin / 100, min_maintenance_margin / 100, liquidation_delay,
                              min_initial_margin_short / 100, min_maintenance_margin_short / 100)
-        self.strategy = strategy.init(self.account, self.broker)
+        self.strategy = strategy
+        self.strategy.init(self.account, self.broker)
         self.main_timestep = main_timestep    # The index of the timeseries data in data list to use as the main series.
                                               # i.e. the frequency at hich the strategy is runned.
                                               # The other timeseries will be passed to the strategy as additional data.
@@ -82,7 +83,7 @@ class BackTest:
         }
         self.cash_controller = cash_controller.init(self.account, self.broker)
 
-    def _step(self, i: int, timestep: datetime):
+    def step(self, i: int, timestep: datetime):
         # Step 1: Prepare the data
         prepared_data: List[List[Record]] = self._prep_data(timestep)
 
@@ -100,7 +101,8 @@ class BackTest:
             self._prep_brokers_data(prepared_data[self.main_timestep].tolist()))
         self.broker.tick(timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq, short_rate)
 
-    def _prep_brokers_data(self, prepared_data: List[Record]) \
+    @staticmethod
+    def _prep_brokers_data(prepared_data: List[Record]) \
             -> Tuple[npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[bool], npt.NDArray[np.float32],
             List[DividendFrequency], npt.NDArray[np.float32], List[str]]:
         """
@@ -123,7 +125,8 @@ class BackTest:
         return current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names
 
 
-    def _get_mask(self, main_data: List[Record]) -> npt.NDArray[bool]:
+    @staticmethod
+    def _get_mask(main_data: List[Record]) -> npt.NDArray[bool]:
         """
         Get the mask to filter the data that are currently available.  (When Chart is not None)
         Where True means to keep it and False means to remove it.
@@ -170,7 +173,7 @@ class BackTest:
             for i, record in enumerate(series):
                 if record.chart is not None:
                     record.chart.iloc[-1] = pd.Series(last_candles[i][:-1],
-                                                      index=["Open", "High", "Low", "Close", "Volume"])
+                                                      index=["Open", "High", "Low", "Close", "Volume", "Stock Splits"])
                     assert record.ticker == last_candles[i][:-1], "An error happened, securities are no longer aligned"
             prepared_data[idx] = series
         return prepared_data
@@ -204,7 +207,7 @@ class BackTest:
             self.metadata.time_res = self.available_time_res[self.main_timestep].total_seconds()
 
 
-        # Step 2: Run simulation
+        # Step 2: Run the backtest
         last_timestep: Optional[datetime] = None
         for i, timestep in enumerate(tqdm(timesteps_list, desc="Backtesting...")):
             # Run the cash controller
@@ -221,7 +224,7 @@ class BackTest:
                     self.cash_controller.every_year(timestep)
                 last_timestep = timestep
 
-            self._step(i, timestep)
+            self.step(i, timestep)
 
         if self.sell_at_the_end:
             self._sell_all(timesteps_list[-1])
@@ -272,7 +275,7 @@ class BackTest:
                                             f"other data in the same group.")
 
                 # Renormalize data by undoing splits:
-                ts.data = self.reverse_split_norm(ts.data)
+                ts.data = self._reverse_split_norm(ts.data)
 
                 if i == self.main_timestep:
                     if features is None:
@@ -328,28 +331,34 @@ class BackTest:
         prepared_data: List[Record] = []
         for ticker, ts in data[current_time_res].items():
             cropped = ts.data.loc[:timestep]
+            timestep = cropped.iloc[-1].name
             timestep_idx = ts.data.index.get_loc(timestep)
 
             # Find start padding
             start_idx = np.argmin(np.isnan(cropped[["Open", "High", "Low", "Close", "Volume"]].to_numpy()).any(axis=1))
 
             # Find end padding
-            end_idx = start_idx + np.argmax(
-                np.isnan(cropped[["Open", "High", "Low", "Close", "Volume"]].to_numpy()[start_idx:]).any(axis=1))
+            if np.isnan(cropped[["Open", "High", "Low", "Close", "Volume"]].to_numpy()[-1]).any():
+                end_idx = start_idx + np.argmax(
+                    np.isnan(cropped[["Open", "High", "Low", "Close", "Volume"]].to_numpy()[start_idx:]).any(axis=1))
+            else:
+                end_idx = timestep_idx
 
             # The security does not exist yet
             if end_idx == start_idx:
-                prepared_data.append(Record(None, ticker, current_time_res))
+                prepared_data.append(Record(None, ticker, current_time_res, False, False,
+                                            DividendFrequency.NO_DIVIDENDS, 0, None))
                 continue
 
             # Security has been delisted or there is missing values.  (We will ignore it)
             if end_idx != timestep_idx:
-                prepared_data.append(Record(None, ticker, current_time_res))
+                prepared_data.append(Record(None, ticker, current_time_res, False, False,
+                                            DividendFrequency.NO_DIVIDENDS, 0, None))
                 continue
 
             # Check if window is too big
             if end_idx - start_idx > window:
-                start_idx = end_idx - window
+                start_idx = end_idx - window + 1
 
             if "Marginable" in ts.data.columns:
                 marginable = ts.data["Marginable"].iloc[end_idx - 1]
@@ -365,24 +374,34 @@ class BackTest:
                 short_rate = default_short_rate
 
             # Normalize the price and volume of window according to splits
+            multiplier = cropped["Stock Splits"].max()
             cropped = cropped.iloc[start_idx:]
-            if start_idx != end_idx:
-                multiplier = cropped["Stock Splits"].max()
+            if multiplier > 0:
                 cropped["Open"] /= multiplier
                 cropped["High"] /= multiplier
                 cropped["Low"] /= multiplier
                 cropped["Close"] /= multiplier
                 cropped["Volume"] *= multiplier
-                prepared_data.append(Record(cropped, ticker, current_time_res,
-                                            marginable, shortable, ts.div_freq, short_rate,
-                                            ts.data[["Open", "High", "Low", "Close", "Volume"]].iloc[end_idx]))
-            else:
-                prepared_data.append(Record(None, ticker, current_time_res, marginable, shortable, ts.div_freq,
-                                            short_rate,None))
+                cropped["Dividends"] *= multiplier
+
+            next_point = ts.data[["Open", "High", "Low", "Close", "Volume", "Dividends"]].iloc[end_idx + 1]
+            if multiplier > 0:
+                next_point["Open"] /= multiplier
+                next_point["High"] /= multiplier
+                next_point["Low"] /= multiplier
+                next_point["Close"] /= multiplier
+                next_point["Volume"] *= multiplier
+                next_point["Dividends"] *= multiplier
+            if ts.data["Stock Splits"].iloc[end_idx + 1] > 0:
+                next_point[["Open", "High", "Low", "Close"]] /= ts.data["Stock Splits"].iloc[end_idx]
+                next_point[["Volume", "Dividends"]] *= ts.data["Stock Splits"].iloc[end_idx]
+            prepared_data.append(Record(cropped, ticker, current_time_res,
+                                        marginable, shortable, ts.div_freq, short_rate, next_point))
 
         return prepared_data
 
-    def stadardize_timesteps(self, timesteps_list: List[datetime]) -> List[datetime]:
+    @staticmethod
+    def stadardize_timesteps(timesteps_list: List[datetime]) -> List[datetime]:
         """
         Optionnaly reformat timesteps_list.  Can be useful when indexes are variable across stocks
         :param timesteps_list: The list of timesteps
@@ -392,7 +411,7 @@ class BackTest:
 
 
     def forge_last_candle(self, data: List[Dict[str, TSData]], prepared_data: List[List[Record]], current_time_res: int,
-                      timestep: datetime) -> List[Tuple[float, float, float, float, float, str]]:
+                      timestep: datetime) -> List[Tuple[float, float, float, float, float, float, str]]:
         """
         Forge new candle by cropping the last candle for the data with bigger time resolution than the main timestep to avoid
         peeking into the future.  (Data leaking)
@@ -425,7 +444,7 @@ class BackTest:
         :param prepared_data: The already prepared data.
         :param current_time_res: The current time resolution
         :param timestep: The current timestep
-        :return: A list of the forged candles: List[Tuple[Open, High, Low, Close, Volume, ticker]]
+        :return: A list of the forged candles: List[Tuple[Open, High, Low, Close, Volume, Stock Split, ticker]]
         """
         warnings.warn("This method is not guaranteed to work for your setup.  You should override it, or make sure it "
                       "works for your setup if you have series that have a higher resolution than the main resolution.",
@@ -434,7 +453,7 @@ class BackTest:
 
     @staticmethod
     def default_forge_last_candle(data: List[Dict[str, TSData]], current_time_res: int,
-                      timestep: datetime, main_timestep: int) -> List[Tuple[float, float, float, float, float, str]]:
+                      timestep: datetime, main_timestep: int) -> List[Tuple[float, float, float, float, float, float, str]]:
         """
         Forge new candle by cropping the last candle for the data with bigger time resolution than the main timestep to avoid
         peeking into the future.  (Data leaking)
@@ -456,10 +475,10 @@ class BackTest:
         DO NOT OVERRIDE THIS METHOD:
             If you need to override a candle forging method, override the method 'forge_last_candle' instead.
         :param data: The data
-        :param current_time_res: The current time resolution
+        :param current_time_res: The current time resolution (to forge)
         :param timestep: The current timestep
         :param main_timestep: The main timestep
-        :return: A list of the forged candles: List[Tuple[Open, High, Low, Close, Volume, ticker]]
+        :return: A list of the forged candles: List[Tuple[Open, High, Low, Close, Volume, Stock Split, ticker]]
         """
         newly_forged_candles = []
         for ticker, ts in data[current_time_res].items():
@@ -470,7 +489,7 @@ class BackTest:
 
             # Step 2: Find the last candle for the ticker with main resolution.  (Get index and Close)
             main_res_data = data[main_timestep][ticker].data
-            main_res_last_candle = main_res_data.data.loc[:timestep].iloc[-1]
+            main_res_last_candle = main_res_data.loc[:timestep].iloc[-1]
             candle_close = main_res_last_candle["Close"]
             end_index = main_res_last_candle.name
 
@@ -481,14 +500,19 @@ class BackTest:
             candle_high = intra_candle["High"].max()
             candle_low = intra_candle["Low"].min()
             candle_volume = intra_candle["Volume"].sum()
+            splits_df = intra_candle["Stock Splits"].to_numpy()
+            splits_df[splits_df == 0] = 1
+            splits = splits_df.prod()
+            if splits == 1:
+                splits = 0
 
             # Step 5: Add this to new forged candles
-            newly_forged_candles.append((candle_open, candle_high, candle_low, candle_close, candle_volume, ticker))
+            newly_forged_candles.append((candle_open, candle_high, candle_low, candle_close, candle_volume, splits, ticker))
 
         return newly_forged_candles
 
     @staticmethod
-    def reverse_split_norm(hist: pd.DataFrame) -> pd.DataFrame:
+    def _reverse_split_norm(hist: pd.DataFrame) -> pd.DataFrame:
         """
         Normalize the pricing and volume by undoing the splits far a single timeseries.
         It also updates the Stock Splits column to be the current multiplier.  (yfinance price is price  / multiplier)
@@ -519,6 +543,8 @@ class BackTest:
         hist["High"] *= total_multiplier
         hist["Low"] *= total_multiplier
         hist["Close"] *= total_multiplier
-        hist["Volume"] = (hist["Volume"] / total_multiplier).astype(int)
-        hist = hist.apply(Normalizer(), axis=1)
+        hist["Volume"] = np.round(hist["Volume"] / total_multiplier)
+        if "Dividends" in hist.columns:
+            hist["Dividends"] = (hist["Dividends"] / total_multiplier)
+        hist.apply(Normalizer(), axis=1)
         return hist

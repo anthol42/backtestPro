@@ -41,7 +41,7 @@ class TestTSData(TestCase):
         self.assertEqual(tsData5d.div_freq, DividendFrequency.QUARTERLY)
 
         # Test init without detecting freq and time res
-        tsData1w = TSData(self.data5d, name="AAPL_1y_5d", time_res=timedelta(weeks=1), div_freq=DividendFrequency.Quarterly)
+        tsData1w = TSData(self.data5d, name="AAPL_1y_5d", time_res=timedelta(weeks=1), div_freq=DividendFrequency.QUARTERLY)
         self.assertEqual(tsData1w.name, "AAPL_1y_5d")
         self.assertEqual(tsData1w.time_res, timedelta(weeks=1))
         self.assertEqual(tsData1w.div_freq, DividendFrequency.QUARTERLY)

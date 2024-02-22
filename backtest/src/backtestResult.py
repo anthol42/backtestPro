@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Union, List, Dict
 import json
 from pathlib import PurePath
-from utils import *
+from .utils import *
 import backtest
 
 class Period(Enum):
