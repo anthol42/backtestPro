@@ -2,7 +2,6 @@ from typing import List, Optional, Iterable, Dict
 from datetime import timedelta
 from .strategy import Strategy
 import subprocess
-import os
 import glob
 import hashlib
 

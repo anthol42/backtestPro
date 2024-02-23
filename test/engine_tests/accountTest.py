@@ -1,5 +1,5 @@
 from unittest import TestCase
-from backtest.src.account import Account, CollateralUpdate, TransactionType, Transaction, CollateralUpdateType
+from backtest.engine.account import Account, CollateralUpdate, TransactionType, Transaction, CollateralUpdateType
 from datetime import datetime
 
 class TestCollateralUpdate(TestCase):

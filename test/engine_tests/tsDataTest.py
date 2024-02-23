@@ -1,5 +1,5 @@
 from unittest import TestCase
-from backtest.src.tsData import TSData, DividendFrequency
+from backtest.engine.tsData import TSData, DividendFrequency
 import pandas as pd
 from datetime import timedelta
 
@@ -25,7 +25,7 @@ class TestDividendFrequency(TestCase):
 class TestTSData(TestCase):
     # Load test data
     data1d = pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date", parse_dates=True)
-    data5d = pd.read_csv("./test_data/AAPL_1y_5d.csv", index_col="Date", parse_dates=True)
+    data5d = pd.read_csv("test_data/AAPL_1y_5d.csv", index_col="Date", parse_dates=True)
 
     def test_init(self):
         # Test init with 1d data

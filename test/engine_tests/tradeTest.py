@@ -1,7 +1,7 @@
 from unittest import TestCase
-from backtest.src.trade import Trade, TradeOrder, TradeType
-from backtest.src.trade import BuyLongOrder, SellLongOrder, SellShortOrder, BuyShortOrder
-from backtest.src.trade import SellShort, BuyShort, BuyLong, SellLong
+from backtest.engine.trade import Trade, TradeOrder, TradeType
+from backtest.engine.trade import BuyLongOrder, SellLongOrder, SellShortOrder, BuyShortOrder
+from backtest.engine.trade import SellShort, BuyShort, BuyLong, SellLong
 from datetime import datetime
 
 

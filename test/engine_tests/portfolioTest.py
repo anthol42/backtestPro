@@ -1,6 +1,6 @@
 from unittest import TestCase
-from backtest.src.portfolio import Portfolio, Position, TradeStats
-from backtest.src.trade import Trade, TradeType, TradeOrder, BuyLong, SellLong, BuyShort, SellShort
+from backtest.engine.portfolio import Portfolio, Position, TradeStats
+from backtest.engine.trade import Trade, TradeType, TradeOrder, BuyLong, SellLong, BuyShort, SellShort
 from datetime import timedelta, datetime
 import json
 

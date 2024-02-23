@@ -1,8 +1,8 @@
 from unittest import TestCase
-from backtest.src.metadata import Metadata
+from backtest.engine.metadata import Metadata
 from datetime import timedelta
 from copy import deepcopy
-from backtest.src.strategy import Strategy
+from backtest.engine.strategy import Strategy
 import subprocess
 
 try:
@@ -56,20 +56,20 @@ class TestMetadata(TestCase):
         self.assertEqual(metadata.file_blacklist, tuple())
         self.assertEqual(metadata.code_path, './**/*.py')
 
-        metadata = Metadata(code_path="./test_code/")
-        self.assertEqual(metadata.code_path, './test_code/*.py')
-        metadata = Metadata(code_path="./test_code")
-        self.assertEqual(metadata.code_path, './test_code/*.py')
-        metadata = Metadata(code_path="./test_code/**/*.txt")
-        self.assertEqual(metadata.code_path, './test_code/**/*.txt')
+        metadata = Metadata(code_path="engine_tests/test_code/")
+        self.assertEqual(metadata.code_path, 'engine_tests/test_code/*.py')
+        metadata = Metadata(code_path="engine_tests/test_code")
+        self.assertEqual(metadata.code_path, 'engine_tests/test_code/*.py')
+        metadata = Metadata(code_path="engine_tests/test_code/**/*.txt")
+        self.assertEqual(metadata.code_path, 'engine_tests/test_code/**/*.txt')
 
 
     def test_load_code(self):
         metadata = Metadata()
-        expected_hash = {'./test_code/file2.py': {'checksum': 'ef92f38fe19bfee5c26382059ed32bf4', 'code': None},
-                         './test_code/file1.py': {'checksum': '57847040a18858dc222ba34f34ecd7c7', 'code': None}}
+        expected_hash = {'test_code/file2.py': {'checksum': 'ef92f38fe19bfee5c26382059ed32bf4', 'code': None},
+                         'test_code/file1.py': {'checksum': '57847040a18858dc222ba34f34ecd7c7', 'code': None}}
 
-        files_hash = metadata.load_code(checksum=True, path="./test_code/*.py")
+        files_hash = metadata.load_code(checksum=True, path="test_code/*.py")
         file1 = '"""\nThis is a file deisgned to test code extarction.  It is not meant to be run.\n"""\n\nimport unittest\n\nprint("Running file1.py")'
         file2 = ('"""\nThis is a file deisgned to test code extarction.  It is not meant to be run.\n"""\nfrom enum import '
                  'Enum\n\nclass TestObj(Enum):\n    A = \'A\'\n    B = \'B\'\n    C = \'C\'\n\n    def __str__(self):\n'
@@ -91,10 +91,10 @@ class TestMetadata(TestCase):
                  'print(f"Unable to load type from \'D\' (Which is normal)")\n    print(e)')
 
         expected_code = deepcopy(expected_hash)
-        expected_code['./test_code/file1.py']['code'] = file1
-        expected_code['./test_code/file2.py']['code'] = file2
+        expected_code['test_code/file1.py']['code'] = file1
+        expected_code['test_code/file2.py']['code'] = file2
         self.assertEqual(files_hash, expected_hash)
-        files = metadata.load_code(checksum=False, path="./test_code/*.py")
+        files = metadata.load_code(checksum=False, path="test_code/*.py")
         self.assertEqual(files, expected_code)
 
 
@@ -105,7 +105,7 @@ class TestMetadata(TestCase):
         """
         metadata = Metadata()
         self.assertRaises(ValueError, metadata.init, None, None, None, None, None)
-        metadata.init(strategy=MyStrategy(None, None))
+        metadata.init(strategy=MyStrategy())
         self.assertEqual(metadata.strategy_name, "MyStrategy")
         self.assertEqual(metadata.description, "\n    This is a test strategy\n    ")
 
@@ -114,7 +114,7 @@ class TestMetadata(TestCase):
         Test the export method
         """
         metadata = Metadata(code_path="./test_code/", file_blacklist=["./test_code/file2.py"])
-        metadata.init(strategy=MyStrategy(None, None), run_duration=10.)
+        metadata.init(strategy=MyStrategy(), run_duration=10.)
 
         self.assertEqual(metadata.export(), {'strategy_name': 'MyStrategy',
                                              'description': '\n    This is a test strategy\n    ',

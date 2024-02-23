@@ -15,11 +15,11 @@ from .utils import *
 import backtest
 
 class Period(Enum):
-    Yearly = 1
+    YEARLY = 1
     QUARTERLY = 2
-    Monthly = 3
-    Weekly = 4
-    Daily = 5
+    MONTHLY = 3
+    WEEKLY = 4
+    DAILY = 5
     HOURLY = 6
 
 
@@ -137,16 +137,16 @@ class BackTestResult:
         equity_index = pd.DatetimeIndex(np.array([stepState.timestamp for stepState in self.broker.historical_states]))
         equity_series = pd.DataFrame(equity_data, index=equity_index)
 
-        if period == Period.Yearly:
+        if period == Period.YEARLY:
             # Copilot generated, need to check if it works
             return equity_series.resample("Y").ohlc()
         elif period == Period.QUARTERLY:
             return equity_series.resample("Q").ohlc()
-        elif period == Period.Monthly:
+        elif period == Period.MONTHLY:
             return equity_series.resample("M").ohlc()
-        elif period == Period.Daily:
+        elif period == Period.DAILY:
             return equity_series.resample("D").ohlc()
-        elif period == Period.Weekly:
+        elif period == Period.WEEKLY:
             return equity_series.resample("W").ohlc()
 
     def compute_sortino_ratio(self, risk_free_rate) -> float:
@@ -155,7 +155,7 @@ class BackTestResult:
         :param risk_free_rate: The risk free rate or MAR (Minimum acceptable return)
         :return: The sortino ratio of the strategy
         """
-        equity_ohlc = self.get_ohlc(Period.Yearly)
+        equity_ohlc = self.get_ohlc(Period.YEARLY)
         diff = equity_ohlc["close"].diff()
         diff[0] = equity_ohlc["close"].iloc[0] - equity_ohlc["open"].iloc[0]
         diff_percentage = 100 * diff / equity_ohlc["close"].shift(1)
@@ -169,7 +169,7 @@ class BackTestResult:
         :param yearly_max_drawdown: The yearly maximum drawdown of the strategy
         :return: The calmar ratio of the strategy
         """
-        equity_ohlc = self.get_ohlc(Period.Yearly)
+        equity_ohlc = self.get_ohlc(Period.YEARLY)
         diff = equity_ohlc["close"].diff()
         diff_percentage = 100 * diff / equity_ohlc["close"].shift(1)
         diff_percentage[0] = (equity_ohlc["close"].iloc[0] - equity_ohlc["open"].iloc[0]) / equity_ohlc["open"].iloc[0]
@@ -265,8 +265,8 @@ class BackTestResult:
         :return: The backtest result
         """
         metadata = Metadata.load(data["metadata"])
-        broker = Broker.load_state(data["run_states"]["broker"])
         account = Account.load_state(data["run_states"]["account"])
+        broker = Broker.load_state(data["run_states"]["broker"], account)
         self = cls(data["stats"]["strategy_name"], metadata, datetime.fromisoformat(data["stats"]["start"]),
                    datetime.fromisoformat(data["stats"]["end"]), data["metadata"]["backtest_parameters"]["initial_cash"],
                    np.array(data["run_states"]["market_index"]), broker, account,

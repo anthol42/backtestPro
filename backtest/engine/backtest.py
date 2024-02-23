@@ -1,20 +1,20 @@
 import pandas as pd
 from typing import Tuple
-from .src.account import Account
-from .src.broker import Broker
+from .account import Account
+from .broker import Broker
 import numpy as np
 import numpy.typing as npt
 from datetime import datetime, timedelta
-from .src.tsData import TSData
-from .src.strategy import Strategy
+from .tsData import TSData
+from .strategy import Strategy
 from typing import List, Dict, Type, Optional
-from .src.backtestResult import BackTestResult
-from .src.record import Record
-from .src.tsData import DividendFrequency
+from .backtestResult import BackTestResult
+from .record import Record
+from .tsData import DividendFrequency
 from tqdm import tqdm
 import warnings
-from .src.metadata import Metadata
-from .src.cashController import CashController
+from .metadata import Metadata
+from .cashController import CashController
 
 class UnexpectedBehaviorRisk(Warning):
     pass

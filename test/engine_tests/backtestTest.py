@@ -1,17 +1,14 @@
 from unittest import TestCase
 import pandas as pd
-from typing import Tuple
-from backtest.src.account import Account
-from backtest.src.broker import Broker
-from backtest.src.portfolio import Position
+from backtest.engine.portfolio import Position
 import numpy as np
 from datetime import datetime, timedelta
-from backtest.src.tsData import TSData
-from backtest.src.strategy import Strategy
-from typing import List, Dict, Type, Optional
-from backtest.src.record import Record
-from backtest.src.tsData import DividendFrequency
-from backtest.backtest import BackTest
+from backtest.engine.tsData import TSData
+from backtest.engine.strategy import Strategy
+from typing import List
+from backtest.engine.record import Record
+from backtest.engine.tsData import DividendFrequency
+from backtest.engine.backtest import BackTest
 from copy import deepcopy
 
 
@@ -92,11 +89,11 @@ class TestBacktest(TestCase):
             {"AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"),
                             name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
             "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY)},
+                           name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY)},
             {"AAPL": TSData(pd.read_csv("test_data/AAPL_1y_5d.csv", index_col="Date"),
                             name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
             "NVDA": TSData(pd.read_csv("test_data/NVDA_1y_5d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS)}
+                           name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS)}
         ]
         bcktst = BackTest(data, MyStrat())
         actual = bcktst.default_forge_last_candle(data, 1,
@@ -118,19 +115,19 @@ class TestBacktest(TestCase):
         data = [
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
                 "TSLA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"),
-                            name="TSLA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS)
+                               name="TSLA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS)
              },
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_1y_5d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_1y_5d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
                 "TSLA": TSData(pd.read_csv("test_data/NVDA_1y_5d.csv", index_col="Date"),
-                            name="TSLA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS)
+                               name="TSLA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS)
             }
         ]
         # Add padding to simulate IPO and delisting
@@ -312,19 +309,19 @@ class TestBacktest(TestCase):
         data = [
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
                 "TSLA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"),
-                            name="TSLA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS)
+                               name="TSLA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS)
              },
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_1y_5d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_1y_5d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
                 "TSLA": TSData(pd.read_csv("test_data/NVDA_1y_5d.csv", index_col="Date"),
-                            name="TSLA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS)
+                               name="TSLA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS)
             }
         ]
         # Add padding to simulate IPO and delisting
@@ -376,15 +373,15 @@ class TestBacktest(TestCase):
             },
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
              },
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_1y_5d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_1y_5d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
             }
         ]
         bcktst = BackTest(deepcopy(data), MyStrat(), main_timestep=1, window=3, verbose=1)
@@ -452,15 +449,15 @@ class TestBacktest(TestCase):
             },
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
              },
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_1y_5d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_1y_5d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
             }
         ]
         bcktst = BackTest(deepcopy(data), MyStrat(), main_timestep=1, window=3, verbose=1)
@@ -480,15 +477,15 @@ class TestBacktest(TestCase):
             },
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
              },
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_1y_5d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_1y_5d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
             }
         ]
         pd.options.mode.chained_assignment = None  # default='warn'
@@ -541,15 +538,15 @@ class TestBacktest(TestCase):
             },
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
              },
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_1y_5d.csv", index_col="Date"),
-                            name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
+                               name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_1y_5d.csv", index_col="Date"),
-                            name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
+                               name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
             }
         ]
         bcktst = BackTest(deepcopy(data), MyStrat(), main_timestep=1, window=3, verbose=1)
