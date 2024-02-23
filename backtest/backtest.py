@@ -35,7 +35,8 @@ class BackTest:
                  risk_free_rate: float = 1.5,
                  default_short_rate: float = 1.5,
                  sell_at_the_end: bool = True,
-                 cash_controller: CashController = CashController()):
+                 cash_controller: CashController = CashController(),
+                 verbose=3):
 
 
         self._data = data
@@ -79,9 +80,11 @@ class BackTest:
             "risk_free_rate": risk_free_rate,
             "default_short_rate": default_short_rate,
             "sell_at_the_end": sell_at_the_end,
-            "cash_controller": cash_controller.__class__.__name__
+            "cash_controller": cash_controller.__class__.__name__,
+            "verbose": verbose
         }
         self.cash_controller = cash_controller.init(self.account, self.broker)
+        self._verbose = verbose    # 0: No print, 1: Only errors, 2: Errors and warnings, 3: All
 
     def step(self, i: int, timestep: datetime):
         # Step 1: Prepare the data
@@ -115,8 +118,8 @@ class BackTest:
         security_names = [record.ticker for record in prepared_data]
 
         # Prepare current data for broker
-        current_data = np.array([record.chart.iloc[-1].to_list() for record in prepared_data], dtype=np.float32)
-        next_tick_data = np.array([record.next_tick.to_list() for record in prepared_data], dtype=np.float32)
+        current_data = np.array([record.chart[["Open", "High", "Low", "Close"]].iloc[-1].to_list() for record in prepared_data], dtype=np.float32)
+        next_tick_data = np.array([record.next_tick[["Open", "High", "Low", "Close"]].to_list() for record in prepared_data], dtype=np.float32)
         marginables = np.array([[record.marginable, record.shortable] for record in prepared_data], dtype=bool)
         dividends = np.array([record.chart["Dividends"].iloc[-1] if record.has_dividends else 0. for record in prepared_data], dtype=np.float32)
         div_freq = [record.div_freq for record in prepared_data]
@@ -154,27 +157,33 @@ class BackTest:
         # Prepare the data for main timestep
         prepared_data[self.main_timestep] = self._prepare_data(self._data, self.main_timestep, timestep, self.window,
                                                                self.default_marginable, self.default_shortable,
-                                                               self.default_short_rate)
+                                                               self.default_short_rate, save_next_tick=True)
+        max_look_back_dt = datetime.fromisoformat('3000-01-01 00:00:00')
+        for record in prepared_data[self.main_timestep]:
+            if record.chart is not None:
+                max_look_back_dt = min(max_look_back_dt, record.chart.index[0])
 
         # Check if there exists time resolution bigger than the main timesteps.  In that case, we need to crop the data.
         time_res_bigger_idx = [i for i, res in enumerate(self.available_time_res) if res > time_res]
         time_res_smaller_idx = [i for i, res in enumerate(self.available_time_res) if res < time_res]
         for idx in time_res_smaller_idx:
-            prepared_data[idx] = self._prepare_data(self._data, self.main_timestep, timestep, self.window,
+            prepared_data[idx] = self._prepare_data(self._data, idx, timestep + time_res - self.available_time_res[idx],
+                                                    self.window,
                                                     self.default_marginable, self.default_shortable,
-                                                    self.default_short_rate)
+                                                    self.default_short_rate, max_look_back_dt=max_look_back_dt)
 
         # Forge new candles for the one with bigger time resolution  to avoid peeking into the future.  (Data leaking)
         for idx in time_res_bigger_idx:
-            series = self._prepare_data(self._data, self.main_timestep, timestep, self.window,
+            series = self._prepare_data(self._data, idx, timestep, self.window,
                                         self.default_marginable, self.default_shortable,
-                                        self.default_short_rate)
+                                        self.default_short_rate, max_look_back_dt=max_look_back_dt)
             last_candles = self.forge_last_candle(self._data, prepared_data, idx, timestep)
             for i, record in enumerate(series):
                 if record.chart is not None:
-                    record.chart.iloc[-1] = pd.Series(last_candles[i][:-1],
-                                                      index=["Open", "High", "Low", "Close", "Volume", "Stock Splits"])
-                    assert record.ticker == last_candles[i][:-1], "An error happened, securities are no longer aligned"
+                    record.chart.loc[record.chart.index[-1], ["Open", "High", "Low", "Close", "Volume", "Stock Splits"]] = \
+                        pd.Series(last_candles[i][:-1], index=["Open", "High", "Low", "Close", "Volume", "Stock Splits"])
+
+                    assert record.ticker == last_candles[i][-1], "An error happened, securities are no longer aligned"
             prepared_data[idx] = series
         return prepared_data
 
@@ -189,7 +198,7 @@ class BackTest:
         start = datetime.now()
         # Step 1: Initialization
         # Initialize strategy
-        self.strategy.init()
+        self.strategy.init(self.account, self.broker)
 
         # Initialize the backtest by checking if the data is valid and preparing the timestep list.  It also gets the
         # columns names (features) and the tickers names.
@@ -258,9 +267,9 @@ class BackTest:
         available_time_res: List[timedelta] = []
         # Many groups of time series
         for i, ts_group in enumerate(self._data):
-            available_time_res.append(ts_group[ts_group.keys()[0]].time_res)
+            available_time_res.append(ts_group[list(ts_group.keys())[0]].time_res)
             # Check if all the data has the same time resolution + renorm data
-            last_index = None
+            last_index: Optional[pd.Index] = None
             for ticker, ts in ts_group.items():
                 if ts.time_res != available_time_res[i]:
                     raise ValueError(f"All the timeseries data must have the same time resolution.\n"
@@ -269,7 +278,7 @@ class BackTest:
                 if last_index is None:
                     last_index = ts.data.index
                 else:
-                    if last_index!= ts.data.index:
+                    if (last_index != ts.data.index).any():
                         raise ValueError(f"All the timeseries data in the same group must have the same index.\n"
                                             f"Ticker: {ticker} for data in group {i} has a different index than the "
                                             f"other data in the same group.")
@@ -278,9 +287,9 @@ class BackTest:
                 ts.data = self._reverse_split_norm(ts.data)
 
                 if i == self.main_timestep:
-                    if features is None:
+                    if not features:
                         features = list(ts.data.columns)
-                    if tickers is None:
+                    if not tickers:
                         tickers = list(ts_group.keys())
                     if len(ts.data) > len(timesteps_list):
                         timesteps_list = list(ts.data.index)
@@ -291,7 +300,10 @@ class BackTest:
         self.broker.set_current_timestamp(timestep)
 
         # Prepare the data for main timestep
-        prepared_data = self._prepare_data(self._data, self.main_timestep, timestep)
+        prepared_data = self._prepare_data(self._data, self.main_timestep, timestep, window=self.window,
+                                           default_marginable=self.default_marginable,
+                                           default_shortable=self.default_shortable,
+                                           default_short_rate=self.default_short_rate, save_next_tick=True)
         current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names = (
             self._prep_brokers_data(prepared_data))
 
@@ -306,11 +318,12 @@ class BackTest:
             if position.amount > 0:
                 self.broker.buy_short(ticker, position.amount, None, (None, None))
 
-        self.broker.tick(timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq, short_rate)
+        self.broker.tick(timestep, timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq, short_rate)
 
     @staticmethod
     def _prepare_data(data: List[Dict[str, TSData]], current_time_res: int, timestep: datetime,
-                      window: int, default_marginable: bool, default_shortable: bool, default_short_rate: float)\
+                      window: int, default_marginable: bool, default_shortable: bool, default_short_rate: float,
+                      max_look_back_dt: Optional[datetime] = None, save_next_tick: bool = False)\
             -> List[Record]:
         """
         Prepare the data for the current timestep.  This method assumes that nan are padding.  This means that it is
@@ -326,13 +339,16 @@ class BackTest:
         :param default_marginable: The default value for marginable if it is not in the data
         :param default_shortable: The default value for shortable if it is not in the data
         :param default_short_rate: The default value for short rate if it is not in the data
+        :param max_look_back_dt: The maximum look back timestep.  If not None, the window will start at that timestep
+                                or the nearest one before that timestep in the data's index assuming it is not padded
+                                with nan.  This can be useful for time resolutions that are not the main one.
         :return: The prepared data
         """
         prepared_data: List[Record] = []
         for ticker, ts in data[current_time_res].items():
             cropped = ts.data.loc[:timestep]
             timestep = cropped.iloc[-1].name
-            timestep_idx = ts.data.index.get_loc(timestep)
+            timestep_idx = ts.data.index.get_loc(timestep) + 1
 
             # Find start padding
             start_idx = np.argmin(np.isnan(cropped[["Open", "High", "Low", "Close", "Volume"]].to_numpy()).any(axis=1))
@@ -347,18 +363,21 @@ class BackTest:
             # The security does not exist yet
             if end_idx == start_idx:
                 prepared_data.append(Record(None, ticker, current_time_res, False, False,
-                                            DividendFrequency.NO_DIVIDENDS, 0, None))
+                                            ts.div_freq, 0, None))
                 continue
 
             # Security has been delisted or there is missing values.  (We will ignore it)
             if end_idx != timestep_idx:
                 prepared_data.append(Record(None, ticker, current_time_res, False, False,
-                                            DividendFrequency.NO_DIVIDENDS, 0, None))
+                                            ts.div_freq, 0, None))
                 continue
 
+            if max_look_back_dt is not None:
+                start_idx = ts.data.index.get_loc(ts.data.loc[:max_look_back_dt].iloc[-1].name)
+
             # Check if window is too big
-            if end_idx - start_idx > window:
-                start_idx = end_idx - window + 1
+            if end_idx - start_idx > window and max_look_back_dt is None:
+                start_idx = end_idx - window
 
             if "Marginable" in ts.data.columns:
                 marginable = ts.data["Marginable"].iloc[end_idx - 1]
@@ -383,20 +402,25 @@ class BackTest:
                 cropped["Close"] /= multiplier
                 cropped["Volume"] *= multiplier
                 cropped["Dividends"] *= multiplier
-
-            next_point = ts.data[["Open", "High", "Low", "Close", "Volume", "Dividends"]].iloc[end_idx + 1]
-            if multiplier > 0:
-                next_point["Open"] /= multiplier
-                next_point["High"] /= multiplier
-                next_point["Low"] /= multiplier
-                next_point["Close"] /= multiplier
-                next_point["Volume"] *= multiplier
-                next_point["Dividends"] *= multiplier
-            if ts.data["Stock Splits"].iloc[end_idx + 1] > 0:
-                next_point[["Open", "High", "Low", "Close"]] /= ts.data["Stock Splits"].iloc[end_idx]
-                next_point[["Volume", "Dividends"]] *= ts.data["Stock Splits"].iloc[end_idx]
-            prepared_data.append(Record(cropped, ticker, current_time_res,
+            if save_next_tick:
+                next_point = ts.data[["Open", "High", "Low", "Close", "Volume", "Dividends"]].iloc[end_idx]
+                if multiplier > 0:
+                    next_point["Open"] /= multiplier
+                    next_point["High"] /= multiplier
+                    next_point["Low"] /= multiplier
+                    next_point["Close"] /= multiplier
+                    next_point["Volume"] *= multiplier
+                    next_point["Dividends"] *= multiplier
+                if ts.data["Stock Splits"].iloc[end_idx] > 0:
+                    next_point[["Open", "High", "Low", "Close"]] /= ts.data["Stock Splits"].iloc[end_idx]
+                    next_point[["Volume", "Dividends"]] *= ts.data["Stock Splits"].iloc[end_idx]
+                prepared_data.append(Record(cropped, ticker, current_time_res,
                                         marginable, shortable, ts.div_freq, short_rate, next_point))
+            else:
+                prepared_data.append(Record(cropped, ticker, current_time_res,
+                                        marginable, shortable, ts.div_freq, short_rate, None))
+
+
 
         return prepared_data
 
@@ -446,9 +470,10 @@ class BackTest:
         :param timestep: The current timestep
         :return: A list of the forged candles: List[Tuple[Open, High, Low, Close, Volume, Stock Split, ticker]]
         """
-        warnings.warn("This method is not guaranteed to work for your setup.  You should override it, or make sure it "
-                      "works for your setup if you have series that have a higher resolution than the main resolution.",
-                      UnexpectedBehaviorRisk)
+        if self._verbose >= 2:
+            warnings.warn("This method is not guaranteed to work for your setup.  You should override it, or make sure it "
+                          "works for your setup if you have series that have a higher resolution than the main resolution.",
+                          UnexpectedBehaviorRisk)
         return self.default_forge_last_candle(data, current_time_res, timestep, self.main_timestep)
 
     @staticmethod

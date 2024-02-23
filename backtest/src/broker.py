@@ -271,7 +271,6 @@ class Broker:
 
     def buy_long(self, ticker: str, amount: int, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
                  price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
-        # TODO: Make sure that orders that expired are deleted from the queue
         self._queued_trade_offers.append(BuyLongOrder(self._current_timestamp, ticker, price_limit, amount,
                                                       amount_borrowed, expiry))
 
