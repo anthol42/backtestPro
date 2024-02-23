@@ -1,4 +1,5 @@
-from .backtest import BackTest, TimeResExtender
+from .backtest import BackTest
+from .time_resolution_extenders import TimeResExtender, BasicExtender
 from .broker import Broker, MarginCall, BrokerState, StepState
 from .portfolio import Portfolio, Position, TradeStats
 from .account import Account, CollateralUpdateType, CollateralUpdate

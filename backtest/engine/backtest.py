@@ -203,7 +203,7 @@ class BackTest:
         start = datetime.now()
         # Step 1: Initialization
         # Initialize strategy
-        self.strategy.init(self.account, self.broker)
+        self.strategy.init(self.account, self.broker, self.available_time_res)
 
         # Initialize the backtest by checking if the data is valid and preparing the timestep list.  It also gets the
         # columns names (features) and the tickers names.
