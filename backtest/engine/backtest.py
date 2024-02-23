@@ -15,6 +15,7 @@ from tqdm import tqdm
 import warnings
 from .metadata import Metadata
 from .cashController import CashController
+from .time_resolution_extenders import TimeResExtender
 
 class UnexpectedBehaviorRisk(Warning):
     pass
@@ -36,7 +37,8 @@ class BackTest:
                  default_short_rate: float = 1.5,
                  sell_at_the_end: bool = True,
                  cash_controller: CashController = CashController(),
-                 verbose=3):
+                 verbose=3,
+                 time_res_extender: Optional[TimeResExtender] = None):
 
 
         self._data = data
@@ -81,8 +83,11 @@ class BackTest:
             "default_short_rate": default_short_rate,
             "sell_at_the_end": sell_at_the_end,
             "cash_controller": cash_controller.__class__.__name__,
-            "verbose": verbose
+            "verbose": verbose,
+            "time_res_extender": time_res_extender.export() if time_res_extender is not None else None
         }
+        # Resolutions are added at the end of the Record objet list.
+        self.time_res_extender = time_res_extender
         self.cash_controller = cash_controller.init(self.account, self.broker)
         self._verbose = verbose    # 0: No print, 1: Only errors, 2: Errors and warnings, 3: All
 
@@ -265,6 +270,11 @@ class BackTest:
         timesteps_list: List[datetime] = []
         # Evaluate if data is valid + make timestep list.
         available_time_res: List[timedelta] = []
+
+        # Add dynamically calculated time resolutions
+        if self.time_res_extender is not None:
+            self._data += self.time_res_extender.extend(self._data)
+
         # Many groups of time series
         for i, ts_group in enumerate(self._data):
             available_time_res.append(ts_group[list(ts_group.keys())[0]].time_res)
@@ -293,7 +303,9 @@ class BackTest:
                         tickers = list(ts_group.keys())
                     if len(ts.data) > len(timesteps_list):
                         timesteps_list = list(ts.data.index)
+
         self.available_time_res = available_time_res
+
         return features, tickers, timesteps_list
 
     def _sell_all(self, timestep: datetime):

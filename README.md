@@ -14,11 +14,16 @@ Features are not implemented yet, but will be one day.
 - Margin trading and short selling
 - Customizable
 
+## TODO
+- [ ] Add a way to dynamically preprocess data to extend the number of time resolutions
+- [ ] Add a method in the strategy that can preprocess the data to add indicators on the fly.
+
 
 ## RoadMap
 - [ ] Backtest Engine
   - [X] Modules (Implementation)
-  - [ ] Unit testing
+  - [X] Unit testing
+  - [ ] Integration Testing
   - [ ] Documentation
 - [ ] DataPipeline
   - [ ] Modules (Implementation)
