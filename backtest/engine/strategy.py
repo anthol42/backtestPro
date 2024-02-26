@@ -5,6 +5,7 @@ from .account import Account
 from .broker import Broker
 from .record import Record
 from datetime import datetime
+import numpy.typing as npt
 
 
 class Strategy(ABC):
@@ -18,13 +19,14 @@ class Strategy(ABC):
         YOU SHOULD NOT OVERRIDE THIS METHOD
         :param account: The account object
         :param broker: The broker object
+        :param available_time_res: The available time resolutions
         """
         self.account = account
         self.broker = broker
         self.available_time_res = available_time_res
 
     @abstractmethod
-    def run(self, data: List[List[Record]], timestep: datetime):
+    def run(self, data: List[npt.NDArray[Record]], timestep: datetime):
         """
         This method is used to compute the strategy at each time step.  It is in this method that the strategy logic is
         implemented.
@@ -33,7 +35,7 @@ class Strategy(ABC):
         """
         raise NotImplementedError("run method not implemented")
 
-    def indicators(self, data: List[List[Record]], timestep: datetime):
+    def indicators(self, data: List[npt.NDArray[Record]], timestep: datetime) -> List[List[Record]]:
         """
         This method is used to compute the dynamic indicators at each time step.  It is strongly recommended to
         calculate indicators dynamically (even though it is slower) because it has the right price (split adjusted)
@@ -55,7 +57,7 @@ class Strategy(ABC):
 
 
 
-    def __call__(self, data: List[List[Record]], timestep: datetime):
+    def __call__(self, data: List[npt.NDArray[Record]], timestep: datetime):
         """
         YOU SHOULD NOT OVERRIDE THIS METHOD
         This method is used to compute the strategy at each time step and some other computations for stats purposes.
@@ -63,4 +65,4 @@ class Strategy(ABC):
         :param timestep: The current time step
         """
         indicator_data = self.indicators(data, timestep)
-        self.run(indicator_data)
+        self.run(indicator_data, timestep)

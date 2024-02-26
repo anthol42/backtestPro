@@ -629,18 +629,26 @@ class Portfolio:
                               dtype=np.float32)
         duration_seconds = [trade.duration.total_seconds() for trade in self._trades if isinstance(trade, TradeStats)]
         # df = pd.DataFrame({"Relative Profit": rel_profit, "Absolute Profit": abs_profit, "Duration": duration})
-        best_trade = max(rel_profit)
-        worst_trade = min(rel_profit)
-        win_rate = 100 * len([x for x in rel_profit if x > 0]) / len(rel_profit)
-        avg_trade = sum(rel_profit) / len(rel_profit)
-        max_trade_duration = max(duration_seconds) / 86_400  # In days
-        min_trade_duration = min(duration_seconds) / 86_400  # In days
-        avg_trade_duration = (sum(duration_seconds) / len(duration_seconds)) / 86_400  # In days
+        best_trade = max(rel_profit) if len(rel_profit) > 0 else None
+        worst_trade = min(rel_profit) if len(rel_profit) > 0 else None
+        win_rate = 100 * len([x for x in rel_profit if x > 0]) / len(rel_profit) if len(rel_profit) > 0 else None
+        avg_trade = sum(rel_profit) / len(rel_profit) if len(rel_profit) > 0 else None
+        if len(duration_seconds) == 0:
+            max_trade_duration = None
+            min_trade_duration = None
+            avg_trade_duration = None
+        else:
+            max_trade_duration = max(duration_seconds) / 86_400  # In days
+            min_trade_duration = min(duration_seconds) / 86_400  # In days
+            avg_trade_duration = (sum(duration_seconds) / len(duration_seconds)) / 86_400  # In days
         total_gains = abs_profit[abs_profit >= 0].sum()
         total_losses = abs_profit[abs_profit < 0].sum()
         rel_profit = np.array(rel_profit, dtype=np.float32)
-        sqn = np.sqrt(self.get_trade_count(exit_only=True)) * (rel_profit.mean() / 100) / (
-                    (rel_profit / 100).std() or np.nan)
+        if len(rel_profit) == 0:
+            sqn = None
+        else:
+            sqn = np.sqrt(self.get_trade_count(exit_only=True)) * (rel_profit.mean() / 100) / (
+                        (rel_profit / 100).std())
         if total_losses == 0:
             profit_factor = total_gains
         else:

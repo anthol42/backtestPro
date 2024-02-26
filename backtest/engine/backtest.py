@@ -50,7 +50,6 @@ class BackTest:
                              min_initial_margin / 100, min_maintenance_margin / 100, liquidation_delay,
                              min_initial_margin_short / 100, min_maintenance_margin_short / 100)
         self.strategy = strategy
-        self.strategy.init(self.account, self.broker)
         self.main_timestep = main_timestep    # The index of the timeseries data in data list to use as the main series.
                                               # i.e. the frequency at hich the strategy is runned.
                                               # The other timeseries will be passed to the strategy as additional data.
@@ -88,16 +87,18 @@ class BackTest:
         }
         # Resolutions are added at the end of the Record objet list.
         self.time_res_extender = time_res_extender
-        self.cash_controller = cash_controller.init(self.account, self.broker)
+        self.cash_controller = cash_controller
+        self.cash_controller.init(self.account, self.broker)
         self._verbose = verbose    # 0: No print, 1: Only errors, 2: Errors and warnings, 3: All
+        self.run_iter: int = 0
 
-    def step(self, i: int, timestep: datetime):
+    def step(self, i: int, timestep: datetime, next_time_step: datetime):
         # Step 1: Prepare the data
         prepared_data: List[List[Record]] = self._prep_data(timestep)
 
         # Step 2: Filter stock data to remove the ones that are not currently available (Chart is None for main res)
         mask = self._get_mask(prepared_data[self.main_timestep])
-        prepared_data: List[npt.NDArray[Record]] = [np.array(prepared_data[i])[mask].tolist() for i in range(len(prepared_data))]
+        prepared_data: List[npt.NDArray[Record]] = [np.array(prepared_data[i])[mask] for i in range(len(prepared_data))]
 
         # Step 3: Run strategy
         # Tell the broker what datetime it is, so it can mark trade orders to this timestamp
@@ -107,7 +108,11 @@ class BackTest:
         # Step 4: Run broker
         current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names = (
             self._prep_brokers_data(prepared_data[self.main_timestep].tolist()))
-        self.broker.tick(timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq, short_rate)
+        self.broker.tick(timestep, next_time_step, security_names, current_data, next_tick_data, marginables, dividends, div_freq,
+                         short_rate)
+
+        # Step 5: Increase run_iter
+        self.run_iter += 1
 
     @staticmethod
     def _prep_brokers_data(prepared_data: List[Record]) \
@@ -202,12 +207,12 @@ class BackTest:
         """
         start = datetime.now()
         # Step 1: Initialization
-        # Initialize strategy
-        self.strategy.init(self.account, self.broker, self.available_time_res)
-
         # Initialize the backtest by checking if the data is valid and preparing the timestep list.  It also gets the
         # columns names (features) and the tickers names.
         features, tickers, timesteps_list = self._initialize_bcktst()
+
+        # Initialize strategy
+        self.strategy.init(self.account, self.broker, self.available_time_res)
 
         # This adds freedom to the user if he has custom data
         timesteps_list = self.stadardize_timesteps(timesteps_list)
@@ -223,7 +228,7 @@ class BackTest:
 
         # Step 2: Run the backtest
         last_timestep: Optional[datetime] = None
-        for i, timestep in enumerate(tqdm(timesteps_list, desc="Backtesting...")):
+        for i, timestep in enumerate(tqdm(timesteps_list[self.window:-1], desc="Backtesting...")):
             # Run the cash controller
             if last_timestep is None:
                 last_timestep = timestep
@@ -238,15 +243,18 @@ class BackTest:
                     self.cash_controller.every_year(timestep)
                 last_timestep = timestep
 
-            self.step(i, timestep)
+            self.step(i, timestep, timesteps_list[i + self.window + 1])
 
         if self.sell_at_the_end:
             self._sell_all(timesteps_list[-1])
 
 
         # Step 3: Prepare and save stats
-        market_worth = self.market_index.data["Close"].loc[timesteps_list[0]:timesteps_list[-1]].to_numpy()
-        market_worth[0] = self.market_index.data["Open"].iloc[0]
+        if self.market_index is not None:
+            market_worth = self.market_index.data["Close"].loc[timesteps_list[0]:timesteps_list[-1]].to_numpy()
+            market_worth[0] = self.market_index.data["Open"].iloc[0]
+        else:
+            market_worth = None
         self.results = BackTestResult(self.metadata.strategy_name, metadata=self.metadata, start=timesteps_list[0],
                                       end=timesteps_list[-1], intial_cash=self._initial_cash, market_index=market_worth,
                                       broker=self.broker, account=self.account,
@@ -315,7 +323,8 @@ class BackTest:
         prepared_data = self._prepare_data(self._data, self.main_timestep, timestep, window=self.window,
                                            default_marginable=self.default_marginable,
                                            default_shortable=self.default_shortable,
-                                           default_short_rate=self.default_short_rate, save_next_tick=True)
+                                           default_short_rate=self.default_short_rate, save_next_tick=True,
+                                           next_tick_is_current=True)
         current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names = (
             self._prep_brokers_data(prepared_data))
 
@@ -335,8 +344,8 @@ class BackTest:
     @staticmethod
     def _prepare_data(data: List[Dict[str, TSData]], current_time_res: int, timestep: datetime,
                       window: int, default_marginable: bool, default_shortable: bool, default_short_rate: float,
-                      max_look_back_dt: Optional[datetime] = None, save_next_tick: bool = False)\
-            -> List[Record]:
+                      max_look_back_dt: Optional[datetime] = None, save_next_tick: bool = False,
+                      next_tick_is_current: bool = False) -> List[Record]:
         """
         Prepare the data for the current timestep.  This method assumes that nan are padding.  This means that it is
         assumed that the security didn't exist at the time where there is nan.  It is important to fill nan in data
@@ -354,6 +363,8 @@ class BackTest:
         :param max_look_back_dt: The maximum look back timestep.  If not None, the window will start at that timestep
                                 or the nearest one before that timestep in the data's index assuming it is not padded
                                 with nan.  This can be useful for time resolutions that are not the main one.
+        :param save_next_tick: If True, it will save the current tick data as a next tick in the Record object.
+                                (This is useful for the sell all at the end of the backtest)
         :return: The prepared data
         """
         prepared_data: List[Record] = []
@@ -375,7 +386,7 @@ class BackTest:
             # The security does not exist yet
             if end_idx == start_idx:
                 prepared_data.append(Record(None, ticker, current_time_res, False, False,
-                                            ts.div_freq, 0, None))
+                                            ts.div_freq, 0))
                 continue
 
             # Security has been delisted or there is missing values.  (We will ignore it)
@@ -415,6 +426,8 @@ class BackTest:
                 cropped["Volume"] *= multiplier
                 cropped["Dividends"] *= multiplier
             if save_next_tick:
+                if next_tick_is_current:
+                    end_idx = end_idx - 1
                 next_point = ts.data[["Open", "High", "Low", "Close", "Volume", "Dividends"]].iloc[end_idx]
                 if multiplier > 0:
                     next_point["Open"] /= multiplier
@@ -482,7 +495,7 @@ class BackTest:
         :param timestep: The current timestep
         :return: A list of the forged candles: List[Tuple[Open, High, Low, Close, Volume, Stock Split, ticker]]
         """
-        if self._verbose >= 2:
+        if self._verbose >= 2 and self.run_iter == 0:
             warnings.warn("This method is not guaranteed to work for your setup.  You should override it, or make sure it "
                           "works for your setup if you have series that have a higher resolution than the main resolution.",
                           UnexpectedBehaviorRisk)

@@ -13,6 +13,7 @@ import json
 from pathlib import PurePath
 from .utils import *
 import backtest
+from typing import Optional
 
 class Period(Enum):
     YEARLY = 1
@@ -25,7 +26,7 @@ class Period(Enum):
 
 class BackTestResult:
     def __init__(self, strategy_name: str, metadata: Metadata, start: datetime, end: datetime, intial_cash: float,
-                 market_index: npt.NDArray[np.float64], broker: Broker, account: Account,
+                 market_index: Optional[npt.NDArray[np.float64]], broker: Broker, account: Account,
                  risk_free_rate: float = 1.5):
         """
         This class is used to store the result of a backtest.  It contains all the information about the backtest
@@ -47,6 +48,7 @@ class BackTestResult:
         self.metadata = metadata
         self.strategy_name = strategy_name
         self.initial_cash = intial_cash
+        self.historical_states = broker.historical_states
 
         # Unique values
         self.start = start
@@ -55,17 +57,24 @@ class BackTestResult:
         self.exposure_time = broker.exposure_time
         self.equity_final = equity_history[-1]
         self.equity_peak = equity_history.max()
-        self.returns = 100 * ((equity_history[-1] - intial_cash) / intial_cash).item
+        self.returns = 100 * ((equity_history[-1] - intial_cash) / intial_cash).item()
         self.market_index = market_index
-        self.index_returns = 100 * (market_index[-1] - market_index[0]) / market_index[0]    # Buy and hold
+        if market_index is not None:
+            self.index_returns = 100 * (market_index[-1] - market_index[0]) / market_index[0]    # Buy and hold
+        else:
+            self.index_returns = None
         self.annual_returns = self._get_annual_returns(self.duration, self.returns)
-        self.sharp_ratio = (self.annual_returns - risk_free_rate) / np.std(equity_history)
+        std = np.std(equity_history)
+        if std == 0:
+            self.sharp_ratio = None
+        else:
+            self.sharp_ratio = (self.annual_returns - risk_free_rate) / np.std(equity_history)
         self.sortino_ratio = self.compute_sortino_ratio(risk_free_rate)
 
         # Now, calculate the drawdown
         drawdown = self.get_drawdown(equity_history, timestamps)
         drawdown_series = pd.Series(data=drawdown, index=pd.DatetimeIndex(timestamps))
-        yearly_drawdown = drawdown_series.resample("Y").min()
+        yearly_drawdown = drawdown_series.resample("YE", closed='left', label='left').min()
         yearly_drawdown.index = yearly_drawdown.index.year
         self.max_drawdown = drawdown.max()
         self.avg_drawdown = drawdown.mean()
@@ -124,7 +133,7 @@ class BackTestResult:
         :return: The annual returns of the strategy (esperance) in percentage
         """
         duration_in_years = duration.total_seconds() / (365*86_400)
-        return 100 * np.exp(np.log(returns) / duration_in_years)
+        return 100 * np.exp(np.log(returns / 100 + 1) / duration_in_years) - 100
 
 
     def get_ohlc(self, period: Period):
@@ -133,21 +142,23 @@ class BackTestResult:
         :param period: The period to use to make the OHLC dataframe
         :return: The OHLC dataframe
         """
-        equity_data = np.array([stepState.worth for stepState in self.broker.historical_states]).reshape(-1, 1)
-        equity_index = pd.DatetimeIndex(np.array([stepState.timestamp for stepState in self.broker.historical_states]))
+        equity_data = np.array([stepState.worth for stepState in self.historical_states]).reshape(-1, 1)
+        equity_index = pd.DatetimeIndex(np.array([stepState.timestamp for stepState in self.historical_states]))
         equity_series = pd.DataFrame(equity_data, index=equity_index)
 
         if period == Period.YEARLY:
             # Copilot generated, need to check if it works
-            return equity_series.resample("Y").ohlc()
+            out = equity_series.resample("YE", closed='left', label='left').ohlc()
         elif period == Period.QUARTERLY:
-            return equity_series.resample("Q").ohlc()
+            out = equity_series.resample("Q", closed='left', label='left').ohlc()
         elif period == Period.MONTHLY:
-            return equity_series.resample("M").ohlc()
+            out = equity_series.resample("M", closed='left', label='left').ohlc()
         elif period == Period.DAILY:
-            return equity_series.resample("D").ohlc()
+            out = equity_series.resample("D", closed='left', label='left').ohlc()
         elif period == Period.WEEKLY:
-            return equity_series.resample("W").ohlc()
+            out = equity_series.resample("W", closed='left', label='left').ohlc()
+        out.columns = out.columns.droplevel()
+        return out.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close"})
 
     def compute_sortino_ratio(self, risk_free_rate) -> float:
         """
@@ -156,44 +167,51 @@ class BackTestResult:
         :return: The sortino ratio of the strategy
         """
         equity_ohlc = self.get_ohlc(Period.YEARLY)
-        diff = equity_ohlc["close"].diff()
-        diff[0] = equity_ohlc["close"].iloc[0] - equity_ohlc["open"].iloc[0]
-        diff_percentage = 100 * diff / equity_ohlc["close"].shift(1)
+        diff = equity_ohlc["Close"].diff()
+        diff.iloc[0] = equity_ohlc["Close"].iloc[0] - equity_ohlc["Open"].iloc[0]
+        diff_percentage = 100 * diff / equity_ohlc["Close"].shift(1)
         downside = diff_percentage[diff_percentage < 0].to_numpy()
         downside_deviation = (downside ** 2).sum() / len(diff_percentage)
-        return (self.annual_returns - risk_free_rate) / downside_deviation
+        if downside_deviation == 0:
+            return None
+        else:
+            return (self.annual_returns - risk_free_rate) / downside_deviation
 
-    def compute_calmar_ratio(self, yearly_max_drawdown: pd.Series) -> float:
+    def compute_calmar_ratio(self, yearly_max_drawdown: pd.Series) -> Optional[float]:
         """
         Compute the calmar ratio of the strategy
         :param yearly_max_drawdown: The yearly maximum drawdown of the strategy
         :return: The calmar ratio of the strategy
         """
         equity_ohlc = self.get_ohlc(Period.YEARLY)
-        diff = equity_ohlc["close"].diff()
-        diff_percentage = 100 * diff / equity_ohlc["close"].shift(1)
-        diff_percentage[0] = (equity_ohlc["close"].iloc[0] - equity_ohlc["open"].iloc[0]) / equity_ohlc["open"].iloc[0]
+        diff = equity_ohlc["Close"].diff()
+        diff_percentage = 100 * diff / equity_ohlc["Close"].shift(1)
+        diff_percentage.iloc[0] = (equity_ohlc["Close"].iloc[0] - equity_ohlc["Open"].iloc[0]) / equity_ohlc["Open"].iloc[0]
         assert diff.shape == yearly_max_drawdown.shape
-        return (diff_percentage / yearly_max_drawdown).mean()
+        if (yearly_max_drawdown == 0).any():
+            return None
+        else:
+            ts_ratio = diff_percentage.to_numpy() / yearly_max_drawdown.to_numpy()
+            return ts_ratio.mean()
 
 
     def get_drawdown(self, equity_history: np.ndarray, equity_timestamps: np.ndarray,
-                     window: Union[timedelta, int] = '1y') -> npt.NDArray[np.float32]:
+                     window: Union[timedelta, int] = timedelta(days=365)) -> npt.NDArray[np.float32]:
         """
-        Get the maximum drawdown of the strategy for each timestep (Causally - so looking back inn time)
+        Get the maximum drawdown of the strategy for each timestep (Causally - so looking back in time)
         :param equity_history: The equity history of the strategy (Worth of the portoflio evolution over time)
         :param equity_timestamps: The timestamps of the equity history
         :param window: The lookback window to use to compute the drawdown
         :return: A time series of the maximum drawdown of the strategy for each time steps
         """
         if isinstance(window, timedelta):
-            df = pd.DataFrame(data=[equity_history], columns=["Worth"], index=pd.DatetimeIndex(equity_timestamps))
+            df = pd.DataFrame(data=equity_history[:, np.newaxis], columns=["Worth"], index=pd.DatetimeIndex(equity_timestamps))
             start = df.index[0]
             window_arr = df["Worth"].loc[:start + window].to_numpy()
             window = len(window_arr)
         start_maxes = np.maximum.accumulate(equity_history[:window - 1])
         maxes = np.concatenate((start_maxes, self.strided_arr(equity_history, window).max(axis=1)))
-        drawdown_continum = (window - maxes) / maxes
+        drawdown_continum = (equity_history - maxes) / maxes
         start_drawdown = np.minimum.accumulate(drawdown_continum[:window - 1])
         drawdown = np.concatenate((start_drawdown, self.strided_arr(drawdown_continum, window).min(axis=1)))
         return drawdown
@@ -297,6 +315,7 @@ class BackTestResult:
         self.min_trade_duration = data["stats"]["min_trade_duration"]
         self.profit_factor = data["stats"]["profit_factor"]
         self.sqn = data["stats"]["sqn"]
+        self.historical_states = broker.historical_states
         return self
 
     def save(self, path: str):
