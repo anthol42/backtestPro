@@ -64,11 +64,7 @@ class BackTestResult:
         else:
             self.index_returns = None
         self.annual_returns = self._get_annual_returns(self.duration, self.returns)
-        std = np.std(equity_history)
-        if std == 0:
-            self.sharp_ratio = None
-        else:
-            self.sharp_ratio = (self.annual_returns - risk_free_rate) / np.std(equity_history)
+        self.sharp_ratio = self.compute_sharp_ratio(risk_free_rate)
         self.sortino_ratio = self.compute_sortino_ratio(risk_free_rate)
 
         # Now, calculate the drawdown
@@ -76,10 +72,11 @@ class BackTestResult:
         drawdown_series = pd.Series(data=drawdown, index=pd.DatetimeIndex(timestamps))
         yearly_drawdown = drawdown_series.resample("YE", closed='left', label='left').min()
         yearly_drawdown.index = yearly_drawdown.index.year
-        self.max_drawdown = drawdown.max()
-        self.avg_drawdown = drawdown.mean()
+        self.max_drawdown = -100 * drawdown.min()
+        self.avg_drawdown = -100 * drawdown.mean()
         self.calmar_ratio = self.compute_calmar_ratio(yearly_drawdown)
         self.num_trades = broker.portfolio.get_trade_count(exit_only=False)
+        self.num_exits = broker.portfolio.get_trade_count(exit_only=True)
 
         # Get trade stats
         trade_stats = broker.portfolio.get_trade_stats()
@@ -101,28 +98,29 @@ class BackTestResult:
 
     def __str__(self):
         return (f"Backtest results for {self.strategy_name} from {self.start} to {self.end}:\n"
-                f"\tDuration: {self.duration}\n"
-                f"\tExposure time: {self.exposure_time}\n"
-                f"\tEquity final: {self.equity_final}\n"
-                f"\tEquity peak: {self.equity_peak}\n"
-                f"\tReturns: {self.returns}\n"
-                f"\tIndex Returns: {self.index_returns}\n"
-                f"\tAnnual returns: {self.annual_returns}\n"
-                f"\tSharp ratio: {self.sharp_ratio}\n"
-                f"\tSortino ratio: {self.sortino_ratio}\n"
-                f"\tMax drawdown: {self.max_drawdown}\n"
-                f"\tAvg drawdown: {self.avg_drawdown}\n"
-                f"\tCalmar ratio: {self.calmar_ratio}\n"
-                f"\tNum trades: {self.num_trades}\n"
-                f"\tWin rate: {self.win_rate}\n"
-                f"\tBest trade: {self.best_trade}\n"
-                f"\tWorst trade: {self.worst_trade}\n"
-                f"\tAvg trade: {self.avg_trade}\n"
-                f"\tMax trade duration: {self.max_trade_duration}\n"
-                f"\tAvg trade duration: {self.avg_trade_duration}\n"
-                f"\tMin trade duration: {self.min_trade_duration}\n"
-                f"\tProfit factor: {self.profit_factor}\n"
-                f"\tSQN: {self.sqn}\n")
+                f"\tDuration:                  {self.duration}\n"
+                f"\tExposure time [days]:      {self.exposure_time}\n"
+                f"\tEquity final [$]:          {self.equity_final}\n"
+                f"\tEquity peak [$]:           {self.equity_peak}\n"
+                f"\tReturns [%]:               {self.returns}\n"
+                f"\tIndex Returns [%]:         {self.index_returns}\n"
+                f"\tAnnual returns [%]:        {self.annual_returns}\n"
+                f"\tSharp ratio:               {self.sharp_ratio}\n"
+                f"\tSortino ratio:             {self.sortino_ratio}\n"
+                f"\tMax drawdown [%]:          {self.max_drawdown}\n"
+                f"\tAvg drawdown [%]:          {self.avg_drawdown}\n"
+                f"\tCalmar ratio:              {self.calmar_ratio}\n"
+                f"\tNum trades:                {self.num_trades}\n"
+                f"\tNum exits:                 {self.num_exits}\n"
+                f"\tWin rate [%]:              {self.win_rate}\n"
+                f"\tBest trade [%]:            {self.best_trade}\n"
+                f"\tWorst trade [%]:           {self.worst_trade}\n"
+                f"\tAvg trade [%]:             {self.avg_trade}\n"
+                f"\tMax trade duration [days]: {self.max_trade_duration}\n"
+                f"\tAvg trade duration [days]: {self.avg_trade_duration}\n"
+                f"\tMin trade duration [days]: {self.min_trade_duration}\n"
+                f"\tProfit factor:             {self.profit_factor}\n"
+                f"\tSQN:                       {self.sqn}\n")
 
     @staticmethod
     def _get_annual_returns(duration: timedelta, returns: float):
@@ -160,22 +158,39 @@ class BackTestResult:
         out.columns = out.columns.droplevel()
         return out.rename(columns={"open": "Open", "high": "High", "low": "Low", "close": "Close"})
 
+    def compute_sharp_ratio(self, risk_free_rate) -> float:
+        """
+        Compute the sharp ratio of the strategy on a weekly basis
+        :param risk_free_rate: The risk free rate or MAR (Minimum acceptable return)
+        :return: The sharp ratio of the strategy
+        """
+        equity_ohlc = self.get_ohlc(Period.WEEKLY)
+        diff = equity_ohlc["Close"].diff()
+        diff.iloc[0] = equity_ohlc["Close"].iloc[0] - equity_ohlc["Open"].iloc[0]
+        diff_ratio = diff / equity_ohlc["Close"].shift(1)
+        diff_ratio.iloc[0] = (equity_ohlc["Close"].iloc[0] - equity_ohlc["Open"].iloc[0]) / \
+                                  equity_ohlc["Open"].iloc[0]
+        if diff.std() == 0:
+            return None
+        else:
+            std = np.sqrt(52)*diff_ratio.std()    # Annualize the std
+            return (self.annual_returns - risk_free_rate) / (100 * std)
     def compute_sortino_ratio(self, risk_free_rate) -> float:
         """
-        Compute the sortino ratio of the strategy
+        Compute the sortino ratio of the strategy on a weekly basis
         :param risk_free_rate: The risk free rate or MAR (Minimum acceptable return)
         :return: The sortino ratio of the strategy
         """
-        equity_ohlc = self.get_ohlc(Period.YEARLY)
+        equity_ohlc = self.get_ohlc(Period.WEEKLY)
         diff = equity_ohlc["Close"].diff()
         diff.iloc[0] = equity_ohlc["Close"].iloc[0] - equity_ohlc["Open"].iloc[0]
-        diff_percentage = 100 * diff / equity_ohlc["Close"].shift(1)
+        diff_percentage = (diff / equity_ohlc["Close"].shift(1)) - risk_free_rate / 100
         downside = diff_percentage[diff_percentage < 0].to_numpy()
-        downside_deviation = (downside ** 2).sum() / len(diff_percentage)
-        if downside_deviation == 0:
+        annualized_downside_deviation = np.sqrt(52 * (downside ** 2).sum() / (len(diff_percentage) - 1))
+        if annualized_downside_deviation == 0:
             return None
         else:
-            return (self.annual_returns - risk_free_rate) / downside_deviation
+            return (self.annual_returns - risk_free_rate) / (100 * annualized_downside_deviation)
 
     def compute_calmar_ratio(self, yearly_max_drawdown: pd.Series) -> Optional[float]:
         """
@@ -186,12 +201,12 @@ class BackTestResult:
         equity_ohlc = self.get_ohlc(Period.YEARLY)
         diff = equity_ohlc["Close"].diff()
         diff_percentage = 100 * diff / equity_ohlc["Close"].shift(1)
-        diff_percentage.iloc[0] = (equity_ohlc["Close"].iloc[0] - equity_ohlc["Open"].iloc[0]) / equity_ohlc["Open"].iloc[0]
+        diff_percentage.iloc[0] = 100 * (equity_ohlc["Close"].iloc[0] - equity_ohlc["Open"].iloc[0]) / equity_ohlc["Open"].iloc[0]
         assert diff.shape == yearly_max_drawdown.shape
         if (yearly_max_drawdown == 0).any():
             return None
         else:
-            ts_ratio = diff_percentage.to_numpy() / yearly_max_drawdown.to_numpy()
+            ts_ratio = diff_percentage.to_numpy() / (-100 * yearly_max_drawdown.to_numpy())
             return ts_ratio.mean()
 
 
@@ -248,6 +263,7 @@ class BackTestResult:
                 "avg_drawdown": float(self.avg_drawdown) if self.avg_drawdown is not None else None,
                 "calmar_ratio": float(self.calmar_ratio) if self.calmar_ratio is not None else None,
                 "num_trades": float(self.num_trades),
+                "num_exits": float(self.num_exits),
                 "win_rate": float(self.win_rate) if self.win_rate is not None else None,
                 "best_trade": float(self.best_trade) if self.best_trade is not None else None,
                 "worst_trade": float(self.worst_trade) if self.worst_trade is not None else None,
@@ -306,6 +322,7 @@ class BackTestResult:
         self.avg_drawdown = data["stats"]["avg_drawdown"]
         self.calmar_ratio = data["stats"]["calmar_ratio"]
         self.num_trades = data["stats"]["num_trades"]
+        self.num_exits = data["stats"]["num_exits"]
         self.win_rate = data["stats"]["win_rate"]
         self.best_trade = data["stats"]["best_trade"]
         self.worst_trade = data["stats"]["worst_trade"]

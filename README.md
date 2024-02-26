@@ -15,8 +15,10 @@ Features are not implemented yet, but will be one day.
 - Customizable
 
 ## TODO
-- [ ] Add a way to dynamically preprocess data to extend the number of time resolutions
-- [ ] Add a method in the strategy that can preprocess the data to add indicators on the fly.
+- [X] Add a way to dynamically preprocess data to extend the number of time resolutions
+- [X] Add a method in the strategy that can preprocess the data to add indicators on the fly.
+- [ ] Test multiple cases (integrative testing) to see if money and performances are accurately computed
+- [ ] Test margin investing, margin call and short selling.
 
 
 ## RoadMap

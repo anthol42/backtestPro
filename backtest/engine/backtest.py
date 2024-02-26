@@ -44,7 +44,7 @@ class BackTest:
         self._data = data
         self._initial_cash = initial_cash
         self.market_index = market_index
-        self.risk_free_rate = risk_free_rate / 100
+        self.risk_free_rate = risk_free_rate
         self.account = account(initial_cash)
         self.broker = broker(self.account, commission, relative_commission and relative_commission / 100, margin_interest / 100,
                              min_initial_margin / 100, min_maintenance_margin / 100, liquidation_delay,

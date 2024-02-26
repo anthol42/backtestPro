@@ -15,16 +15,24 @@ class MyStrategy(Strategy):
             "NVDA": 5000
         }
     def run(self, data: RecordsBucket, timestep: datetime):
-        print(f"Running strategy at {timestep}")
-        # for ticker, record in data.main:
-        #     chart = record.chart
-        #     if chart["MA_delta"].iloc[-1] > 0.001 and chart["MA_delta"].iloc[-2] < 0.:
-        #         # Buy for half of our money reserved to the stock
-        #         cash_amount = self._cash[ticker] / 2
-        #         price = chart["Close"].iloc[-1]
-        #         shares = cash_amount // price
-        #         self.broker.buy_long(ticker, shares, 0)
-        #         print(f"Buying {shares} shares of {ticker} at market price -- {timestep}")
+        # print(f"Running strategy at {timestep}")
+        for ticker, record in data.main:
+            chart = record.chart
+            if chart["MA_delta"].iloc[-1] > 0.001 and chart["MA_delta"].iloc[-2] < 0.:
+                # Buy for half of our money reserved to the stock
+                cash_amount = self._cash[ticker] / 2
+                price = chart["Close"].iloc[-1]
+                shares = cash_amount // price
+                self.broker.buy_long(ticker, shares, 0)
+                print(f"Buying {shares} shares of {ticker} at market price -- {timestep}")
+
+            # if chart["MA_delta"].iloc[-1] < -0.001:
+            #     # Sell all shares
+            #     long, short = self.broker.portfolio[ticker]
+            #     shares = long.amount if long is not None else 0
+            #     if shares > 0:
+            #         self.broker.sell_long(ticker, shares, 0)
+            #         print(f"Selling {shares} shares of {ticker} at market price -- {timestep}")
 
         # print(f"Data len: {data[-1]['NVDA'].chart.shape[0]}")
 
@@ -64,7 +72,6 @@ class TestIntegration(TestCase):
                             cash_controller=MyCashController())
 
         results = backtest.run()
-        print(results.end)
         print(results)
         results.save("tmp.bcktst")
 
