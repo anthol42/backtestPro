@@ -3,7 +3,7 @@ from typing import List, Dict
 from datetime import timedelta
 from .account import Account
 from .broker import Broker
-from .record import Record
+from .record import Record, Records, RecordsBucket
 from datetime import datetime
 import numpy.typing as npt
 
@@ -26,7 +26,7 @@ class Strategy(ABC):
         self.available_time_res = available_time_res
 
     @abstractmethod
-    def run(self, data: List[npt.NDArray[Record]], timestep: datetime):
+    def run(self, data: RecordsBucket, timestep: datetime):
         """
         This method is used to compute the strategy at each time step.  It is in this method that the strategy logic is
         implemented.
@@ -35,7 +35,7 @@ class Strategy(ABC):
         """
         raise NotImplementedError("run method not implemented")
 
-    def indicators(self, data: List[npt.NDArray[Record]], timestep: datetime) -> List[List[Record]]:
+    def indicators(self, data: RecordsBucket, timestep: datetime) -> RecordsBucket:
         """
         This method is used to compute the dynamic indicators at each time step.  It is strongly recommended to
         calculate indicators dynamically (even though it is slower) because it has the right price (split adjusted)
@@ -44,9 +44,10 @@ class Strategy(ABC):
         to the dataframes inside each records.
         Example:
             >>> # Calculate a moving average with a 14 days period
-            >>> for time_res in data:
-            >>>     for record in time_res:
-            >>>         record.chart['ma14'] = record.chart['Close'].rolling(window=14).mean()
+            >>> for time_res, records in data:
+            >>>     if time_res == timedelta(days=1):
+            >>>          for ticker, record in records:
+            >>>              record.chart['ma14'] = record.chart['Close'].rolling(window=14).mean()
             >>> return data
             >>> # In the preceding example, the data was mutated.  It doesn't matter in this method, but the data still
             >>> # must be returned.
@@ -57,7 +58,7 @@ class Strategy(ABC):
 
 
 
-    def __call__(self, data: List[npt.NDArray[Record]], timestep: datetime):
+    def __call__(self, data: RecordsBucket, timestep: datetime):
         """
         YOU SHOULD NOT OVERRIDE THIS METHOD
         This method is used to compute the strategy at each time step and some other computations for stats purposes.

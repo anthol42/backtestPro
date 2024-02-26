@@ -55,8 +55,8 @@ class TradeOrder(ABC):
             "timestamp": str(self.timestamp),
             "security": self.security,
             "security_price_limit": self.security_price_limit,
-            "amount": self.amount,
-            "amount_borrowed": self.amount_borrowed,
+            "amount": float(self.amount),
+            "amount_borrowed": float(self.amount_borrowed),
             "trade_type": self.trade_type.value,
             "expiry": str(self.expiry),
             "margin_trade": self.margin_trade,
@@ -159,12 +159,12 @@ class Trade(ABC):
         return {
             "type": f"Trade.{self.trade_type.value}",
             "security": self.security,
-            "security_price": self.security_price,
-            "amount": self.amount,
-            "amount_borrowed": self.amount_borrowed,
+            "security_price": float(self.security_price),
+            "amount": float(self.amount),
+            "amount_borrowed": float(self.amount_borrowed),
             "transaction_id": self.transaction_id,
             "trade_type": self.trade_type.value,
-            "margin_trade": self.margin_trade,
+            "margin_trade": bool(self.margin_trade),
             "timestamp": str(self.timestamp),
             "order": self.trade_order.export()
         }

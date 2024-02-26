@@ -208,15 +208,15 @@ class Position:
         return {
             "type": "Position",
             "ticker": self.ticker,
-            "amount": self.amount,
-            "long": self.long,
-            "average_price": self.average_price,
-            "on_margin": self.on_margin,
+            "amount": float(self.amount),
+            "long": bool(self.long),
+            "average_price": float(self.average_price),
+            "on_margin": bool(self.on_margin),
             "average_filled_time": str(self.average_filled_time),
             "last_dividends_dt": str(self.last_dividends_dt),
             "time_stock_idx": self.time_stock_idx,
-            "ratio_owned": self.ratio_owned,
-            "number_of_entry": self._number_of_entry
+            "ratio_owned": float(self.ratio_owned),
+            "number_of_entry": int(self._number_of_entry)
         }
 
     @classmethod

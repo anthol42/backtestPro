@@ -9,7 +9,7 @@ from .tsData import TSData
 from .strategy import Strategy
 from typing import List, Dict, Type, Optional
 from .backtestResult import BackTestResult
-from .record import Record
+from .record import Record, RecordsBucket
 from .tsData import DividendFrequency
 from tqdm import tqdm
 import warnings
@@ -94,12 +94,12 @@ class BackTest:
 
     def step(self, i: int, timestep: datetime, next_time_step: datetime):
         # Step 1: Prepare the data
-        prepared_data: List[List[Record]] = self._prep_data(timestep)
+        processed_data: List[List[Record]] = self._prep_data(timestep)
 
         # Step 2: Filter stock data to remove the ones that are not currently available (Chart is None for main res)
-        mask = self._get_mask(prepared_data[self.main_timestep])
-        prepared_data: List[npt.NDArray[Record]] = [np.array(prepared_data[i])[mask] for i in range(len(prepared_data))]
-
+        mask = self._get_mask(processed_data[self.main_timestep])
+        filtered_data: List[npt.NDArray[Record]] = [np.array(processed_data[i])[mask] for i in range(len(processed_data))]
+        prepared_data = RecordsBucket(filtered_data, self.available_time_res, self.main_timestep, self.window)
         # Step 3: Run strategy
         # Tell the broker what datetime it is, so it can mark trade orders to this timestamp
         self.broker.set_current_timestamp(timestep)
@@ -107,7 +107,7 @@ class BackTest:
 
         # Step 4: Run broker
         current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names = (
-            self._prep_brokers_data(prepared_data[self.main_timestep].tolist()))
+            self._prep_brokers_data(prepared_data.main.to_list()))
         self.broker.tick(timestep, next_time_step, security_names, current_data, next_tick_data, marginables, dividends, div_freq,
                          short_rate)
 
@@ -327,17 +327,19 @@ class BackTest:
                                            next_tick_is_current=True)
         current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names = (
             self._prep_brokers_data(prepared_data))
-
+        dic = {record.ticker: record for record in prepared_data}
         # Now, sell everything at market price
         long = self.broker.portfolio.getLong()
         for ticker, position in long.items():
             if position.amount > 0:
-                self.broker.sell_long(ticker, position.amount, 0, None, (None, None))
+                close_price = dic[ticker].chart["Close"].iloc[-1]
+                self.broker.sell_long(ticker, position.amount, 0, None, (close_price, None))
 
         short = self.broker.portfolio.getShort()
         for ticker, position in short.items():
             if position.amount > 0:
-                self.broker.buy_short(ticker, position.amount, None, (None, None))
+                close_price = dic[ticker].chart["Close"].iloc[-1]
+                self.broker.buy_short(ticker, position.amount, None, (None, close_price))
 
         self.broker.tick(timestep, timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq, short_rate)
 

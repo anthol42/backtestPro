@@ -11,5 +11,5 @@ from .backtestResult import BackTestResult
 from .cashController import CashController
 from .strategy import Strategy
 from .metadata import Metadata
-from .record import Record
+from .record import Record, Records, RecordsBucket
 from .tsData import TSData, DividendFrequency

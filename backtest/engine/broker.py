@@ -1276,9 +1276,9 @@ class Broker:
         return {
             "portfolio": self.portfolio.get_state(),
             "queued_trade_offers": [offer.export() for offer in self._queued_trade_offers],
-            "current_month": self._current_month,
-            "last_day": self._last_day,
-            "last_step": self._last_step,
+            "current_month": str(self._current_month),
+            "last_day": str(self._last_day),
+            "last_step": str(self._last_step),
             "message": self.message.export(),
             "debt_record": deepcopy(self._debt_record),
             "historical_states": [state.export() for state in self.historical_states],
@@ -1293,7 +1293,7 @@ class Broker:
             "n": self.n,
             "cache": self._cache,
             "exposure_time": self.exposure_time,
-            "current_timestamp": self._current_timestamp,
+            "current_timestamp": str(self._current_timestamp),
         }
 
     @classmethod
