@@ -95,5 +95,6 @@ class TestIntegration(TestCase):
                             cash_controller=WeekCashController())
 
         results = backtest.run()
+        results.save("tmp.bcktst")
         print(results)
 

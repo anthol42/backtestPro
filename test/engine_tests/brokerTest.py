@@ -1126,11 +1126,11 @@ class TestBroker(TestCase):
         self.assertEqual(broker_abs.portfolio._short, {"AAPL": Position("AAPL", 0, False,
                              100, datetime(2021, 1, 1), ratio_owned=0)})
         self.assertEqual(broker_abs.account.get_cash(), 0)
-        self.assertEqual(broker_abs._debt_record, {"missing_funds": 10_006.99})
+        self.assertEqual(broker_abs._debt_record, {"missing_funds": 10_006.99, 'short margin call': 0})
         self.assertEqual(broker_rel.portfolio._short, {"AAPL": Position("AAPL", 0, False,
                              100, datetime(2021, 1, 1), ratio_owned=0)})
         self.assertEqual(broker_rel.account.get_cash(), 0)
-        self.assertEqual(broker_rel._debt_record, {"missing_funds": 10_200})
+        self.assertEqual(broker_rel._debt_record, {"missing_funds": 10_200, 'short margin call': 0})
 
 
     def test_get_deltas(self):

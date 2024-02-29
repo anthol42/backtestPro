@@ -547,6 +547,11 @@ class Broker:
             eq_idx = security_names.index(order.security)
 
             result = self.make_trade(order, next_tick_data[eq_idx], next_timestep, marginables[eq_idx, 0], marginables[eq_idx, 1])
+            if order.trade_type == TradeType.BuyShort and result:
+                # Because of the tricky nature of short collateral calculation (Which is calculated as a whole instead
+                # of independently for each position), we need to update the collateral after each exit of a
+                # short position.
+                self._update_account_collateral(next_timestep, security_names, next_tick_data, message="Buy Short Trade execution")
             if result:
                 filled_orders.append(order)
 
@@ -616,6 +621,8 @@ class Broker:
         :return: The total collateral of short positions
         """
         collateral = 0.
+        # Reset cache
+        self._cache["short_collateral_contribution"] = {}
         for ticker in self.portfolio.getShort():
             if self.portfolio.getShort()[ticker].amount == 0:
                 continue
@@ -1105,8 +1112,10 @@ class Broker:
                     # Otherwise, we only subtract the collateral contribution from the margin call.
                     if asset_collateral >= short_mc:
                         asset_collateral -= short_mc
-                        mc_time_remaining = self.message.margin_calls["short margin call"].time_remaining
-                        self.remove_margin_call("short margin call")
+                        # Deactivate the margin call in order to keep the time remaining (Will be deleted or updated by
+                        # the collateral update in _execute_trades)
+                        self.message.margin_calls["short margin call"].amount = 0
+                        self._debt_record["short margin call"] = 0
                         # Removing remaining virtual collateral and real collateral from account's collateral
                         self.account.remove_collateral(asset_collateral, timestamp, message="Bought back short position")
                     else:

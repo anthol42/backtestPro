@@ -33,8 +33,8 @@ class CashController(ABC):
     DO NOT override the '_init' method. Instead, override the __init__ method if you need to initialize some variables.
     """
     def __init__(self):
-        self.broker = None
-        self.account = None
+        self.broker: Optional[Broker] = None
+        self.account: Optional[Account] = None
         self._total_deposited = 0    # Record net money added or removed from account
 
     def init(self, account: Account, broker: Broker):
@@ -42,7 +42,7 @@ class CashController(ABC):
         :param account: The account
         :param broker: The broker [Shoudl not be modified!!]
         """
-        self.broker: Final[Broker] = broker
+        self.broker = broker
         self.account = account
 
     def deposit(self, timestamp: datetime, timeframe: Union[str, CashControllerTimeframe]):
@@ -51,32 +51,33 @@ class CashController(ABC):
         if timeframe == CashControllerTimeframe.DAY:
             amount, comment = self.every_day(timestamp)
             self._total_deposited += amount
-            self._depo(amount, comment)
+            self._depo(amount, timestamp, comment)
         elif timeframe == CashControllerTimeframe.WEEK:
             amount, comment = self.every_week(timestamp)
             self._total_deposited += amount
-            self._depo(amount, comment)
+            self._depo(amount, timestamp, comment)
         elif timeframe == CashControllerTimeframe.MONTH:
             amount, comment = self.every_month(timestamp)
             self._total_deposited += amount
-            self._depo(amount, comment)
+            self._depo(amount, timestamp, comment)
         elif timeframe == CashControllerTimeframe.YEAR:
             amount, comment = self.every_year(timestamp)
             self._total_deposited += amount
-            self._depo(amount, comment)
+            self._depo(amount, timestamp, comment)
 
-    def _depo(self, amount: float, comment: str):
+    def _depo(self, amount: float, dt: datetime, comment: str):
         """
         Make a deposit if amount is positive.  If amount is negative, make a withdrawal.  If the amount is 0,
         it does nothing.
-        :param amount: The amount to deposit or wihdraw
+        :param amount: The amount to deposit or withdraw
+        :param dt: The date of the transaction
         :param comment: The comment on the transaction
         :return: None
         """
         if amount > 0:
-            self.account.deposit(amount, comment)
+            self.account.deposit(amount, dt, comment=comment)
         elif amount < 0:
-            self.account.withdraw(-amount, comment)
+            self.account.withdraw(-amount, dt, comment=comment)
 
     def every_day(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
         """
