@@ -3,7 +3,7 @@ import pandas as pd
 from backtest import BackTest, Strategy, Metadata, TSData, DividendFrequency, Record, Records, RecordsBucket
 from backtest.engine import CashController, BasicExtender
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Tuple
 from unittest import TestCase
 
 
@@ -24,15 +24,15 @@ class MyStrategy(Strategy):
                 price = chart["Close"].iloc[-1]
                 shares = cash_amount // price
                 self.broker.buy_long(ticker, shares, 0)
-                print(f"Buying {shares} shares of {ticker} at market price -- {timestep}")
+                # print(f"Buying {shares} shares of {ticker} at market price -- {timestep}")
 
-            # if chart["MA_delta"].iloc[-1] < -0.001:
-            #     # Sell all shares
-            #     long, short = self.broker.portfolio[ticker]
-            #     shares = long.amount if long is not None else 0
-            #     if shares > 0:
-            #         self.broker.sell_long(ticker, shares, 0)
-            #         print(f"Selling {shares} shares of {ticker} at market price -- {timestep}")
+            if chart["MA_delta"].iloc[-1] < -0.001:
+                # Sell all shares
+                long, short = self.broker.portfolio[ticker]
+                shares = long.amount if long is not None else 0
+                if shares > 0:
+                    self.broker.sell_long(ticker, shares, 0)
+                    # print(f"Selling {shares} shares of {ticker} at market price -- {timestep}")
 
         # print(f"Data len: {data[-1]['NVDA'].chart.shape[0]}")
 
@@ -52,8 +52,8 @@ class MyStrategy(Strategy):
         return data
 
 class MyCashController(CashController):
-    def every_month(self, timestamp: datetime):
-        self.account.deposit(1000, timestamp, comment="Monthly deposit")
+    def every_month(self, timestamp: datetime) -> Tuple[float, str]:
+        return 1000, "Monthly deposit"
 
 
 class TestIntegration(TestCase):

@@ -14,7 +14,7 @@ from .tsData import DividendFrequency
 from tqdm import tqdm
 import warnings
 from .metadata import Metadata
-from .cashController import CashController
+from .cashController import CashController, CashControllerTimeframe
 from .time_resolution_extenders import TimeResExtender
 
 class UnexpectedBehaviorRisk(Warning):
@@ -234,13 +234,13 @@ class BackTest:
                 last_timestep = timestep
             else:
                 if timestep.day != last_timestep.day:
-                    self.cash_controller.every_day(timestep)
-                elif timestep.date().isocalendar()[1] != last_timestep.date().isocalendar()[1]:
-                    self.cash_controller.every_week(timestep)
-                elif timestep.month != last_timestep.month:
-                    self.cash_controller.every_month(timestep)
-                elif timestep.year != last_timestep.year:
-                    self.cash_controller.every_year(timestep)
+                    self.cash_controller.deposit(timestep, CashControllerTimeframe.DAY)
+                if timestep.date().isocalendar()[1] != last_timestep.date().isocalendar()[1]:
+                    self.cash_controller.deposit(timestep, CashControllerTimeframe.WEEK)
+                if timestep.month != last_timestep.month:
+                    self.cash_controller.deposit(timestep, CashControllerTimeframe.MONTH)
+                if timestep.year != last_timestep.year:
+                    self.cash_controller.deposit(timestep, CashControllerTimeframe.YEAR)
                 last_timestep = timestep
 
             self.step(i, timestep, timesteps_list[i + self.window + 1])
@@ -256,7 +256,7 @@ class BackTest:
         else:
             market_worth = None
         self.results = BackTestResult(self.metadata.strategy_name, metadata=self.metadata, start=timesteps_list[0],
-                                      end=timesteps_list[-1], intial_cash=self._initial_cash, market_index=market_worth,
+                                      end=timesteps_list[-1], intial_cash=self._initial_cash, added_cash=self.cash_controller._total_deposited, market_index=market_worth,
                                       broker=self.broker, account=self.account,
                                       risk_free_rate=self.risk_free_rate)
         end = datetime.now()

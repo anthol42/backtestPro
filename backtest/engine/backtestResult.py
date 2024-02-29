@@ -26,7 +26,7 @@ class Period(Enum):
 
 class BackTestResult:
     def __init__(self, strategy_name: str, metadata: Metadata, start: datetime, end: datetime, intial_cash: float,
-                 market_index: Optional[npt.NDArray[np.float64]], broker: Broker, account: Account,
+                 added_cash: float, market_index: Optional[npt.NDArray[np.float64]], broker: Broker, account: Account,
                  risk_free_rate: float = 1.5):
         """
         This class is used to store the result of a backtest.  It contains all the information about the backtest
@@ -35,6 +35,7 @@ class BackTestResult:
         :param start: Start date of the backtest data
         :param end: End date of the backtest data
         :param intial_cash: The initial cash of the account
+        :param added_cash: The cash added to the account (or removed) with the CashController
         :param market_index: The market index time series (Price/score evolution across time)
         :param broker: The broker object used to backtest the strategy
         :param account: The account object used to backtest the strategy
@@ -48,6 +49,7 @@ class BackTestResult:
         self.metadata = metadata
         self.strategy_name = strategy_name
         self.initial_cash = intial_cash
+        self.added_cash = added_cash
         self.historical_states = broker.historical_states
 
         # Unique values
@@ -57,7 +59,7 @@ class BackTestResult:
         self.exposure_time = broker.exposure_time
         self.equity_final = equity_history[-1]
         self.equity_peak = equity_history.max()
-        self.returns = 100 * ((equity_history[-1] - intial_cash) / intial_cash).item()
+        self.returns = 100 * ((equity_history[-1] - intial_cash - added_cash) / intial_cash).item()
         self.market_index = market_index
         if market_index is not None:
             self.index_returns = 100 * (market_index[-1] - market_index[0]) / market_index[0]    # Buy and hold
@@ -100,6 +102,8 @@ class BackTestResult:
         return (f"Backtest results for {self.strategy_name} from {self.start} to {self.end}:\n"
                 f"\tDuration:                  {self.duration}\n"
                 f"\tExposure time [days]:      {self.exposure_time}\n"
+                f"\tInitial cash [$]:          {self.initial_cash}\n"
+                f"\tAdded cash [$]:            {self.added_cash}\n"
                 f"\tEquity final [$]:          {self.equity_final}\n"
                 f"\tEquity peak [$]:           {self.equity_peak}\n"
                 f"\tReturns [%]:               {self.returns}\n"
@@ -250,6 +254,7 @@ class BackTestResult:
                 "strategy_name": self.strategy_name,
                 "start": str(self.start),
                 "end": str(self.end),
+                "added_cash": float(self.added_cash),
                 "duration": str(self.duration),
                 "exposure_time": str(self.exposure_time),
                 "equity_final": float(self.equity_final),
