@@ -514,9 +514,7 @@ class Portfolio:
             return gain, 100 * gain / intial_investment
         else:
             initial_investment = average_buy_price * qty * ratio_owned + number_of_entry * self._transaction_cost
-            gain = ((average_sell_price * qty - self._transaction_cost) -
-                    initial_investment -
-                    debt)
+            gain = ((average_sell_price * qty - self._transaction_cost) -initial_investment - debt)
             return gain, 100 * gain / initial_investment
 
     def _getCost(self, trade: Trade, include_borrow: bool = False, sell: bool = False) -> float:

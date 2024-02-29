@@ -5,44 +5,44 @@ Margin interest: 10%
 Short interest: 20%
 ## Calculate trades profits
 ### NVDA -- Long
-- Buy 200 shares on 50% margin at 440.1612972004770
-  - Total: $44 026.12972
-  - Debt: $44 016.12972
+- Buy 200 shares on 50% margin at 440.1613
+  - Total: $44 026.13
+  - Debt: $44 016.13
   - Shares owned: 200
-  - Average price: 440.1612972004770
-- Sell 100 shares at $496.75629603239900
-  - Total: $27 657.56474
-  - Debt: $22 008.06486
+  - Average price: 440.1613
+- Sell 100 shares at $483.90
+  - Total: $27 371.935
+  - Debt: $22 008.065
   - Shares owned: 100
-  - Profit: $5 649.49988; 25.6701346%
-- Buy 100 shares on 75% margin at $484.6199951171880
+  - Profit: $4353.875; 19.77%
+- Buy 100 shares on 75% margin at $484.62
   - Total: $36 356.49963
   - Debt: $34 123.56474
   - Shares owned: 200
   - Average price: 462.3906462
-- Sell 200 shares at $683.1900024414060
+- Sell 200 shares at $683.19
   - Total: $100 271.5009
   - Debt: $0.00000
   - Shares owned: 0
-  - Profit: $42 472.67013; 73.4836147%
+  - Profit: $44 685.6063079834; 73.4836147%
 
 ### AAPL -- Short
-- Sell 200 shares at $197.7676470402110
+- Sell 200 shares at $194.8414
   - Total: $39 543.52941
   - Debt: $0.00000
   - Shares due: 200
   - Average price: 197.7676470402110
-- Buy 100 shares at $181.75807721578200
+- Buy 100 shares at $181.758
   - Total: $18 185.80772
   - Debt: $0.00000
   - Shares due: 100
   - Profit: $1 585.956985; 8.0213223%
-- Sell 100 shares at $194.77147463800900
+- Sell 100 shares at $195.1709
   - Total: $19 467.14746
   - Debt: $0.00000
   - Shares due: 200
   - Average price: 196.2695608
-- Buy 200 shares at $179.6307873390830
+- Buy 200 shares at $179.6308
   - Total: $35 936.15747
   - Debt: $0.00000
   - Shares due: 0
