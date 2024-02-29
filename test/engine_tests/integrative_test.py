@@ -5,6 +5,7 @@ from backtest.engine import CashController, BasicExtender
 from datetime import datetime, timedelta
 from typing import List, Tuple
 from unittest import TestCase
+from integration_src.strategy import ComplexGoodStrategy, WeekCashController
 
 
 class MyStrategy(Strategy):
@@ -31,7 +32,7 @@ class MyStrategy(Strategy):
                 long, short = self.broker.portfolio[ticker]
                 shares = long.amount if long is not None else 0
                 if shares > 0:
-                    self.broker.sell_long(ticker, shares, 0)
+                    self.broker.sell_long(ticker, shares)
                     # print(f"Selling {shares} shares of {ticker} at market price -- {timestep}")
 
         # print(f"Data len: {data[-1]['NVDA'].chart.shape[0]}")
@@ -57,31 +58,42 @@ class MyCashController(CashController):
 
 
 class TestIntegration(TestCase):
-    def test_integration(self):
-        # Create the metadata
-        metadata = Metadata(description="Integration Test")
+    def test_integration1(self):
+        """
+        This if everything runs smoothly without crash.
+        """
+        # # Create the metadata
+        # metadata = Metadata(description="Integration Test")
+        # data = [
+        #     {
+        #         "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1h.csv", index_col="Datetime"), name="AAPL-1h"),
+        #         "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1h.csv", index_col="Datetime"), name="NVDA-1h")
+        #     }
+        # ]
+        # backtest = BackTest(data, MyStrategy(), main_timestep=1, initial_cash=10_000, commission=10.,
+        #                     metadata=metadata, margin_interest=10,
+        #                     time_res_extender=BasicExtender("1d") + BasicExtender("1w"),
+        #                     cash_controller=MyCashController())
+        #
+        # results = backtest.run()
+        # print(results)
+        # results.save("tmp.bcktst")
+
+
+    def test_integration2(self):
+        """
+        This test will verify if the results are accurate
+        """
         data = [
             {
-                "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1h.csv", index_col="Datetime"), name="AAPL-1h"),
-                "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1h.csv", index_col="Datetime"), name="NVDA-1h")
+                "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"), name="AAPL-dh"),
+                "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"), name="NVDA-dh")
             }
         ]
-        backtest = BackTest(data, MyStrategy(), main_timestep=1, initial_cash=10_000, commission=10.,
-                            metadata=metadata, margin_interest=10,
-                            time_res_extender=BasicExtender("1d") + BasicExtender("1w"),
-                            cash_controller=MyCashController())
+        backtest = BackTest(data, ComplexGoodStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
+                            default_short_rate=20., default_shortable=True, default_marginable=True,
+                            cash_controller=WeekCashController())
 
         results = backtest.run()
         print(results)
-        results.save("tmp.bcktst")
-
-
-# NVDA: 5 shares at 452.81
-# AAPL: 12  shares at 194.20
-# NVDA: 5 shares at 483.57
-# NVDA: 4 shares at 495.12
-
-# End:
-# NVDA price: 785.27 total: 10993.78, cost: 6658.38; final profit: 4335.4
-# AAPL price: 184.48 total: 2213.76, cost: 2330.4; final profit: -116.8
 

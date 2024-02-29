@@ -150,10 +150,10 @@ class TestBroker(TestCase):
         self.assertEqual(broker._queued_trade_offers[0], expected)
 
         # Test sell_long
-        broker.sell_long("AAPL", 100, 100, datetime(2021, 1, 15),
+        broker.sell_long("AAPL", 200, datetime(2021, 1, 15),
                         price_limit=(95, 150))
         expected = SellLongOrder(datetime(2021, 1, 1),"AAPL", (95, 150),
-                                100, 100, datetime(2021, 1, 15))
+                                200, 0, datetime(2021, 1, 15))
         self.assertEqual(broker._queued_trade_offers[1], expected)
 
         # Test buy_short
@@ -983,7 +983,7 @@ class TestBroker(TestCase):
 
         # Now we will try to sell short a position with less margin than authorized
         order = TradeOrder(datetime(2021, 1, 1), security_names[0], (100, None), 0,
-                           800, TradeType.SellShort, datetime(2021, 1, 1))
+                           3000, TradeType.SellShort, datetime(2021, 1, 1))
         self.assertRaises(RuntimeError, broker_abs.make_trade, order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),
                             marginable=True, shortable=True)
         self.assertRaises(RuntimeError, broker_rel.make_trade,order, security_price=tuple(prices[0]), timestamp=datetime(2021, 1, 2),

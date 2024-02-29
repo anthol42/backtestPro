@@ -274,9 +274,9 @@ class Broker:
         self._queued_trade_offers.append(BuyLongOrder(self._current_timestamp, ticker, price_limit, amount,
                                                       amount_borrowed, expiry))
 
-    def sell_long(self, ticker: str, amount: int, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
+    def sell_long(self, ticker: str, amount: int, expiry: Optional[datetime] = None,
                  price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
-        self._queued_trade_offers.append(SellLongOrder(self._current_timestamp, ticker, price_limit, amount, amount_borrowed, expiry))
+        self._queued_trade_offers.append(SellLongOrder(self._current_timestamp, ticker, price_limit, amount, 0, expiry))
 
     def sell_short(self, ticker: str, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
                  price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
@@ -288,7 +288,7 @@ class Broker:
 
     def tick(self, timestamp: datetime, next_timestamp, security_names: List[str], current_tick_data: np.ndarray,
              next_tick_data: np.ndarray, marginables: npt.NDArray[bool], dividends: npt.NDArray[np.float32],
-             div_freq: List[DividendFrequency], short_rates: npt.NDArray[np.float32]):
+             div_freq: List[DividendFrequency], short_rates: npt.NDArray[np.float32], last_day: bool = False):
         """
         The simulation calls this method after the strategy has run.  It will calculate interests and margin call if
         applicable.  It will do trades that can be done in the trade queue at the next open.
@@ -307,6 +307,8 @@ class Broker:
                             current step.
         :param div_freq: The frequency that the security is paying dividends.
         :param short_rates: The interest rates for each security that the user held overnight.  Shape(n_securities, )
+        :param last_day: Wheter or not it is the last day of the simulation.  If it is, the broker will liquidate all
+                            positions and charge interests.
         :return: None
         """
 
@@ -329,6 +331,14 @@ class Broker:
             if not self.portfolio.empty():
                 self.exposure_time += (timestamp - self._last_step).total_seconds() / 86_400
 
+        if last_day:
+            # If it is the last day, we charge interests and liquidate all positions.  We do not update
+            self._charge_interests(timestamp)
+            filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
+            worth = self._get_worth(security_names, current_tick_data)
+            self.historical_states[-1].filled_orders += filled_orders
+            self.historical_states[-1].worth = worth
+            self.historical_states[-1].pending_orders = self._queued_trade_offers
 
         # Step 1: Get the total borrowed money, cash and portfolio worth
         borrowed_money = self._get_borrowed_money()
@@ -356,13 +366,13 @@ class Broker:
         # Step 5: Liquidate expired margin calls
         self._liquidate_expired_mc(timestamp, security_names, next_tick_data)
 
-        # Step 6: Execute trades that can be executed
-        filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
-
-        # Step 7: Charge interests if it's the first day of the month
+        # Step 6: Charge interests if it's the first day of the month
         # Interest are deducted from account.  If there is not enough money in the account to payout interests,
         # the account, we create a new margin call for missing funds and interests will be charged on these because.
         self._charge_interests(timestamp)
+
+        # Step 7: Execute trades that can be executed
+        filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
 
         # Step 8: Save states
         self.historical_states.append(
@@ -391,7 +401,7 @@ class Broker:
             # We sell at this price if it is long
             long, _ = self.portfolio[ticker]  # Can be long AND short even though it does not make that much sense
             if long is not None:
-                self.sell_long(ticker, long.amount, 0, None, (None, None))
+                self.sell_long(ticker, long.amount, None, (None, None))
 
         # Short evaluation and liquidation
         if self.message.margin_calls.get("short margin call") and self.message.margin_calls["short margin call"].time_remaining == -1:
@@ -835,11 +845,11 @@ class Broker:
                     cash = self.portfolio.estimateCost(price[0], amount, sell=True) - self._debt_record[pos.ticker]
                     call_amount -= cash
                     mask[idx] = True
-                    self.sell_long(pos.ticker, pos.amount, 0, None, (None, None))
+                    self.sell_long(pos.ticker, pos.amount, None, (None, None))
                 else:
                     pos = positions[delta_inf.argmin()]
                     # Sell this security
-                    self.sell_long(pos.ticker, pos.amount, 0, None, (None, None))
+                    self.sell_long(pos.ticker, pos.amount, None, (None, None))
                     call_amount = 0
 
                 liquidated_long += 1
@@ -1047,7 +1057,7 @@ class Broker:
                 total = self.portfolio.estimateCost(price, order.amount_borrowed, sell=True)
 
                 # Verify if we have enough margin to make the trade
-                if self.account.get_cash() / total > 1 + self.min_initial_margin_short:
+                if self.account.get_cash() / total > self.min_initial_margin_short:
                     money = self.portfolio.trade(order.convertToTrade(price, timestamp, str(self.n)))
                     self.account.deposit(money, timestamp, transaction_id=str(self.n))
                     if self._relative:
@@ -1060,9 +1070,9 @@ class Broker:
                     return True
                 else:
                     raise RuntimeError(f"Not enough margin to execute the trade.  "
-                                       f"Got: {self.account.get_cash() / total} "
+                                       f"Got: {(self.account.get_cash() + total) / total} "
                                        f"but the minimum intial margin is: "
-                                       f"{1 + self.min_initial_margin}")
+                                       f"{1 + self.min_initial_margin_short}")
             else:
                 return False
         elif order.trade_type == TradeType.BuyShort:

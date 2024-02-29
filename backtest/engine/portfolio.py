@@ -430,7 +430,7 @@ class Portfolio:
                 3. Compute the worth of the trade
             """
             if trade.security in self._short:
-                self._short[trade.security] += trade.amount_borrowed
+                self._short[trade.security] += trade
             else:
                 self._short[trade.security] = Position(trade.security, trade.amount_borrowed, False,
                                                        trade.security_price, trade.timestamp, 0)
