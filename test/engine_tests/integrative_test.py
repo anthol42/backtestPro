@@ -110,7 +110,9 @@ class TestIntegration(TestCase):
         ]
         backtest = BackTest(data, ComplexBadStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
                             default_short_rate=20., default_shortable=True, default_marginable=True,
-                            cash_controller=SimpleCashController())
+                            # cash_controller=SimpleCashController(every_month=-10_000),
+                            min_maintenance_margin_short=25)
 
         results = backtest.run()
         print(results)
+        results.save("tmp.bcktst")

@@ -215,7 +215,7 @@ class Broker:
         if min_maintenance_margin_short > 1. or min_maintenance_margin_short < 0.:
             raise ValueError(f"Minimum maintenance margin for short must be between 0 and 1.  Got: {min_maintenance_margin_short}")
 
-        if min_maintenance_margin_short >= min_initial_margin_short:
+        if min_maintenance_margin_short > min_initial_margin_short:
             raise ValueError(f"Minimum maintenance margin for short must be smaller or equal than minimum initial margin for short. ")
 
 
@@ -265,6 +265,7 @@ class Broker:
             "long_collateral_contribution": {},
             "short_collateral_contribution": {},
         }
+        self.filled_orders = []
 
     def set_current_timestamp(self, timestamp: datetime):
         self._current_timestamp = timestamp
@@ -382,13 +383,14 @@ class Broker:
         # Step 6: Liquidate expired margin calls
         self._liquidate_expired_mc(timestamp, security_names, next_tick_data)
 
-        # Step 7: Execute trades that can be executed
-        filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
-
-        # Step 8: Save states
+        # Step 7: Save states
         self.historical_states.append(
-            StepState(timestamp, worth, self._queued_trade_offers, filled_orders, self.message.margin_calls)
+            StepState(timestamp, worth, deepcopy(self._queued_trade_offers),
+                      deepcopy(self.filled_orders), deepcopy(self.message.margin_calls))
         )
+
+        # Step 8: Execute trades that can be executed
+        self.filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
 
         # Update states
         self._last_day = timestamp.date()

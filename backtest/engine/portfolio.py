@@ -645,7 +645,7 @@ class Portfolio:
         total_gains = abs_profit[abs_profit >= 0].sum()
         total_losses = abs_profit[abs_profit < 0].sum()
         rel_profit = np.array(rel_profit, dtype=np.float32)
-        if len(rel_profit) == 0:
+        if len(rel_profit) < 2:
             sqn = None
         else:
             sqn = np.sqrt(self.get_trade_count(exit_only=True)) * (rel_profit.mean() / 100) / (

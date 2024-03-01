@@ -40,8 +40,8 @@ class WeekCashController(CashControllerBase):
 class ComplexBadStrategy(Strategy):
     """
     Hard coded strategy for testing purposes.
-    Buy NVDA short at the worst time, lose all money, trigger a margin call liquidation, wait for bankruptcy.
+    Buy NVDA short at the worst time, lose all money, trigger a margin call liquidation to cause a bankruptcy.
     """
     def run(self, data: RecordsBucket, timestep: datetime):
         if timestep == datetime(2023, 11, 1):
-            print("Selling NVDA short")
+            self.broker.sell_short("NVDA", 400, price_limit=(429., None))    # Will sell on the 2nd of November at $429
