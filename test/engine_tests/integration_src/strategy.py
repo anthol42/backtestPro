@@ -10,8 +10,6 @@ class ComplexGoodStrategy(Strategy):
     Buy NVDA long with margin and AAPL short.
     This won't try any margin call nor bankruptcy.
     """
-    def __init__(self):
-        super().__init__()
     def run(self, data: RecordsBucket, timestep: datetime):
 
         # NVDA
@@ -38,3 +36,12 @@ class WeekCashController(CashControllerBase):
     def every_week(self, timestamp: datetime) -> Tuple[float, str]:
         return 100, "Weekly deposit"
 
+
+class ComplexBadStrategy(Strategy):
+    """
+    Hard coded strategy for testing purposes.
+    Buy NVDA short at the worst time, lose all money, trigger a margin call liquidation, wait for bankruptcy.
+    """
+    def run(self, data: RecordsBucket, timestep: datetime):
+        if timestep == datetime(2023, 11, 1):
+            print("Selling NVDA short")

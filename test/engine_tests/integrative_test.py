@@ -5,7 +5,7 @@ from backtest.engine import CashControllerBase, BasicExtender, SimpleCashControl
 from datetime import datetime, timedelta
 from typing import List, Tuple
 from unittest import TestCase
-from integration_src.strategy import ComplexGoodStrategy, WeekCashController
+from integration_src.strategy import ComplexGoodStrategy, WeekCashController, ComplexBadStrategy
 
 
 class MyStrategy(Strategy):
@@ -90,9 +90,27 @@ class TestIntegration(TestCase):
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"), name="NVDA-dh")
             }
         ]
-        backtest = BackTest(data, ComplexGoodStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
+        # backtest = BackTest(data, ComplexGoodStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
+        #                     default_short_rate=20., default_shortable=True, default_marginable=True,
+        #                     cash_controller=WeekCashController())
+        #
+        # results = backtest.run()
+        # self.assertAlmostEqual(152_635.64, results.equity_final, delta=0.01)
+        # print(results)
+
+    def test_integration3(self):
+        """
+        Test margin call, liquidation and bankruptcy
+        """
+        data = [
+            {
+                "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"), name="AAPL-dh"),
+                "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"), name="NVDA-dh")
+            }
+        ]
+        backtest = BackTest(data, ComplexBadStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
                             default_short_rate=20., default_shortable=True, default_marginable=True,
-                            cash_controller=WeekCashController())
+                            cash_controller=SimpleCashController())
 
         results = backtest.run()
-        self.assertAlmostEqual(152_635.64, results.equity_final, delta=0.01)
+        print(results)

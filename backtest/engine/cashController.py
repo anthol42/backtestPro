@@ -77,7 +77,7 @@ class CashControllerBase(ABC):
         if amount > 0:
             self.account.deposit(amount, dt, comment=comment)
         elif amount < 0:
-            self.account.withdraw(-amount, dt, comment=comment)
+            self.account.withdrawal(-amount, dt, comment=comment)
 
     def every_day(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
         """
@@ -118,25 +118,25 @@ class SimpleCashController(CashControllerBase):
         self.every_year_amount = every_year
 
     def every_day(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
-        if self.every_day_amount > 0:
+        if self.every_day_amount != 0:
             return self.every_day_amount, "Daily deposit"
         else:
             return 0., None
 
     def every_week(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
-        if self.every_week_amount > 0:
+        if self.every_week_amount != 0:
             return self.every_week_amount, "Weekly deposit"
         else:
             return 0., None
 
     def every_month(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
-        if self.every_month_amount > 0:
+        if self.every_month_amount != 0:
             return self.every_month_amount, "Monthly deposit"
         else:
             return 0., None
 
     def every_year(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
-        if self.every_year_amount > 0:
+        if self.every_year_amount != 0:
             return self.every_year_amount, "Yearly deposit"
         else:
             return 0., None
