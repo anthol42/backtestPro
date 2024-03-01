@@ -76,7 +76,6 @@ class TestIntegration(TestCase):
                             cash_controller=MyCashController())
 
         results = backtest.run()
-        print(results)
 
 
     def test_integration2(self):
@@ -89,9 +88,13 @@ class TestIntegration(TestCase):
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"), name="NVDA-dh")
             }
         ]
+        index = TSData(pd.read_csv("test_data/SPY_6mo_1d.csv", index_col="Date"), name="SPY",
+                       div_freq=DividendFrequency.NO_DIVIDENDS, time_res=timedelta(days=1))
+
         backtest = BackTest(data, ComplexGoodStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
                             default_short_rate=20., default_shortable=True, default_marginable=True,
-                            cash_controller=WeekCashController())
+                            cash_controller=WeekCashController(),
+                            market_index=index)
 
         results = backtest.run()
         self.assertAlmostEqual(152_635.64, results.equity_final, delta=0.01)

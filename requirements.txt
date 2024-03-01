@@ -4,3 +4,4 @@ matplotlib
 psutil
 py-cpuinfo
 mplfinance
+tqdm
