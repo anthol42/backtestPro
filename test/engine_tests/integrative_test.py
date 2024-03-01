@@ -96,5 +96,5 @@ class TestIntegration(TestCase):
 
         results = backtest.run()
         results.save("tmp.bcktst")
-        print(results)
+        self.assertAlmostEqual(152_635.64, results.equity_final, delta=0.01)
 
