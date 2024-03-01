@@ -244,6 +244,10 @@ class BackTest:
                 last_timestep = timestep
 
             self.step(i, timestep, timesteps_list[i + self.window + 1])
+            if self.broker.message.bankruptcy:
+                print(f"\033[38;5;203mTHE STRATEGY WENT BANKRUPT!\033[0m\n")
+                break
+
 
         if self.sell_at_the_end:
             self._sell_all(timesteps_list[-1])
@@ -255,10 +259,15 @@ class BackTest:
             market_worth[0] = self.market_index.data["Open"].loc[timesteps_list[self.window]]
         else:
             market_worth = None
+
+        if self.broker.message.bankruptcy:
+            last_timestep = timestep
+        else:
+            last_timestep = timesteps_list[-1]
         self.results = BackTestResult(self.metadata.strategy_name,
                                       metadata=self.metadata,
                                       start=timesteps_list[self.window],
-                                      end=timesteps_list[-1],
+                                      end=last_timestep,
                                       intial_cash=self._initial_cash,
                                       added_cash=self.cash_controller._total_deposited,
                                       market_index=market_worth,
