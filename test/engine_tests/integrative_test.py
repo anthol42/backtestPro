@@ -1,7 +1,7 @@
 import pandas as pd
 
 from backtest import BackTest, Strategy, Metadata, TSData, DividendFrequency, Record, Records, RecordsBucket
-from backtest.engine import CashController, BasicExtender
+from backtest.engine import CashControllerBase, BasicExtender, SimpleCashController
 from datetime import datetime, timedelta
 from typing import List, Tuple
 from unittest import TestCase
@@ -52,7 +52,7 @@ class MyStrategy(Strategy):
                 records.update_features()
         return data
 
-class MyCashController(CashController):
+class MyCashController(CashControllerBase):
     def every_month(self, timestamp: datetime) -> Tuple[float, str]:
         return 1000, "Monthly deposit"
 

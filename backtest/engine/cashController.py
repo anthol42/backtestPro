@@ -15,7 +15,7 @@ class CashControllerTimeframe(Enum):
     def __str__(self):
         return self.value
 
-class CashController(ABC):
+class CashControllerBase(ABC):
     """
     Children of this class are used to control the money flow in and out of the account during the backtest.
     Each method are called at the beginning of the time period (day, week, month, year) and the user can decide to
@@ -102,3 +102,41 @@ class CashController(ABC):
         This method is called every year during the backtest.
         """
         return 0., None
+
+
+class SimpleCashController(CashControllerBase):
+    """
+    This class is a simple cash controller that will deposit ow withdraw a fixed amount of money at the beginning of
+    every period.  If a period's amount is 0 (Default), it won't deposit or withdraw funds.
+    """
+
+    def __init__(self, every_day: float = 0., every_week: float = 0., every_month: float = 0., every_year: float = 0.):
+        super().__init__()
+        self.every_day_amount = every_day
+        self.every_week_amount = every_week
+        self.every_month_amount = every_month
+        self.every_year_amount = every_year
+
+    def every_day(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
+        if self.every_day_amount > 0:
+            return self.every_day_amount, "Daily deposit"
+        else:
+            return 0., None
+
+    def every_week(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
+        if self.every_week_amount > 0:
+            return self.every_week_amount, "Weekly deposit"
+        else:
+            return 0., None
+
+    def every_month(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
+        if self.every_month_amount > 0:
+            return self.every_month_amount, "Monthly deposit"
+        else:
+            return 0., None
+
+    def every_year(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
+        if self.every_year_amount > 0:
+            return self.every_year_amount, "Yearly deposit"
+        else:
+            return 0., None

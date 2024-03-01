@@ -14,7 +14,7 @@ from .tsData import DividendFrequency
 from tqdm import tqdm
 import warnings
 from .metadata import Metadata
-from .cashController import CashController, CashControllerTimeframe
+from .cashController import CashControllerBase, CashControllerTimeframe
 from .time_resolution_extenders import TimeResExtender
 
 class UnexpectedBehaviorRisk(Warning):
@@ -36,7 +36,7 @@ class BackTest:
                  risk_free_rate: float = 1.5,
                  default_short_rate: float = 1.5,
                  sell_at_the_end: bool = True,
-                 cash_controller: CashController = CashController(),
+                 cash_controller: CashControllerBase = CashControllerBase(),
                  verbose=3,
                  time_res_extender: Optional[TimeResExtender] = None):
 

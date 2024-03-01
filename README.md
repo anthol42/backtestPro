@@ -9,7 +9,7 @@ Features are not implemented yet, but will be one day.
 - Take into account:
   - Trading fees
   - Short splits
-  - Dividends (TODO)
+  - Dividends
 - See trades done with Strategy using two engine MatPlotLib or FinCharts.
 - Margin trading and short selling
 - Customizable
@@ -17,7 +17,7 @@ Features are not implemented yet, but will be one day.
 ## TODO
 - [X] Add a way to dynamically preprocess data to extend the number of time resolutions
 - [X] Add a method in the strategy that can preprocess the data to add indicators on the fly.
-- [ ] Test multiple cases (integrative testing) to see if money and performances are accurately computed
+- [X] Test multiple cases (integrative testing) to see if money and performances are accurately computed
 - [ ] Test margin investing, margin call and short selling.
 
 

@@ -1,5 +1,5 @@
 from backtest import BackTest, Strategy, Metadata, TSData, DividendFrequency, Record, Records, RecordsBucket
-from backtest.engine import CashController, BasicExtender
+from backtest.engine import CashControllerBase, BasicExtender
 from datetime import datetime, timedelta
 from typing import List, Tuple
 
@@ -34,7 +34,7 @@ class ComplexGoodStrategy(Strategy):
         if timestep == datetime(2024, 2, 1):
             self.broker.buy_short("AAPL", 200)    # Will buy on the 2nd of February at $179.6308
 
-class WeekCashController(CashController):
+class WeekCashController(CashControllerBase):
     def every_week(self, timestamp: datetime) -> Tuple[float, str]:
         return 100, "Weekly deposit"
 
