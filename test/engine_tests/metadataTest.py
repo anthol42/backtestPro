@@ -1,8 +1,8 @@
 from unittest import TestCase
-from backtest.engine.metadata import Metadata
+from src.backtest.engine import Metadata
 from datetime import timedelta
 from copy import deepcopy
-from backtest.engine.strategy import Strategy
+from src.backtest.engine import Strategy
 import subprocess
 
 try:

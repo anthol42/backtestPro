@@ -20,7 +20,7 @@ from .time_resolution_extenders import TimeResExtender
 class UnexpectedBehaviorRisk(Warning):
     pass
 
-class BackTest:
+class Backtest:
     def __init__(self, data: List[Dict[str, TSData]], strategy: Strategy, *, metadata: Metadata = Metadata(),
                  market_index: TSData = None,
                  main_timestep: int = 0,

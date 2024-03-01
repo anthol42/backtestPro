@@ -1,14 +1,14 @@
 from unittest import TestCase
 import pandas as pd
-from backtest.engine.portfolio import Position
+from src.backtest.engine import Position
 import numpy as np
 from datetime import datetime, timedelta
-from backtest.engine.tsData import TSData
-from backtest.engine.strategy import Strategy
+from src.backtest.engine import TSData
+from src.backtest.engine import Strategy
 from typing import List
-from backtest.engine.record import Record
-from backtest.engine.tsData import DividendFrequency
-from backtest.engine.backtest import BackTest
+from src.backtest.engine import Record
+from src.backtest.engine import DividendFrequency
+from src.backtest.engine import Backtest
 from copy import deepcopy
 
 
@@ -22,7 +22,7 @@ class TestBacktest(TestCase):
         data = [
             {"AAPL": TSData(DATA, name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY)}
         ]
-        bcktst = BackTest(data, MyStrat())
+        bcktst = Backtest(data, MyStrat())
         # Make fake data with split
 
         hist = pd.DataFrame(data=[
@@ -95,7 +95,7 @@ class TestBacktest(TestCase):
             "NVDA": TSData(pd.read_csv("test_data/NVDA_1y_5d.csv", index_col="Date"),
                            name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS)}
         ]
-        bcktst = BackTest(data, MyStrat())
+        bcktst = Backtest(data, MyStrat())
         actual = bcktst.default_forge_last_candle(data, 1,
                                                 datetime.fromisoformat("2024-01-09 00:00:00"), 0)
         expected = [
@@ -140,7 +140,7 @@ class TestBacktest(TestCase):
         data[0]["NVDA"].data["Stock Splits"].loc["2024-01-03 00:00:00"] = 0.25
         data[1]["NVDA"].data["Stock Splits"].loc["2024-01-03 00:00:00"] = 0.25
 
-        bcktst = BackTest(data, MyStrat())
+        bcktst = Backtest(data, MyStrat())
         # Reverse split normalization
         for i in range(2):
             for ticker in data[i].keys():
@@ -334,7 +334,7 @@ class TestBacktest(TestCase):
         data[0]["NVDA"].data["Stock Splits"].loc["2024-01-03 00:00:00"] = 0.25
         data[1]["NVDA"].data["Stock Splits"].loc["2024-01-03 00:00:00"] = 0.25
 
-        bcktst = BackTest(deepcopy(data), MyStrat())
+        bcktst = Backtest(deepcopy(data), MyStrat())
 
         features, tickers, timesteps_list = bcktst._initialize_bcktst()
         expected_features = [
@@ -384,7 +384,7 @@ class TestBacktest(TestCase):
                                name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
             }
         ]
-        bcktst = BackTest(deepcopy(data), MyStrat(), main_timestep=1, window=3, verbose=1)
+        bcktst = Backtest(deepcopy(data), MyStrat(), main_timestep=1, window=3, verbose=1)
         bcktst._initialize_bcktst()
         actual = bcktst._prep_data(datetime.fromisoformat('2024-01-09 00:00:00'))
 
@@ -460,7 +460,7 @@ class TestBacktest(TestCase):
                                name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
             }
         ]
-        bcktst = BackTest(deepcopy(data), MyStrat(), main_timestep=1, window=3, verbose=1)
+        bcktst = Backtest(deepcopy(data), MyStrat(), main_timestep=1, window=3, verbose=1)
         bcktst._initialize_bcktst()
         main_ts_data = bcktst._prep_data(datetime.fromisoformat('2024-01-09 00:00:00'))[1]
         main_ts_data[0].chart = None
@@ -495,7 +495,7 @@ class TestBacktest(TestCase):
         data[1]["NVDA"].data["Short_rate"].loc[:"2024-01-08"] = 0.0
         pd.options.mode.chained_assignment = 'warn'
 
-        bcktst = BackTest(deepcopy(data), MyStrat(), main_timestep=1, window=3, verbose=1, default_short_rate=0.)
+        bcktst = Backtest(deepcopy(data), MyStrat(), main_timestep=1, window=3, verbose=1, default_short_rate=0.)
         bcktst._initialize_bcktst()
         prepared_data = bcktst._prep_data(datetime.fromisoformat('2024-01-09 00:00:00'))[1]
         current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names = bcktst._prep_brokers_data(prepared_data)
@@ -549,7 +549,7 @@ class TestBacktest(TestCase):
                                name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
             }
         ]
-        bcktst = BackTest(deepcopy(data), MyStrat(), main_timestep=1, window=3, verbose=1)
+        bcktst = Backtest(deepcopy(data), MyStrat(), main_timestep=1, window=3, verbose=1)
         bcktst._initialize_bcktst()
         bcktst.broker._debt_record["NVDA"] = 0
         bcktst.broker.portfolio._long = {

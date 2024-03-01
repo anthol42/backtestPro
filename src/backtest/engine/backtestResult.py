@@ -12,7 +12,7 @@ from typing import Union, List, Dict
 import json
 from pathlib import PurePath
 from .utils import *
-import backtest
+from . import backtest
 from typing import Optional
 
 class Period(Enum):

@@ -76,7 +76,7 @@ class Metadata:
             self.code = None
 
     def __str__(self):
-        return f"Strategy Name: {self.name}\n\tDescription: {self.description}\n\tAuthor: {self.author}\n\tVersion: {self.version}"
+        return f"Strategy Name: {self.strategy_name}\n\tDescription: {self.description}\n\tAuthor: {self.author}\n\tVersion: {self.version}"
 
     @staticmethod
     def get_git_author() -> str:
@@ -85,7 +85,7 @@ class Metadata:
         :return: git author name
         """
         try:
-            return subprocess.check_output(["git", "config", "user.name"]).decode("utf-8").strip()
+            return subprocess.check_output(["git", "config", "user.name"], stderr=subprocess.DEVNULL).decode("utf-8").strip()
         except:
             return "Unknown"
 
@@ -125,7 +125,7 @@ class Metadata:
         :return: git commit hash
         """
         try:
-            return subprocess.check_output(["git", "log", "-n", "1"]).decode("utf-8").rstrip()
+            return subprocess.check_output(["git", "log", "-n", "1"], stderr=subprocess.DEVNULL).decode("utf-8").rstrip()
         except:
             return "Unknown"
 

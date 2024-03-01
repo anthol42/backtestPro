@@ -1,5 +1,5 @@
 from unittest import TestCase
-from backtest.engine.tsData import TSData, DividendFrequency
+from src.backtest.engine import TSData, DividendFrequency
 import pandas as pd
 from datetime import timedelta
 

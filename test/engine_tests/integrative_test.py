@@ -1,9 +1,9 @@
 import pandas as pd
 
-from backtest import BackTest, Strategy, Metadata, TSData, DividendFrequency, Record, Records, RecordsBucket
-from backtest.engine import CashControllerBase, BasicExtender
+from src.backtest import Backtest, Strategy, Metadata, TSData, DividendFrequency, RecordsBucket
+from src.backtest.engine import CashControllerBase, BasicExtender
 from datetime import datetime, timedelta
-from typing import List, Tuple
+from typing import Tuple
 from unittest import TestCase
 from integration_src.strategy import ComplexGoodStrategy, WeekCashController, ComplexBadStrategy, BadCashController
 
@@ -70,7 +70,7 @@ class TestIntegration(TestCase):
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1h.csv", index_col="Datetime"), name="NVDA-1h")
             }
         ]
-        backtest = BackTest(data, MyStrategy(), main_timestep=1, initial_cash=10_000, commission=10.,
+        backtest = Backtest(data, MyStrategy(), main_timestep=1, initial_cash=10_000, commission=10.,
                             metadata=metadata, margin_interest=10,
                             time_res_extender=BasicExtender("1d") + BasicExtender("1w"),
                             cash_controller=MyCashController())
@@ -91,7 +91,7 @@ class TestIntegration(TestCase):
         index = TSData(pd.read_csv("test_data/SPY_6mo_1d.csv", index_col="Date"), name="SPY",
                        div_freq=DividendFrequency.NO_DIVIDENDS, time_res=timedelta(days=1))
 
-        backtest = BackTest(data, ComplexGoodStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
+        backtest = Backtest(data, ComplexGoodStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
                             default_short_rate=20., default_shortable=True, default_marginable=True,
                             cash_controller=WeekCashController(),
                             market_index=index)
@@ -110,7 +110,7 @@ class TestIntegration(TestCase):
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"), name="NVDA-dh")
             }
         ]
-        backtest = BackTest(data, ComplexBadStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
+        backtest = Backtest(data, ComplexBadStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
                             default_short_rate=20., default_shortable=True, default_marginable=True,
                             cash_controller=BadCashController(),
                             min_maintenance_margin_short=25)

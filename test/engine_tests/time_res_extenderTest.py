@@ -1,10 +1,10 @@
-from typing import List, Dict, Final, Tuple
+from typing import Tuple
 from unittest import TestCase
 import pandas as pd
-from backtest.engine import TSData
+from src.backtest.engine import TSData
 import numpy as np
-from datetime import datetime, timedelta
-from backtest.engine.time_resolution_extenders import TimeResExtender, BasicExtender
+from datetime import timedelta
+from src.backtest.engine import TimeResExtender, BasicExtender
 from copy import deepcopy
 
 class TestTimeResExtender(TestCase):
