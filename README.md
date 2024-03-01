@@ -1,4 +1,4 @@
-# FinBackTest
+# BacktestPro
 A robust and customizable financial backtesting platform.
 
 ## Features
