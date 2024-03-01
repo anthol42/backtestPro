@@ -796,7 +796,7 @@ class TestPortfolio(TestCase):
                                                         datetime(2021, 2, 13), 0.6)})
         self.assertEqual(portfolio_abs._debt_record, {"AAPL": 0})
         self.assertEqual(portfolio_rel._debt_record, {"AAPL": 0})
-        stats_abs = TradeStats(trade5, timedelta(days=28), 41879.03, 136.7970777, 0.6)
+        stats_abs = TradeStats(trade5, timedelta(days=28), 41886.02, 136.8511572, 0.6)
         stats_rel = TradeStats(trade5, timedelta(days=28), 40469, 130.9422119, 0.6)
         self.assertEqual(portfolio_abs._trades[4].trade, stats_abs.trade)
         self.assertEqual(portfolio_abs._trades[4].duration, stats_abs.duration)
@@ -974,12 +974,12 @@ class TestPortfolio(TestCase):
             "best_trade": 199.95340542826764,
             "worst_trade": -95.13980000000001,
             "win_rate": 71.42857143,            # In percentage
-            "avg_trade": 45.36107003993146,     # In percentage
+            "avg_trade": 45.37105052103546,     # In percentage
             "max_trade_duration": 52.,    # In days
             "min_trade_duration": 14.,    # In days
             "avg_trade_duration": 33.857142857142854,    # In days
-            "profit_factor": 10.554138364918405, # Total gains / Total losses
-            "SQN": 1.3070247706570837,           # System Quality Number
+            "profit_factor": 10.554618, # Total gains / Total losses
+            "SQN": 1.3072278789073764,           # System Quality Number
         }
         self.assertAlmostEqual(expected_stats["best_trade"], portfolio.get_trade_stats()["best_trade"])
         self.assertAlmostEqual(expected_stats["worst_trade"], portfolio.get_trade_stats()["worst_trade"])

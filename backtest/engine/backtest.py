@@ -251,13 +251,19 @@ class BackTest:
 
         # Step 3: Prepare and save stats
         if self.market_index is not None:
-            market_worth = self.market_index.data["Close"].loc[timesteps_list[0]:timesteps_list[-1]].to_numpy()
-            market_worth[0] = self.market_index.data["Open"].iloc[0]
+            market_worth = self.market_index.data["Close"].loc[timesteps_list[self.window]:timesteps_list[-1]].to_numpy()
+            market_worth[0] = self.market_index.data["Open"].loc[timesteps_list[self.window]]
         else:
             market_worth = None
-        self.results = BackTestResult(self.metadata.strategy_name, metadata=self.metadata, start=timesteps_list[0],
-                                      end=timesteps_list[-1], intial_cash=self._initial_cash, added_cash=self.cash_controller._total_deposited, market_index=market_worth,
-                                      broker=self.broker, account=self.account,
+        self.results = BackTestResult(self.metadata.strategy_name,
+                                      metadata=self.metadata,
+                                      start=timesteps_list[self.window],
+                                      end=timesteps_list[-1],
+                                      intial_cash=self._initial_cash,
+                                      added_cash=self.cash_controller._total_deposited,
+                                      market_index=market_worth,
+                                      broker=self.broker,
+                                      account=self.account,
                                       risk_free_rate=self.risk_free_rate)
         end = datetime.now()
         run_duration = (end - start).total_seconds()
@@ -341,7 +347,8 @@ class BackTest:
                 close_price = dic[ticker].chart["Close"].iloc[-1]
                 self.broker.buy_short(ticker, position.amount, None, (None, close_price))
 
-        self.broker.tick(timestep, timestep, security_names, current_data, next_tick_data, marginables, dividends, div_freq, short_rate)
+        self.broker.tick(timestep, timestep, security_names, current_data, next_tick_data, marginables, dividends,
+                         div_freq, short_rate, last_tick=True)
 
     @staticmethod
     def _prepare_data(data: List[Dict[str, TSData]], current_time_res: int, timestep: datetime,

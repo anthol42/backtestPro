@@ -417,6 +417,9 @@ class Portfolio:
                 # Handle debt record
                 self._debt_record[trade.security] -= relative_debt  # Debt that has been repaid
                 self._long[trade.security] -= trade
+                # Since we included their cost in the exit, if there are still shares in the position, we won't
+                # include the transaction entry cost in the calculation of the profit for the next trade.
+                self._long[trade.security]._number_of_entry = 0
                 if self._long[trade.security].amount == 0:
                     self._long_len -= 1
 
@@ -700,7 +703,21 @@ class Portfolio:
         To check if the portfolio is empty
         :return: True if the portfolio is empty, False otherwise
         """
-        return len(self._long) == 0 and len(self._short) == 0
+        return len(self.long) == 0 and len(self.short) == 0
+
+    @property
+    def long(self):
+        """
+        Return the long positions that are not empty (amount > 0)
+        """
+        return {ticker: pos for ticker, pos in self._long.items() if pos.amount > 0}
+
+    @property
+    def short(self):
+        """
+        Return the short positions that are not empty (amount > 0)
+        """
+        return {ticker: pos for ticker, pos in self._short.items() if pos.amount > 0}
 
     def __eq__(self, other):
         return (self._long == other._long and

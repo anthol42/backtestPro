@@ -288,7 +288,7 @@ class Broker:
 
     def tick(self, timestamp: datetime, next_timestamp, security_names: List[str], current_tick_data: np.ndarray,
              next_tick_data: np.ndarray, marginables: npt.NDArray[bool], dividends: npt.NDArray[np.float32],
-             div_freq: List[DividendFrequency], short_rates: npt.NDArray[np.float32], last_day: bool = False):
+             div_freq: List[DividendFrequency], short_rates: npt.NDArray[np.float32], last_tick: bool = False):
         """
         The simulation calls this method after the strategy has run.  It will calculate interests and margin call if
         applicable.  It will do trades that can be done in the trade queue at the next open.
@@ -307,7 +307,7 @@ class Broker:
                             current step.
         :param div_freq: The frequency that the security is paying dividends.
         :param short_rates: The interest rates for each security that the user held overnight.  Shape(n_securities, )
-        :param last_day: Wheter or not it is the last day of the simulation.  If it is, the broker will liquidate all
+        :param last_tick: Whether it is the last tick of the simulation.  If it is, the broker will liquidate all
                             positions and charge interests.
         :return: None
         """
@@ -331,14 +331,25 @@ class Broker:
             if not self.portfolio.empty():
                 self.exposure_time += (timestamp - self._last_step).total_seconds() / 86_400
 
-        if last_day:
-            # If it is the last day, we charge interests and liquidate all positions.  We do not update
+        if last_tick:
+            # If it is the last day, we charge interests and liquidate all positions.
+            # 1. Manage interests
+            borrowed_money = self._get_borrowed_money()
+            self._update_interests(timestamp, borrowed_money)
+            self._update_interests_short(timestamp, next_timestamp, security_names, current_tick_data, short_rates)
             self._charge_interests(timestamp)
+
+            # 2. Pay missing funds and update collateral in order to sell accurately the positions
+            self._pay_missing_funds(timestamp)
+            self._update_account_collateral(timestamp, security_names, current_tick_data)
+            # 3. Sell
             filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
             worth = self._get_worth(security_names, current_tick_data)
-            self.historical_states[-1].filled_orders += filled_orders
-            self.historical_states[-1].worth = worth
-            self.historical_states[-1].pending_orders = self._queued_trade_offers
+            # 4. Save
+            self.historical_states.append(
+                StepState(timestamp, worth, self._queued_trade_offers, filled_orders, self.message.margin_calls)
+            )
+            return   # We do not update the account collateral and interests since the backtest is done
 
         # Step 1: Get the total borrowed money, cash and portfolio worth
         borrowed_money = self._get_borrowed_money()
