@@ -37,3 +37,4 @@ class ComplexGoodStrategy(Strategy):
 class WeekCashController(CashController):
     def every_week(self, timestamp: datetime) -> Tuple[float, str]:
         return 100, "Weekly deposit"
+

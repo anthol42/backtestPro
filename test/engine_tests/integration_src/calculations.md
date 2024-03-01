@@ -50,18 +50,22 @@ Short interest: 20%
 
 ## Calculate margin interests
 ### NVDA
-1. November: 44 026.12972 * 27d * 10% / 365d = 325.6727504
-2. December: 44 026.12972 * 13d * 10% / 365d + 22 008.06486 * 19d * 10% / 365d = 271.3679229
-2. January: 22 008.06486 * 3d * 10% / 365d + 34 123.56474 * 26d * 10% / 365d = 261.1607884
-3. February: 34 123.56474 * 7d * 10% / 365d = 65.44245293
+1. November: 44 016.13 * 28d * 10% / 365d = 337.6580
+2. December: 44 016.13 * 13d * 10% / 365d + 22 008.065 * 16d * 10% / 365d = 253.2434 # 16 days because the last trading days in december was the 29th.  The remaining 3 days are charged in January
+2. January: 22 008.065 * 6d * 10% / 365d + 34 123.565 * 27d * 10% / 365d = 288.5985
+3. February: 34 123.565 * 6d * 10% / 365d = 56.0926
 
 ### AAPL
-Ain't now way  calculate this by hand : The value was found from implementation 
+Ain't now way  calculate this by hand : The value was found from implementation  by running the backtest
 (Anyway, it was already tested in unittests)
+1. November: 0
+2. December: 426.3514
+3. January: 422.0472
+4. February: 20.4526
 
 ## Calculate dividends
 ### NVDA
-December dividend payout: 39d/90d * 200 stocks * 0.04$ = 3.4666666666667$
+December dividend payout: 33d/90d * 200 stocks * 0.04$ = 2.93$
 
 ### Calculate account worth at every changed moment
 Note: 100$ is deposit every week in the account

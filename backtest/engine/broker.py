@@ -337,7 +337,7 @@ class Broker:
             borrowed_money = self._get_borrowed_money()
             self._update_interests(timestamp, borrowed_money)
             self._update_interests_short(timestamp, next_timestamp, security_names, current_tick_data, short_rates)
-            self._charge_interests(timestamp)
+            self._charge_interests(timestamp, force=True)
 
             # 2. Pay missing funds and update collateral in order to sell accurately the positions
             self._pay_missing_funds(timestamp)
@@ -360,27 +360,27 @@ class Broker:
         # Evaluate the worth of the portfolio
         worth = self._get_worth(security_names, current_tick_data)
 
-        # Step 2: If the portfolio has borrowed money: we calculate current interests and add them to monthly interests.
+        # Step 2: Charge interests if it's the first day of the month
+        # Interest are deducted from account.  If there is not enough money in the account to payout interests,
+        # the account, we create a new margin call for missing funds and interests will be charged on these because.
+        self._charge_interests(timestamp)
+
+        # Step 3: If the portfolio has borrowed money: we calculate current interests and add them to monthly interests.
         # Interest rates are calculated daily but charged monthly.
         self._update_interests(timestamp, borrowed_money)
         self._update_interests_short(timestamp, next_timestamp, security_names, current_tick_data, short_rates)
 
-        # Step 3: Update the account collateral after paying debts and interests, if it wasn't paid the previous steps
+        # Step 4: Update the account collateral after paying debts and interests, if it wasn't paid the previous steps
         self._pay_missing_funds(timestamp)
         self._update_account_collateral(timestamp, security_names, current_tick_data)
 
 
-        # Step 4: If there is borrowed money, reduce the delay of margin calls.  (It is normal that newly initialized
+        # Step 5: If there is borrowed money, reduce the delay of margin calls.  (It is normal that newly initialized
         # margin call's delay will already be reduced.  It is took into account in the liquidation process)
         self._decrement_margin_call()
 
-        # Step 5: Liquidate expired margin calls
+        # Step 6: Liquidate expired margin calls
         self._liquidate_expired_mc(timestamp, security_names, next_tick_data)
-
-        # Step 6: Charge interests if it's the first day of the month
-        # Interest are deducted from account.  If there is not enough money in the account to payout interests,
-        # the account, we create a new margin call for missing funds and interests will be charged on these because.
-        self._charge_interests(timestamp)
 
         # Step 7: Execute trades that can be executed
         filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
@@ -419,13 +419,14 @@ class Broker:
             self._liquidate(self.message.margin_calls["short margin call"].amount, timestamp, security_names,
                             next_tick_data)
 
-    def _charge_interests(self, timestamp: datetime):
+    def _charge_interests(self, timestamp: datetime, force: bool = False):
         """
         Charge interests to the account at each new month.  Plus it updates the current month
         :param timestamp: The date and time of the current step
+        :param force: If True, it will charge the interests even if it is not the first day of the month.  (Example: last tick)
         :return: None
         """
-        if timestamp.month != self._current_month:
+        if timestamp.month != self._current_month or force:
             self._current_month = timestamp.month
             if self.account.get_cash() > self._month_interests:
                 self.account.withdrawal(self._month_interests, timestamp, comment="Interest payment")
