@@ -1,11 +1,11 @@
 import pandas as pd
 
 from backtest import BackTest, Strategy, Metadata, TSData, DividendFrequency, Record, Records, RecordsBucket
-from backtest.engine import CashControllerBase, BasicExtender, SimpleCashController
+from backtest.engine import CashControllerBase, BasicExtender
 from datetime import datetime, timedelta
 from typing import List, Tuple
 from unittest import TestCase
-from integration_src.strategy import ComplexGoodStrategy, WeekCashController, ComplexBadStrategy
+from integration_src.strategy import ComplexGoodStrategy, WeekCashController, ComplexBadStrategy, BadCashController
 
 
 class MyStrategy(Strategy):
@@ -63,21 +63,20 @@ class TestIntegration(TestCase):
         This if everything runs smoothly without crash.
         """
         # # Create the metadata
-        # metadata = Metadata(description="Integration Test")
-        # data = [
-        #     {
-        #         "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1h.csv", index_col="Datetime"), name="AAPL-1h"),
-        #         "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1h.csv", index_col="Datetime"), name="NVDA-1h")
-        #     }
-        # ]
-        # backtest = BackTest(data, MyStrategy(), main_timestep=1, initial_cash=10_000, commission=10.,
-        #                     metadata=metadata, margin_interest=10,
-        #                     time_res_extender=BasicExtender("1d") + BasicExtender("1w"),
-        #                     cash_controller=MyCashController())
-        #
-        # results = backtest.run()
-        # print(results)
-        # results.save("tmp.bcktst")
+        metadata = Metadata(description="Integration Test")
+        data = [
+            {
+                "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1h.csv", index_col="Datetime"), name="AAPL-1h"),
+                "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1h.csv", index_col="Datetime"), name="NVDA-1h")
+            }
+        ]
+        backtest = BackTest(data, MyStrategy(), main_timestep=1, initial_cash=10_000, commission=10.,
+                            metadata=metadata, margin_interest=10,
+                            time_res_extender=BasicExtender("1d") + BasicExtender("1w"),
+                            cash_controller=MyCashController())
+
+        results = backtest.run()
+        print(results)
 
 
     def test_integration2(self):
@@ -90,13 +89,13 @@ class TestIntegration(TestCase):
                 "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"), name="NVDA-dh")
             }
         ]
-        # backtest = BackTest(data, ComplexGoodStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
-        #                     default_short_rate=20., default_shortable=True, default_marginable=True,
-        #                     cash_controller=WeekCashController())
-        #
-        # results = backtest.run()
-        # self.assertAlmostEqual(152_635.64, results.equity_final, delta=0.01)
-        # print(results)
+        backtest = BackTest(data, ComplexGoodStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
+                            default_short_rate=20., default_shortable=True, default_marginable=True,
+                            cash_controller=WeekCashController())
+
+        results = backtest.run()
+        self.assertAlmostEqual(152_635.64, results.equity_final, delta=0.01)
+        print(results)
 
     def test_integration3(self):
         """
@@ -110,9 +109,8 @@ class TestIntegration(TestCase):
         ]
         backtest = BackTest(data, ComplexBadStrategy(), initial_cash=100_000, commission=10., margin_interest=10,
                             default_short_rate=20., default_shortable=True, default_marginable=True,
-                            # cash_controller=SimpleCashController(every_month=-10_000),
+                            cash_controller=BadCashController(),
                             min_maintenance_margin_short=25)
 
         results = backtest.run()
-        print(results)
-        results.save("tmp.bcktst")
+        self.assertAlmostEqual(1109.15, results.bankruptcy_amount, delta=0.01)

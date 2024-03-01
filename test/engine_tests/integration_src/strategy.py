@@ -1,7 +1,7 @@
 from backtest import BackTest, Strategy, Metadata, TSData, DividendFrequency, Record, Records, RecordsBucket
 from backtest.engine import CashControllerBase, BasicExtender
 from datetime import datetime, timedelta
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 
 class ComplexGoodStrategy(Strategy):
@@ -45,3 +45,11 @@ class ComplexBadStrategy(Strategy):
     def run(self, data: RecordsBucket, timestep: datetime):
         if timestep == datetime(2023, 11, 1):
             self.broker.sell_short("NVDA", 400, price_limit=(429., None))    # Will sell on the 2nd of November at $429
+
+
+class BadCashController(CashControllerBase):
+    def every_day(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
+        if timestamp == datetime(2024, 1, 11):
+            return -46_683.40, "Big Withdrawal"
+        else:
+            return 0., None

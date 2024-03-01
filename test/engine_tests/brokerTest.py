@@ -32,6 +32,7 @@ class TestBrokerState(TestCase):
         state = bs.export()
         self.assertEqual(state, {
             "type": "BrokerState",
+            'bankruptcy_amount': 0,
             "margin_calls": {
                 "mc": {"type": "MarginCall", "time_remaining": 5, "amount": 10_000}
             },
@@ -43,6 +44,7 @@ class TestBrokerState(TestCase):
 
         new_bs = BrokerState.load({
             "type": "BrokerState",
+            'bankruptcy_amount': 0,
             "margin_calls": {
                 "mc": {"type": "MarginCall", "time_remaining": 5, "amount": 10_000}
             },

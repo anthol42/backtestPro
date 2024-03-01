@@ -51,6 +51,7 @@ class BackTestResult:
         self.initial_cash = intial_cash
         self.added_cash = added_cash
         self.historical_states = broker.historical_states
+        self.bankruptcy_amount = broker.message.bankruptcy_amount
 
         # Unique values
         self.start = start
@@ -100,7 +101,7 @@ class BackTestResult:
 
     def __str__(self):
         if self.broker.message.bankruptcy:
-            return (f"\033[38;5;203mTHE STRATEGY WENT BANKRUPT ON THE {self.end}\033[0m\n\n"
+            return (f"\033[38;5;203mTHE STRATEGY WENT BANKRUPT ON THE {self.end} with {round(self.broker.message.bankruptcy_amount, 2)}$ in debt\033[0m\n\n"
                     f"Backtest results for {self.strategy_name} from {self.start} to {self.end}:\n"
                     f"\tDuration:                    {self.duration}\n"
                     f"\tExposure time [days]:        {self.exposure_time}\n"
@@ -286,6 +287,7 @@ class BackTestResult:
                 "added_cash": float(self.added_cash),
                 "duration": str(self.duration),
                 "exposure_time": str(self.exposure_time),
+                "bankruptcy_amount": float(self.bankruptcy_amount) if self.bankruptcy_amount is not None else None,
                 "equity_final": float(self.equity_final),
                 "equity_peak": float(self.equity_peak),
                 "returns": float(self.returns),
@@ -344,6 +346,7 @@ class BackTestResult:
         self.start = datetime.fromisoformat(data["stats"]["start"])
         self.end = datetime.fromisoformat(data["stats"]["end"])
         self.duration = self.end - self.start
+        self.bankruptcy_amount = data["stats"]["bankruptcy_amount"]
         self.exposure_time = timedelta(seconds=float(data["stats"]["exposure_time"]))
         self.equity_final = data["stats"]["equity_final"]
         self.equity_peak = data["stats"]["equity_peak"]

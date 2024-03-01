@@ -228,6 +228,7 @@ class BackTest:
 
         # Step 2: Run the backtest
         last_timestep: Optional[datetime] = None
+        i: int = 0
         for i, timestep in enumerate(tqdm(timesteps_list[self.window:-1], desc="Backtesting...")):
             # Run the cash controller
             if last_timestep is None:
@@ -245,12 +246,20 @@ class BackTest:
 
             self.step(i, timestep, timesteps_list[i + self.window + 1])
             if self.broker.message.bankruptcy:
-                print(f"\033[38;5;203mTHE STRATEGY WENT BANKRUPT!\033[0m\n")
+                print(f"\n\n\033[38;5;203mTHE STRATEGY WENT BANKRUPT!\033[0m\n")
                 break
 
+        # Get last timestep, it could be different if the strategy went bankrupt
+        if self.broker.message.bankruptcy:
+            last_timestep = timesteps_list[i + self.window + 1]
+        else:
+            last_timestep = timesteps_list[-1]
 
         if self.sell_at_the_end:
-            self._sell_all(timesteps_list[-1])
+            self._sell_all(last_timestep)
+            # We do this because selling all positions might add a margin call of type missing_funds.
+            if "missing_funds" in self.broker.message.margin_calls:
+                self.broker.message.bankruptcy_amount = self.broker.message.margin_calls["missing_funds"].amount
 
 
         # Step 3: Prepare and save stats
@@ -260,10 +269,6 @@ class BackTest:
         else:
             market_worth = None
 
-        if self.broker.message.bankruptcy:
-            last_timestep = timestep
-        else:
-            last_timestep = timesteps_list[-1]
         self.results = BackTestResult(self.metadata.strategy_name,
                                       metadata=self.metadata,
                                       start=timesteps_list[self.window],
@@ -348,7 +353,7 @@ class BackTest:
         for ticker, position in long.items():
             if position.amount > 0:
                 close_price = dic[ticker].chart["Close"].iloc[-1]
-                self.broker.sell_long(ticker, position.amount, 0, None, (close_price, None))
+                self.broker.sell_long(ticker, position.amount, None, (close_price, None))
 
         short = self.broker.portfolio.getShort()
         for ticker, position in short.items():
