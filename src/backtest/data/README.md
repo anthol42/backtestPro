@@ -40,3 +40,8 @@ Return a new DataPipe with a updated get method that merge the two pipes.
 
 **\_\_or\_\_(other: DataPipe)**
 Uses the build method to merge the two pipes.
+
+
+
+## TODO
+- [ ] ...
