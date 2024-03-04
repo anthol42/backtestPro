@@ -1,6 +1,6 @@
 from unittest import TestCase
 from datetime import datetime
-from src.backtest.data import DataPipe, DataPipeType, PipeOutput, Fetch, Process, Collate, Cache, CacheObject, RevalidateAction
+from src.backtest.data.datapipe import DataPipe, DataPipeType, PipeOutput, CacheObject, RevalidateAction
 
 class TestDatapipe(TestCase):
     def test_piping(self):

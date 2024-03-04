@@ -6,13 +6,14 @@ import os
 import pickle
 
 class CacheObject:
-    def __init__(self, value: 'PipeOutput', pipe_id: int, next_revalidate: Optional[datetime] = None,
-                 max_request: Optional[int] = None):
+    def __init__(self, value: Any, pipe_id: int, next_revalidate: Optional[datetime] = None,
+                 max_request: Optional[int] = None, current_n_requests: int = 0):
         self.value = value
         self.pipe_id = pipe_id
         self.write_time = datetime.now()
         self.next_revalidate = next_revalidate
         self.max_request = max_request
+        self.current_n_requests = current_n_requests
 
     def store(self):
         if not os.path.exists(".cache"):
@@ -86,7 +87,6 @@ class DataPipe(ABC):
         self._flatten(flatten)
         for pipe in flatten:
             pipe._load_cache()
-
         # Step2: Run the pipeline
         out = self._run(frm, to, *args, po=None, **kwargs)
         if out is None:
@@ -147,9 +147,7 @@ class DataPipe(ABC):
                     self.cache(frm, to, *args, po=po, **kwargs)
                 # Cache is up to date, no need to run this section of the pipeline, so we return the cache.
                 else:
-                    po = self._cache.value
-                    po.set_revalidate(revalidate_action)
-                    po.set_output_from(self)
+                    po = PipeOutput(self._cache.value, self, revalidate_action=revalidate_action)
         else:
             raise NotImplementedError(f"DataPipeType {self.T} not implemented")
         return po
@@ -189,27 +187,31 @@ class DataPipe(ABC):
 
     def _load_cache(self):
         if self.T == DataPipeType.CACHE:
-            if os.path.exists(f".cache/{self._pipe_id}.pkl"):
-                self._cache = CacheObject.load(self._pipe_id)
+            self._cache = self.load()
 
     def collate(self, frm: datetime, to: datetime, *args, po1: PipeOutput, po2: PipeOutput, **kwargs) -> PipeOutput:
-        raise NotImplementedError("Collate not implemented")
+        raise NotImplementedError(f"Collate not implemented for object of type: {self.T}")
 
     def fetch(self, frm: datetime, to: datetime, *args, po: Optional[PipeOutput], **kwargs) -> PipeOutput:
-        raise NotImplementedError("Collate not implemented")
+        raise NotImplementedError(f"Fetch not implemented for object of type: {self.T}")
 
     def process(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> PipeOutput:
-        raise NotImplementedError("Collate not implemented")
+        raise NotImplementedError(f"Process not implemented for object of type: {self.T}")
 
     def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> None:
-        raise NotImplementedError("Collate not implemented")
+        raise NotImplementedError(f"Cache not implemented for object of type: {self.T}")
+
+    def load(self) -> CacheObject:
+        raise NotImplementedError(f"Load not implemented for object of type: {self.T}")
 
     def revalidate(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> RevalidateAction:
-        raise NotImplementedError("Collate not implemented")
+        raise NotImplementedError(f"Revalidate not implemented for object of type: {self.T}")
 
     def __str__(self):
         render = self._render()
         lines = render.split("\n")
+        if lines[-1] == "":
+            lines = lines[:-1]
         width = max(len(line) for line in lines)
         # Put the pipe in a bounding box
         top_line = f"┌ DataPipe({self.T}, {self.name}) "
