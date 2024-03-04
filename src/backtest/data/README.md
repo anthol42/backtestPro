@@ -44,4 +44,6 @@ Uses the build method to merge the two pipes.
 
 
 ## TODO
-- [ ] ...
+- [ ] Continue JSONEncoder and JSONDecoder to make them fully functional (+ Tests)
+- [ ] Finish the JSONCache pipe
+- [ ] Add the FetchTickers pipe to the utils
