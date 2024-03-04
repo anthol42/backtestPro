@@ -2,7 +2,29 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Union, Optional, Any
 from enum import Enum
 from datetime import datetime
-from copy import deepcopy
+import os
+import pickle
+
+class CacheObject:
+    def __init__(self, value: 'PipeOutput', pipe_id: int, next_revalidate: Optional[datetime] = None,
+                 max_request: Optional[int] = None):
+        self.value = value
+        self.pipe_id = pipe_id
+        self.write_time = datetime.now()
+        self.next_revalidate = next_revalidate
+        self.max_request = max_request
+
+    def store(self):
+        if not os.path.exists(".cache"):
+            os.makedirs(".cache")
+        with open(f".cache/{self.pipe_id}.pkl", "wb") as file:
+            pickle.dump(self, file)
+
+    @classmethod
+    def load(cls, pipe_id: int) -> 'CacheObject':
+        with open(f".cache/{pipe_id}.pkl", "rb") as file:
+            return pickle.load(file)
+
 
 class DataPipeType(Enum):
     FETCH = "FETCH"
@@ -29,6 +51,9 @@ class PipeOutput:
     def set_revalidate(self, action: 'RevalidateAction'):
         self._revalidate_action = action
 
+    def set_output_from(self, output_from: 'DataPipe'):
+        self._output_from = output_from
+
     @property
     def value(self):
         return self._value
@@ -38,7 +63,7 @@ class PipeOutput:
         return self._revalidate_action
 
     def __str__(self):
-        return f"PipeOutput({repr(self.value)}, from={self._output_from})"
+        return f"PipeOutput({repr(self.value)}, from={repr(self._output_from)})"
 
 
 class RevalidateAction(Enum):
@@ -50,10 +75,19 @@ class DataPipe(ABC):
     def __init__(self, T: DataPipeType, name: Optional[str] = None):
         self._pipes: Optional[Union[DataPipe, List[DataPipe]]] = None
         self.T = T
-        self._cache = None
+        self._cache: Optional[CacheObject] = None
         self.name = name if name is not None else self.__class__.__name__
+        self._pipe_id: int = 0    # Ids are given at built time and are deterministic given the structure of the pipe.
+
 
     def get(self, frm: datetime, to: datetime, *args, **kwargs) -> Any:
+        # Step1: Load cache from disk
+        flatten: List[DataPipe] = []    # Will become an array of references to all the pipes in the pipeline (Might not be in order)
+        self._flatten(flatten)
+        for pipe in flatten:
+            pipe._load_cache()
+
+        # Step2: Run the pipeline
         out = self._run(frm, to, *args, po=None, **kwargs)
         if out is None:
             raise ValueError(f"Pipe {self.name} returned None")
@@ -111,7 +145,9 @@ class DataPipe(ABC):
                     self.cache(frm, to, *args, po=po, **kwargs)
                 # Cache is up to date, no need to run this section of the pipeline, so we return the cache.
                 else:
-                    po = PipeOutput(self._cache, output_from=self, revalidate_action=revalidate_action)
+                    po = self._cache.value
+                    po.set_revalidate(revalidate_action)
+                    po.set_output_from(self)
         else:
             raise NotImplementedError(f"DataPipeType {self.T} not implemented")
         return po
@@ -120,6 +156,7 @@ class DataPipe(ABC):
         # new = deepcopy(other)
         new = other
         new._pipes = self
+        new._pipe_id = self._pipe_id + 1
         return new
 
     def __or__(self, other: 'DataPipe') -> 'DataPipe':
@@ -129,12 +166,34 @@ class DataPipe(ABC):
     def Collate(cls, pipe1: 'DataPipe', pipe2: 'DataPipe') -> 'DataPipe':
         new = cls(DataPipeType.COLLATE, name=f"Collate")
         new._pipes = [pipe1, pipe2]
+        new._pipe_id = pipe1._pipe_id + pipe2._pipe_id + 2
+        pipe2._increment_id(pipe1._pipe_id + 1)    # Increment the pipe_id of the second branch and all its children
         return new
+    def _increment_id(self, new_pipe_id: int):
+        flatten = []    # Will become an array of references to all the pipes in the pipeline (Might not be in order)
+        self._flatten(flatten)
+        for pipe in flatten:
+            pipe._pipe_id = new_pipe_id
+            new_pipe_id += 1
+
+    def _flatten(self, flatten_pipe: List['DataPipe']):
+        if self._pipes is not None:
+            if isinstance(self._pipes, list):
+                for pipe in self._pipes:
+                    pipe._flatten(flatten_pipe)
+            else:
+                self._pipes._flatten(flatten_pipe)
+        flatten_pipe.append(self)
+
+    def _load_cache(self):
+        if self.T == DataPipeType.CACHE:
+            if os.path.exists(f".cache/{self._pipe_id}.pkl"):
+                self._cache = CacheObject.load(self._pipe_id)
 
     def collate(self, frm: datetime, to: datetime, *args, po1: PipeOutput, po2: PipeOutput, **kwargs) -> PipeOutput:
         raise NotImplementedError("Collate not implemented")
 
-    def fetch(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> PipeOutput:
+    def fetch(self, frm: datetime, to: datetime, *args, po: Optional[PipeOutput], **kwargs) -> PipeOutput:
         raise NotImplementedError("Collate not implemented")
 
     def process(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> PipeOutput:
@@ -153,6 +212,7 @@ class DataPipe(ABC):
         # Put the pipe in a bounding box
         top_line = f"┌ DataPipe({self.T}, {self.name}) "
         top_line = top_line.ljust(width + 3, "─") + "┐"
+        width = len(top_line) - 4
         bottom_line = f"└{'─' * (len(top_line) - 2)}┘"
         lines = ["│ " + line.ljust(width) + " │" for line in [""] + lines + [""]]
         return "\n".join([top_line] + lines + [bottom_line])
@@ -162,7 +222,7 @@ class DataPipe(ABC):
 
 
     def _render(self):
-        if self.T == DataPipeType.COLLATE:
+        if self.T == DataPipeType.COLLATE and self._pipes is not None:
             pipe1 = self._pipes[0]._render()
             pipe2 = self._pipes[1]._render()
             n_lines1 = pipe1.count("\n")
@@ -247,7 +307,7 @@ if __name__ == "__main__":
 
         def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> None:
             print(f"Caching from {frm} to {to} Prev output: {po}")
-            self._cache = po.value
+            self._cache = CacheObject(po, self._pipe_id)
 
         def revalidate(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> RevalidateAction:
             if self.rev:
@@ -263,8 +323,7 @@ if __name__ == "__main__":
     pipe4 = pipe3 | Pipe(DataPipeType.PROCESS, "Process3")
     branch1 = Pipe(DataPipeType.FETCH, "Fetch4") | Pipe(DataPipeType.PROCESS, "Process4") | Pipe(DataPipeType.CACHE, "Cache4")
     print(Pipe.Collate(pipe4, branch1))
-    # print(pipe4)
-    # print(pipe3.get(datetime(2023, 1, 1), datetime(2023, 1, 2)))
-    # print(pipe3._cache)
-    # print("-"*100)
-    # print(pipe3.get(datetime(2023, 1, 1), datetime(2023, 1, 2)))
+    print(pipe3.get(datetime(2023, 1, 1), datetime(2023, 1, 2)))
+    print(pipe2._cache)
+    print("-"*100)
+    print(pipe3.get(datetime(2023, 1, 1), datetime(2023, 1, 2)))
