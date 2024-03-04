@@ -147,10 +147,18 @@ class DataPipe(ABC):
         raise NotImplementedError("Collate not implemented")
 
     def __str__(self):
-        return self._render()
+        render = self._render()
+        lines = render.split("\n")
+        width = max(len(line) for line in lines)
+        # Put the pipe in a bounding box
+        top_line = f"┌ DataPipe({self.T}, {self.name}) "
+        top_line = top_line.ljust(width + 3, "─") + "┐"
+        bottom_line = f"└{'─' * (len(top_line) - 2)}┘"
+        lines = ["│ " + line.ljust(width) + " │" for line in [""] + lines + [""]]
+        return "\n".join([top_line] + lines + [bottom_line])
 
     def __repr__(self):
-        return self.__str__()
+        return f"DataPipe({self.T}, {self.name})"
 
 
     def _render(self):
@@ -252,10 +260,9 @@ if __name__ == "__main__":
     pipe1 = Pipe(DataPipeType.FETCH, "Fetch1") | Pipe(DataPipeType.PROCESS, "Process1") | Pipe(DataPipeType.CACHE, "Cache1", rev=True)
     pipe2 = Pipe(DataPipeType.FETCH, "Fetch2") | Pipe(DataPipeType.PROCESS, "process2") | Pipe(DataPipeType.CACHE, "Cache2")
     pipe3 = Pipe.Collate(pipe1, pipe2)
-    pipe3.name = "Collate1"
     pipe4 = pipe3 | Pipe(DataPipeType.PROCESS, "Process3")
     branch1 = Pipe(DataPipeType.FETCH, "Fetch4") | Pipe(DataPipeType.PROCESS, "Process4") | Pipe(DataPipeType.CACHE, "Cache4")
-    print(Pipe.Collate(pipe4, branch1)._render())
+    print(Pipe.Collate(pipe4, branch1))
     # print(pipe4)
     # print(pipe3.get(datetime(2023, 1, 1), datetime(2023, 1, 2)))
     # print(pipe3._cache)
