@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Union, Optional, Any
+from typing import List, Tuple, Union, Optional, Any, Iterator
 from enum import Enum
 from datetime import datetime
 import os
@@ -115,12 +115,14 @@ class DataPipe(ABC):
 
         if self.T == DataPipeType.FETCH:
             rev = po.revalidate if po is not None else RevalidateAction.NOOP
-            po = self.fetch(frm, to, *args, po=po, **kwargs)
-            po.set_revalidate(rev)
+            if rev != RevalidateAction.FULL_REVALIDATE:
+                po = self.fetch(frm, to, *args, po=po, **kwargs)
+                po.set_revalidate(rev)
         elif self.T == DataPipeType.PROCESS:
             rev = po.revalidate if po is not None else RevalidateAction.NOOP
-            po = self.process(frm, to, *args, po=po, **kwargs)
-            po.set_revalidate(rev)
+            if rev != RevalidateAction.FULL_REVALIDATE:
+                po = self.process(frm, to, *args, po=po, **kwargs)
+                po.set_revalidate(rev)
         elif self.T == DataPipeType.COLLATE:
             po = self.collate(frm, to, *args, po1=po1, po2=po2, **kwargs)
             if po1.revalidate == RevalidateAction.FULL_REVALIDATE or po2.revalidate == RevalidateAction.FULL_REVALIDATE:
@@ -220,6 +222,20 @@ class DataPipe(ABC):
     def __repr__(self):
         return f"DataPipe({self.T}, {self.name})"
 
+    def __iter__(self) -> Iterator['DataPipe']:
+        pipes = []
+        self._flatten(pipes)
+        return iter(pipes)
+
+    @property
+    def pipe_id(self) -> int:
+        return self._pipe_id
+
+    def __len__(self) -> int:
+        pipes = []
+        self._flatten(pipes)
+        return len(pipes)
+
 
     def _render(self):
         if self.T == DataPipeType.COLLATE and self._pipes is not None:
@@ -261,7 +277,7 @@ class DataPipe(ABC):
             pipe1 = [line.rjust(line_len) for line in pipe1]
             pipe2 = [line.rjust(line_len) for line in pipe2]
             center = " " * (line_len - 1) + f"│ -> {self.name}\n"
-            return "\n".join(pipe1) + "\n" + center + "\n".join(pipe2)
+            return "\n".join(pipe1) + "\n" + center + "\n".join(pipe2) + "\n"
         else:
             if self._pipes is None:
                 return f"{self.name}"

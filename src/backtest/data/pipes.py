@@ -2,7 +2,7 @@ from typing import List, Tuple, Union, Optional, Any, Callable
 from enum import Enum
 from datetime import datetime, timedelta
 from copy import deepcopy
-from datapipe import DataPipe, RevalidateAction, DataPipeType, PipeOutput, CacheObject
+from .datapipe import DataPipe, RevalidateAction, DataPipeType, PipeOutput, CacheObject
 
 
 class Fetch(DataPipe):
