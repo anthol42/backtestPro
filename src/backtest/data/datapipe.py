@@ -127,7 +127,7 @@ class DataPipe(ABC):
 
     @classmethod
     def Collate(cls, pipe1: 'DataPipe', pipe2: 'DataPipe') -> 'DataPipe':
-        new = cls(DataPipeType.COLLATE)
+        new = cls(DataPipeType.COLLATE, name=f"Collate")
         new._pipes = [pipe1, pipe2]
         return new
 
@@ -147,10 +147,76 @@ class DataPipe(ABC):
         raise NotImplementedError("Collate not implemented")
 
     def __str__(self):
-        return f"DataPipe({self.T}, {self.name})"
+        return self._render()
 
     def __repr__(self):
         return self.__str__()
+
+
+    def _render(self):
+        if self.T == DataPipeType.COLLATE:
+            pipe1 = self._pipes[0]._render()
+            pipe2 = self._pipes[1]._render()
+            n_lines1 = pipe1.count("\n")
+            n_lines2 = pipe2.count("\n")
+            # Easy exit
+            if n_lines1 == 0 and n_lines2 == 0:
+                pipe1 += " -> ┐\n"
+                pipe2 += " -> ┘\n"
+                if len(pipe1) > len(pipe2):
+                    pipe2 = " " * (len(pipe1) - len(pipe2)) + pipe2
+                elif len(pipe2) > len(pipe1):
+                    pipe1 = " " * (len(pipe2) - len(pipe1)) + pipe1
+
+                center = " " * (len(pipe1) - 2) + f"│ -> {self.name}\n"
+                return pipe1 + center + pipe2
+
+            if n_lines1 > 0:
+                pipe1, longest_line1 = self._format_multiline_output(pipe1, "", join=False)
+                pipe1[longest_line1] += "┐"
+                pipe1 = pipe1[:-1]
+                for i in range(longest_line1 + 1, len(pipe1)):
+                    pipe1[i] += "│"
+                # Fill with space the ones that doesn't have '|'
+                pipe1 = [line.ljust(len(pipe1[-1])) for line in pipe1]
+            else:
+                pipe1 = [pipe1.rstrip("\n") + " -> ┐"]
+            if n_lines2 > 0:
+                pipe2, longest_line2 = self._format_multiline_output(pipe2, self._pipes[1].name, join=False)
+                pipe2[longest_line2] += " -> ┘"
+                for i in range(longest_line2):
+                    pipe2[i] += "    │"
+            else:
+                pipe2 = [pipe2.rstrip("\n") + " -> ┘"]
+            # Shift lines to the right
+            line_len = max(len(pipe1[0]), len(pipe2[0]))
+            pipe1 = [line.rjust(line_len) for line in pipe1]
+            pipe2 = [line.rjust(line_len) for line in pipe2]
+            center = " " * (line_len - 1) + f"│ -> {self.name}\n"
+            return "\n".join(pipe1) + "\n" + center + "\n".join(pipe2)
+        else:
+            if self._pipes is None:
+                return f"{self.name}"
+            else:
+                prev_render = self._pipes._render()
+                n_lines = prev_render.count("\n")
+                if n_lines > 1:
+                    return self._format_multiline_output(prev_render, self.name)
+                else:
+                    return prev_render + " -> " + self.name
+
+    @staticmethod
+    def _format_multiline_output(render: str, name: str, join: bool = True):
+        prev_render = render.split("\n")
+        prev_render_len = [len(line.rstrip(" ")) for line in prev_render]
+        longest_line = prev_render_len.index(max(prev_render_len))
+        prev_render[longest_line] = prev_render[longest_line].rstrip("\n") + " -> " + name
+        good_len = len(prev_render[longest_line])
+        prev_render = [line.ljust(good_len) for line in prev_render]
+        if join:
+            return "\n".join(prev_render[:-1]) + "\n"
+        else:
+            return prev_render, longest_line
 
 if __name__ == "__main__":
     class Pipe(DataPipe):
@@ -187,7 +253,11 @@ if __name__ == "__main__":
     pipe2 = Pipe(DataPipeType.FETCH, "Fetch2") | Pipe(DataPipeType.PROCESS, "process2") | Pipe(DataPipeType.CACHE, "Cache2")
     pipe3 = Pipe.Collate(pipe1, pipe2)
     pipe3.name = "Collate1"
-    print(pipe3.get(datetime(2023, 1, 1), datetime(2023, 1, 2)))
-    print(pipe3._cache)
-    print("-"*100)
-    print(pipe3.get(datetime(2023, 1, 1), datetime(2023, 1, 2)))
+    pipe4 = pipe3 | Pipe(DataPipeType.PROCESS, "Process3")
+    branch1 = Pipe(DataPipeType.FETCH, "Fetch4") | Pipe(DataPipeType.PROCESS, "Process4") | Pipe(DataPipeType.CACHE, "Cache4")
+    print(Pipe.Collate(pipe4, branch1)._render())
+    # print(pipe4)
+    # print(pipe3.get(datetime(2023, 1, 1), datetime(2023, 1, 2)))
+    # print(pipe3._cache)
+    # print("-"*100)
+    # print(pipe3.get(datetime(2023, 1, 1), datetime(2023, 1, 2)))
