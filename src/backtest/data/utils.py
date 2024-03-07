@@ -2,11 +2,13 @@ import pandas as pd
 from .pipes import Fetch, Process, Collate, Cache, PipeOutput, RevalidateAction, CacheObject, DataPipeType, DataPipe
 from datetime import datetime, timedelta
 import json
+import pickle
 from typing import Optional, Tuple, Any, Callable, Iterable, Dict
 from . import json_extension as je
 import os
 import yfinance as yf
 from tqdm import tqdm
+from ..engine import TSData
 
 class JSONCacheObject(CacheObject):
     def store(self):
@@ -86,6 +88,8 @@ class JSONCache(Cache):
         if self.store:
             je.add_types(**self._custom_types)
             self._cache.store()
+            with open(".cache/detected_types.pkl", "wb") as file:
+                pickle.dump(je.get_detected_types(), file)
             je.remove_types(*self._custom_types.keys())
 
     def load(self) -> Optional[JSONCacheObject]:
@@ -96,6 +100,8 @@ class JSONCache(Cache):
         """
         if os.path.exists(f".cache/{self._pipe_id}.json"):
             je.add_types(**self._custom_types)
+            with open(".cache/detected_types.pkl", "rb") as file:
+                je.set_detected_types(pickle.load(file))
             out = JSONCacheObject.load(self._pipe_id)
             je.remove_types(*self._custom_types.keys())
             return out
@@ -114,6 +120,9 @@ class FetchCharts(DataPipe):
     preprocessing steps.
     Warning:
         The returned index contains the timezone information that might be inconsistent.  Consider removing them.
+
+    IN: None
+    OUT: dict[str, Optional[pd.DataFrame]] where the values are the charts and the keys are the tickers
     """
     def __init__(self, tickers: Iterable[str] = None, interval: str = "1d", progress: bool = False):
         super().__init__(T=DataPipeType.FETCH)
@@ -133,3 +142,34 @@ class FetchCharts(DataPipe):
             for ticker in self.tickers:
                 charts[ticker] = yf.Ticker(ticker).history(start=frm, end=to, interval=self.interval)
         return PipeOutput(charts, self)
+
+@Process
+def FilterNoneCharts(frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> dict:
+    """
+    This pipe will filter out the tickers that doesn't have a chart.  (Chart is None)
+    IN: dict[str, Optional[pd.DataFrame]] where the values are the charts and the keys are the tickers
+    OUT: dict[str, pd.DataFrame] where the values are the charts and the keys are the tickers
+    :param frm: From datetime
+    :param to:  to datetime
+    :param args: Args passed to the pipe
+    :param po: Previous Pipe output
+    :param kwargs: The keyword arguments passed to the pipe
+    :return:
+    """
+    return {k: v for k, v in po.value.items() if v is not None}
+
+
+@Process
+def ToTSData(frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> Dict[str, TSData]:
+    """
+    This pipe will convert the charts into a time series object (TSData).
+    IN: dict[str, pd.DataFrame] where the values are the charts and the keys are the tickers
+    OUT: dict[str, TSData] where the values are the TSData and the keys are the tickers
+    :param frm: From datetime
+    :param to:  to datetime
+    :param args: Args passed to the pipe
+    :param po: Previous Pipe output
+    :param kwargs: The keyword arguments passed to the pipe
+    :return: pd.DataFrame
+    """
+    return {ticker: TSData(chart, name=f"Chart-{ticker}") for ticker, chart in po.value.items()}

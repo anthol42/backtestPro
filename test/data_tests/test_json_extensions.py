@@ -5,6 +5,16 @@ import numpy as np
 import pandas as pd
 import json
 from datetime import datetime, timedelta, date, time
+from enum import Enum
+
+
+class MyEnum(Enum):
+    A = 1
+    B = 2
+    C = 3
+
+    def __str__(self):
+        return self.name
 
 class TestJSONEncoder(TestCase):
     def test_type_conversion(self):
@@ -32,6 +42,7 @@ class TestJSONEncoder(TestCase):
         td = timedelta(days=1, hours=12)
         date_ = date(2023, 8, 22)
         time_ = time(12, 0)
+        enum_ = MyEnum.A
 
         # Test default types
         out = json.dumps(float_, cls=JSONEncoder)
@@ -78,6 +89,8 @@ class TestJSONEncoder(TestCase):
         self.assertEqual('{"__TYPE__": "date", "data": "2023-08-22"}', out)
         out = json.dumps(time_, cls=JSONEncoder)
         self.assertEqual('{"__TYPE__": "time", "data": "12:00:00"}', out)
+        out = json.dumps(enum_, cls=JSONEncoder)
+        self.assertEqual('{"__TYPE__": "enum", "enum_name": "MyEnum", "data": 1}', out)
 
 
     def test_complex_types(self):
@@ -136,6 +149,7 @@ class TestJSONDecoder(TestCase):
         td = timedelta(days=1, hours=12)
         date_ = date(2023, 8, 22)
         time_ = time(12, 0)
+        enum_ = MyEnum.A
 
         # Test default types
         out = json.loads(json.dumps(float_, cls=JSONEncoder), cls=JSONDecoder)
@@ -187,6 +201,8 @@ class TestJSONDecoder(TestCase):
         self.assertEqual(date_, out)
         out = json.loads(json.dumps(time_, cls=JSONEncoder), cls=JSONDecoder)
         self.assertEqual(time_, out)
+        out = json.loads(json.dumps(enum_, cls=JSONEncoder), cls=JSONDecoder)
+        self.assertEqual(enum_, out)
 
 
     def test_complex_types(self):

@@ -3,6 +3,8 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta, date, time
 
+from enum import Enum
+
 TYPES: dict[str, type] = {}
 DETECTED_TYPES: dict[str, type] = {}
 
@@ -81,6 +83,9 @@ class JSONEncoder(json.JSONEncoder):
             return {"__TYPE__": "time", "data": o.isoformat()}
         elif isinstance(o, pd.Series):
             return {"__TYPE__": "pd.Series", "data": o.to_dict()}
+        elif isinstance(o, Enum):
+            DETECTED_TYPES[type(o).__name__] = o.__class__
+            return {"__TYPE__": "enum", "enum_name": o.__class__.__name__, "data": o.value}
         elif hasattr(o, "__dict__"):
             DETECTED_TYPES[type(o).__name__] = o.__class__
             return {"__TYPE__": o.__class__.__name__, "data": {k: self._recursive_json(v) for k, v in o.__dict__.items()}}
@@ -132,6 +137,8 @@ class JSONDecoder(json.JSONDecoder):
                 return date.fromisoformat(d["data"])
             elif d["__TYPE__"] == "time":
                 return time.fromisoformat(d["data"])
+            elif d["__TYPE__"] == "enum":
+                return DETECTED_TYPES[d["enum_name"]](d["data"])
             # Custom extended types
             elif d["__TYPE__"] in TYPES:
                 return TYPES[d["__TYPE__"]].__fromjson__(d["data"])
