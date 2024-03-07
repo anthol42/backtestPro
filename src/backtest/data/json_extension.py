@@ -1,8 +1,10 @@
 import json
 import pandas as pd
 import numpy as np
+from datetime import datetime, timedelta, date, time
 
-TYPES = {}
+TYPES: dict[str, type] = {}
+DETECTED_TYPES: dict[str, type] = {}
 
 
 def add_types(**types):
@@ -11,6 +13,21 @@ def add_types(**types):
     :param types: A dictionary of types to add to the JSONEncoder [str: class]
     """
     TYPES.update(types)
+
+
+def get_detected_types() -> dict[str, type]:
+    """
+    Get the types that have been automatically detected by the JSONEncoder.
+    :return: A dictionary of detected types [str: class]
+    """
+    return DETECTED_TYPES.copy()
+
+def set_detected_types(types: dict[str, type]):
+    """
+    Load the detected types into the JSONDecoder.  Can be useful to restor the state of the module
+    :param types: A dictionary of types to add to the JSONDecoder [str: class]
+    """
+    DETECTED_TYPES.update(types)
 
 class JSONEncoder(json.JSONEncoder):
     """
@@ -42,15 +59,86 @@ class JSONEncoder(json.JSONEncoder):
         elif isinstance(o, np.bool_):
             return bool(o)
         elif isinstance(o, np.datetime64):
-            return o.astype(str)
+            return {"__TYPE__": "np.datetime64", "data": o.astype(str)}
         elif isinstance(o, np.timedelta64):
-            return o.astype(str)
+            return {"__TYPE__": "np.timedelta64", "data": o.item().total_seconds()}
+        elif isinstance(o, datetime):
+            return {"__TYPE__": "datetime", "data": o.isoformat()}
+        elif isinstance(o, timedelta):
+            return {"__TYPE__": "timedelta", "data": o.total_seconds()}
+        elif isinstance(o, date):
+            return {"__TYPE__": "date", "data": o.isoformat()}
+        elif isinstance(o, time):
+            return {"__TYPE__": "time", "data": o.isoformat()}
         elif isinstance(o, pd.Series):
             return {"__TYPE__": "pd.Series", "data": o.to_dict()}
         elif hasattr(o, "__dict__"):
-            return {k: self._recursive_json(v) for k, v in o.__dict__.items()}
+            DETECTED_TYPES[type(o).__name__] = o.__class__
+            return {"__TYPE__": o.__class__.__name__, "data": {k: self._recursive_json(v) for k, v in o.__dict__.items()}}
         elif hasattr(o, "__iter__"):
-            return [self._recursive_json(i) for i in o]
+            DETECTED_TYPES[type(o).__name__] = o.__class__
+            return {"__TYPE__": o.__class__.__name__, "data": [self._recursive_json(i) for i in o]}
         else:
             raise TypeError(f"Object of type {type(o)} is not JSON serializable.  To make it serializable, add a "
                             f"__json__ method to the object that returns a dictionary JSONable.")
+
+
+class JSONDecoder(json.JSONDecoder):
+    """
+    This class extends the JSONDecoder class from the json module to handle the deserialization of a variety of objects.
+    If your object isn't deserialized properly, you can add a __fromjson__ method to your object to handle the
+    deserialization and return the object.
+    """
+    def __init__(self, *args, **kwargs):
+        json.JSONDecoder.__init__(self, object_hook=self._recursive_fromjson, *args, **kwargs)
+
+    def _recursive_fromjson(self, d):
+        # Dict is not there because it could be anything (Custom type)
+        default_types = {int, float, str, list, tuple, bool, type(None)}
+        if type(d) in default_types:
+            return d
+        if "__TYPE__" in d:
+            # Built-in extended types
+            if d["__TYPE__"] == "pd.DataFrame":
+                return pd.DataFrame(d["data"])
+            elif d["__TYPE__"] == "np.ndarray":
+                return np.array(d["data"])
+            elif d["__TYPE__"] == "pd.Series":
+                index = list(d["data"].keys())
+                if index == [str(i) for i in range(len(d["data"]))]:
+                    # We have a range index
+                    return pd.Series(d["data"].values(), index=range(len(d["data"])))
+                else:
+                    return pd.Series(d["data"])
+            elif d["__TYPE__"] == "np.datetime64":
+                return np.datetime64(d["data"])
+            elif d["__TYPE__"] == "np.timedelta64":
+                td = timedelta(seconds=d["data"])
+                return np.timedelta64(td)
+            elif d["__TYPE__"] == "datetime":
+                return datetime.fromisoformat(d["data"])
+            elif d["__TYPE__"] == "timedelta":
+                return timedelta(seconds=d["data"])
+            elif d["__TYPE__"] == "date":
+                return date.fromisoformat(d["data"])
+            elif d["__TYPE__"] == "time":
+                return time.fromisoformat(d["data"])
+            # Custom extended types
+            elif d["__TYPE__"] in TYPES:
+                return TYPES[d["__TYPE__"]].__fromjson__(d["data"])
+            # Autodetected types
+            elif d["__TYPE__"] in DETECTED_TYPES and type(d["data"]) == dict:
+                o = DETECTED_TYPES[d["__TYPE__"]].__new__(DETECTED_TYPES[d["__TYPE__"]])
+                o.__dict__.update(d["data"])
+                return o
+            elif d["__TYPE__"] in DETECTED_TYPES and type(d["data"]) == list:
+                return DETECTED_TYPES[d["__TYPE__"]]([self._recursive_fromjson(i) for i in d["data"]])
+            else:
+                raise TypeError(f"Object of type {d['__TYPE__']} is JSON deserializable, but not registered in the "
+                                f"JSONDecoder.  Use the add_types function to add the type to the JSONDecoder.")
+        elif isinstance(d, dict):
+            return {k: self._recursive_fromjson(v) for k, v in d.items()}
+        elif isinstance(d, list):
+            return [self._recursive_fromjson(i) for i in d]
+        else:
+            return d
