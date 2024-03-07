@@ -125,7 +125,8 @@ class FetchCharts(DataPipe):
     Warning:
         The returned index contains the timezone information that might be inconsistent.  Consider removing them.
 
-    IN: None
+    IN: Optional[List[str]]: The list of tickers to fetch the charts for.  If provided, it will override the ticker
+                                list passed during initialization.
     OUT: dict[str, Optional[pd.DataFrame]] where the values are the charts and the keys are the tickers
     """
     def __init__(self, tickers: Iterable[str] = None, interval: str = "1d", progress: bool = False):
@@ -135,15 +136,19 @@ class FetchCharts(DataPipe):
         self.interval = interval
         self.progress = progress
 
-    def fetch(self, frm: datetime, to: datetime, *args, **kwargs) -> PipeOutput:
+    def fetch(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> PipeOutput:
+        if po is not None and po.value is not None:
+            tickers = po.value
+        else:
+            tickers = self.tickers
         charts: Dict[str, pd.DataFrame] = {}
         if self.progress:
-            for ticker in tqdm(self.tickers, desc="Fetching Charts"):
+            for ticker in tqdm(tickers, desc="Fetching Charts"):
                 charts[ticker] = yf.Ticker(ticker).history(start=frm, end=to, interval=self.interval)
                 if charts[ticker].empty:
                     charts[ticker] = None
         else:
-            for ticker in self.tickers:
+            for ticker in tickers:
                 charts[ticker] = yf.Ticker(ticker).history(start=frm, end=to, interval=self.interval)
         return PipeOutput(charts, self)
 
