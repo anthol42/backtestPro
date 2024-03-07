@@ -9,11 +9,20 @@ DETECTED_TYPES: dict[str, type] = {}
 
 def add_types(**types):
     """
-    Add a new type to the JSONEncoder.  The type will be serialized using the __json__ method if it exists.
+    Add new types supported by extended json encoder/decoder.  The type will be serialized using the __tojson__ method.
+    (Must exist in the object) and deserialized using the __fromjson__ class method.
     :param types: A dictionary of types to add to the JSONEncoder [str: class]
     """
     TYPES.update(types)
 
+def remove_types(*types):
+    """
+    Remove supported types from the extended json encoder/decoder.  The type will be serialized using the __tojson__ method.
+    (Must exist in the object) and deserialized using the __fromjson__ class method.
+    :param types: A list of types to remove from the JSONEncoder [str]
+    """
+    for t in types:
+        TYPES.pop(t, None)
 
 def get_detected_types() -> dict[str, type]:
     """
@@ -132,13 +141,13 @@ class JSONDecoder(json.JSONDecoder):
                 o.__dict__.update(d["data"])
                 return o
             elif d["__TYPE__"] in DETECTED_TYPES and type(d["data"]) == list:
-                return DETECTED_TYPES[d["__TYPE__"]]([self._recursive_fromjson(i) for i in d["data"]])
+                return DETECTED_TYPES[d["__TYPE__"]]([i for i in d["data"]])
             else:
                 raise TypeError(f"Object of type {d['__TYPE__']} is JSON deserializable, but not registered in the "
                                 f"JSONDecoder.  Use the add_types function to add the type to the JSONDecoder.")
         elif isinstance(d, dict):
-            return {k: self._recursive_fromjson(v) for k, v in d.items()}
+            return {k: v for k, v in d.items()}
         elif isinstance(d, list):
-            return [self._recursive_fromjson(i) for i in d]
+            return [i for i in d]
         else:
             return d
