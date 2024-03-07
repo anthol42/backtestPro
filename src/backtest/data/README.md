@@ -5,6 +5,8 @@ This namespace contains useful tools to handle complex data pipelines.
 The DataPipe class, but also a way of writing pipelines.  From this class is derived an api to handle complex data 
 pipelines that are written in an easy to read and maintain way.  It work by overriding the pipe operator `|` to chain
 methods together.
+Consider resetting the cache when changing the pipeline.  Failing to doing so might result in unexpected behaviour.
+To reset the cache, simply delete the .cache directory.
 ### Under the hood
 **get(from: datetime, to: datetime, \*args, \*\*kwargs)**  
 A method calling the run method of every pipe in the pipeline following the predefined order.  It gives to the next pipe
@@ -44,6 +46,6 @@ Uses the build method to merge the two pipes.
 
 
 ## TODO
-- [ ] Continue JSONEncoder and JSONDecoder to make them fully functional (+ Tests)
-- [ ] Finish the JSONCache pipe
-- [ ] Add the FetchTickers pipe to the utils
+- [X] Continue JSONEncoder and JSONDecoder to make them fully functional (+ Tests)
+- [X] Finish the JSONCache pipe
+- [X] Add the FetchTickers pipe to the utils

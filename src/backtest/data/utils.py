@@ -3,15 +3,19 @@ from .pipes import Fetch, Process, Collate, Cache, PipeOutput, RevalidateAction,
 from datetime import datetime, timedelta
 import json
 import pickle
-from typing import Optional, Tuple, Any, Callable, Iterable, Dict
+from typing import Optional, Tuple, Any, Callable, Iterable, Dict, Union
 from . import json_extension as je
 import os
 import yfinance as yf
 from tqdm import tqdm
 from ..engine import TSData
+import numpy as np
+import numpy.typing as npt
 
 class JSONCacheObject(CacheObject):
     def store(self):
+        if not os.path.exists(".cache"):
+            os.mkdir(".cache")
         with open(f".cache/{self.pipe_id}.json", "w") as file:
             out = {
                 "value": self.value,
@@ -144,7 +148,7 @@ class FetchCharts(DataPipe):
         return PipeOutput(charts, self)
 
 @Process
-def FilterNoneCharts(frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> dict:
+def FilterNoneCharts(frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> Dict[str, pd.DataFrame]:
     """
     This pipe will filter out the tickers that doesn't have a chart.  (Chart is None)
     IN: dict[str, Optional[pd.DataFrame]] where the values are the charts and the keys are the tickers
@@ -173,3 +177,23 @@ def ToTSData(frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> Di
     :return: pd.DataFrame
     """
     return {ticker: TSData(chart, name=f"Chart-{ticker}") for ticker, chart in po.value.items()}
+
+
+@Process
+def CausalImpute(frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> Dict[str, pd.DataFrame]:
+    """
+    This pipe will impute the missing values in the time series data using the causal imputation method. (It will copy
+    the last time step value to the missing values)
+    Example:
+        a = [1, 2, 3, nan, 5, 6, nan, 8, 9]
+        causal_impute(a) -> [1, 2, 3, 3, 5, 6, 6, 8, 9]
+    IN: dict[str, pd.Dataframe] where the values are the charts as Dataframe and the keys are the tickers
+    OUT: dict[str, TSData] where the values are the TSData and the keys are the tickers
+    :param frm: From datetime
+    :param to:  to datetime
+    :param args: Args passed to the pipe
+    :param po: Previous Pipe output
+    :param kwargs: The keyword arguments passed to the pipe
+    :return: pd.DataFrame
+    """
+    return {ticker: chart.ffill() for ticker, chart in po.value.items()}
