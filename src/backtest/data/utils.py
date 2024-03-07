@@ -1,9 +1,12 @@
+import pandas as pd
 from .pipes import Fetch, Process, Collate, Cache, PipeOutput, RevalidateAction, CacheObject, DataPipeType, DataPipe
 from datetime import datetime, timedelta
 import json
-from typing import Optional, Tuple, Any, Callable
+from typing import Optional, Tuple, Any, Callable, Iterable, Dict
 from . import json_extension as je
 import os
+import yfinance as yf
+from tqdm import tqdm
 
 class JSONCacheObject(CacheObject):
     def store(self):
@@ -98,3 +101,35 @@ class JSONCache(Cache):
             return out
         else:
             return None
+
+
+class FetchCharts(DataPipe):
+    """
+    This pipe will fetch the charts from Yahoo Finance.  It will fetch the charts for the specified tickers and
+    the specified interval.  The interval can be any interval supported by yfinance.  The data will be returned as a
+    dictionary of DataFrames where the keys are the tickers and the values are the DataFrames.  The columns of the
+    returned dataframes are the following: Open, High, Low, Close, Volume, Dividends, Stock Splits.  The index is named
+    "Date" for intervals of 1d and longer and "Datetime" for intervals shorter than 1d.  The index is a datetime index.
+    If the returned chart is empty, it will be returned as None.  Consider removing the None  charts in further
+    preprocessing steps.
+    Warning:
+        The returned index contains the timezone information that might be inconsistent.  Consider removing them.
+    """
+    def __init__(self, tickers: Iterable[str] = None, interval: str = "1d", progress: bool = False):
+        super().__init__(T=DataPipeType.FETCH)
+        self.name = "FetchCharts"
+        self.tickers = tickers
+        self.interval = interval
+        self.progress = progress
+
+    def fetch(self, frm: datetime, to: datetime, *args, **kwargs) -> PipeOutput:
+        charts: Dict[str, pd.DataFrame] = {}
+        if self.progress:
+            for ticker in tqdm(self.tickers, desc="Fetching Charts"):
+                charts[ticker] = yf.Ticker(ticker).history(start=frm, end=to, interval=self.interval)
+                if charts[ticker].empty:
+                    charts[ticker] = None
+        else:
+            for ticker in self.tickers:
+                charts[ticker] = yf.Ticker(ticker).history(start=frm, end=to, interval=self.interval)
+        return PipeOutput(charts, self)
