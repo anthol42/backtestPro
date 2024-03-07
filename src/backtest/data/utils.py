@@ -3,7 +3,7 @@ from .pipes import Fetch, Process, Collate, Cache, PipeOutput, RevalidateAction,
 from datetime import datetime, timedelta
 import json
 import pickle
-from typing import Optional, Tuple, Any, Callable, Iterable, Dict, Union
+from typing import Optional, Tuple, Any, Callable, Iterable, Dict, Union, List
 from . import json_extension as je
 import os
 import yfinance as yf
@@ -77,7 +77,7 @@ class JSONCache(Cache):
         """
         raise NotImplementedError("This method is not implemented for JSONCache, use Cache pipe instead")
 
-    def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> None:
+    def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput[Any], **kwargs) -> None:
         """
         This method is called to cache the data.  This emthod will cache the data to the json format, and save it
         to the disk.  It will also save as pickle the automatically detected types.
@@ -136,12 +136,12 @@ class FetchCharts(DataPipe):
         self.interval = interval
         self.progress = progress
 
-    def fetch(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> PipeOutput:
+    def fetch(self, frm: datetime, to: datetime, *args, po: PipeOutput[Optional[List[str]]], **kwargs) -> PipeOutput:
         if po is not None and po.value is not None:
             tickers = po.value
         else:
             tickers = self.tickers
-        charts: Dict[str, pd.DataFrame] = {}
+        charts: Dict[str, Optional[pd.DataFrame]] = {}
         if self.progress:
             for ticker in tqdm(tickers, desc="Fetching Charts"):
                 charts[ticker] = yf.Ticker(ticker).history(start=frm, end=to, interval=self.interval)
@@ -153,7 +153,8 @@ class FetchCharts(DataPipe):
         return PipeOutput(charts, self)
 
 @Process
-def FilterNoneCharts(frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> Dict[str, pd.DataFrame]:
+def FilterNoneCharts(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, Optional[pd.DataFrame]]],
+                     **kwargs) -> Dict[str, pd.DataFrame]:
     """
     This pipe will filter out the tickers that doesn't have a chart.  (Chart is None)
     IN: dict[str, Optional[pd.DataFrame]] where the values are the charts and the keys are the tickers
@@ -169,7 +170,8 @@ def FilterNoneCharts(frm: datetime, to: datetime, *args, po: PipeOutput, **kwarg
 
 
 @Process
-def ToTSData(frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> Dict[str, TSData]:
+def ToTSData(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, pd.DataFrame]],
+             **kwargs) -> Dict[str, TSData]:
     """
     This pipe will convert the charts into a time series object (TSData).
     IN: dict[str, pd.DataFrame] where the values are the charts and the keys are the tickers
@@ -185,7 +187,8 @@ def ToTSData(frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> Di
 
 
 @Process
-def CausalImpute(frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> Dict[str, pd.DataFrame]:
+def CausalImpute(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, pd.DataFrame]],
+                 **kwargs) -> Dict[str, pd.DataFrame]:
     """
     This pipe will impute the missing values in the time series data using the causal imputation method. (It will copy
     the last time step value to the missing values)

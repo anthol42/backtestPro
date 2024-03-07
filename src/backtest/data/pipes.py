@@ -6,7 +6,7 @@ from .datapipe import DataPipe, RevalidateAction, DataPipeType, PipeOutput, Cach
 
 
 class Fetch(DataPipe):
-    def __init__(self, cb: Callable[[datetime, datetime, ..., Optional[PipeOutput], ...], Any]):
+    def __init__(self, cb: Callable[[datetime, datetime, ..., Optional[PipeOutput[Any]], ...], Any]):
         super().__init__(DataPipeType.FETCH, name=cb.__name__)
         self._cb = cb
 
@@ -14,7 +14,7 @@ class Fetch(DataPipe):
         return PipeOutput(self._cb(start, end, *args, po=po, **kwargs), self)
 
 class Process(DataPipe):
-    def __init__(self, cb: Callable[[datetime, datetime, ..., PipeOutput, ...], Any]):
+    def __init__(self, cb: Callable[[datetime, datetime, ..., PipeOutput[Any], ...], Any]):
         super().__init__(DataPipeType.PROCESS, name=cb.__name__)
         self._cb = cb
 
@@ -23,7 +23,7 @@ class Process(DataPipe):
 
 
 class Collate(DataPipe):
-    def __init__(self, cb: Callable[[datetime, datetime, ..., PipeOutput, PipeOutput, ...], Any]):
+    def __init__(self, cb: Callable[[datetime, datetime, ..., PipeOutput[Any], PipeOutput, ...], Any]):
         super().__init__(DataPipeType.COLLATE, name=cb.__name__)
         self._cb = cb
 
@@ -31,18 +31,18 @@ class Collate(DataPipe):
         self._pipes = [po1, po2]
         return self
 
-    def collate(self, frm: datetime, to: datetime, *args, po1: PipeOutput, po2: PipeOutput, **kwargs) -> PipeOutput:
+    def collate(self, frm: datetime, to: datetime, *args, po1: PipeOutput[Any], po2: PipeOutput, **kwargs) -> PipeOutput:
         return PipeOutput(self._cb(frm, to, *args, po1=po1, po2=po2, **kwargs), self)
 
 class Cache(DataPipe):
     def __init__(self,
-                 caching_cb: Callable[[datetime, datetime, ..., PipeOutput, int, ...], None] = None, *,
+                 caching_cb: Callable[[datetime, datetime, ..., PipeOutput[Any], int, ...], None] = None, *,
                  loading_cb: Callable[[int], CacheObject] = None,
                  revalidate: Optional[datetime] = None,
                  timeout: Optional[timedelta] = None,
                  max_requests: Optional[int] = None,
                  store: bool = True,
-                 revalidate_cb: Callable[[datetime, datetime, Tuple[Any, ...], PipeOutput, dict[str, Any]],
+                 revalidate_cb: Callable[[datetime, datetime, Tuple[Any, ...], PipeOutput[Any], dict[str, Any]],
                     RevalidateAction] = None):
         super().__init__(DataPipeType.CACHE)
         if caching_cb is not None:
@@ -63,7 +63,7 @@ class Cache(DataPipe):
         self.store = store
         self._n_requests = 0
 
-    def __call__(self, caching_cb: Callable[[datetime, datetime, Tuple[Any, ...], PipeOutput, dict[str, Any]], PipeOutput] = None) -> DataPipe:
+    def __call__(self, caching_cb: Callable[[datetime, datetime, Tuple[Any, ...], PipeOutput[Any], dict[str, Any]], PipeOutput] = None) -> DataPipe:
         if caching_cb is not None:
             self._caching_cb = caching_cb
             self.name = caching_cb.__name__
@@ -72,7 +72,7 @@ class Cache(DataPipe):
             self.name = "Cache"
         return self
 
-    def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> None:
+    def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput[Any], **kwargs) -> None:
         if self._caching_cb is None:
             self._cache = CacheObject(po.value, self._pipe_id, self._revalidate, self._max_request, self._n_requests)
             if self.store:
@@ -98,7 +98,7 @@ class Cache(DataPipe):
                 self._revalidate = self._cache.next_revalidate
                 self._n_requests = self._cache.current_n_requests
 
-    def revalidate(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> RevalidateAction:
+    def revalidate(self, frm: datetime, to: datetime, *args, po: PipeOutput[Any], **kwargs) -> RevalidateAction:
         if self._revalidate_cb is not None:
             return self._revalidate_cb(frm, to, *args, po=po, **kwargs)
         else:    # Default implementation of the revalidate action

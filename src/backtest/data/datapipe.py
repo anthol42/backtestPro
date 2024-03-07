@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Tuple, Union, Optional, Any, Iterator
+from typing import List, Tuple, Union, Optional, Any, Iterator, TypeVar, Generic
 from enum import Enum
 from datetime import datetime
 import os
@@ -34,8 +34,11 @@ class DataPipeType(Enum):
     COLLATE = "COLLATE"
 
 
-class PipeOutput:
-    def __init__(self, value: Any, output_from: 'DataPipe', revalidate_action: Optional['RevalidateAction'] = None,
+T_ = TypeVar("T_")
+
+
+class PipeOutput(Generic[T_]):
+    def __init__(self, value: T_, output_from: 'DataPipe', revalidate_action: Optional['RevalidateAction'] = None,
                  **kwargs):
         if "value" in kwargs:
             raise ValueError("value is a reserved keyword, you cannot use it as a keyword argument in PipeOutput.__init__")
@@ -98,7 +101,7 @@ class DataPipe(ABC):
         # Unwrap the output (We do not want to return a PipeOutput object)
         return out.value
 
-    def _run(self, frm: datetime, to: datetime, *args, po: Optional[PipeOutput] = None, force_reload: bool = False,
+    def _run(self, frm: datetime, to: datetime, *args, po: Optional[PipeOutput[Any]] = None, force_reload: bool = False,
              **kwargs) -> PipeOutput:
         # Early exit if the pipe return a FULL_REVALIDATE action because we will need to revalidate everything
         if po is not None and po.revalidate == RevalidateAction.FULL_REVALIDATE:
@@ -189,16 +192,17 @@ class DataPipe(ABC):
         if self.T == DataPipeType.CACHE:
             self._cache = self.load()
 
-    def collate(self, frm: datetime, to: datetime, *args, po1: PipeOutput, po2: PipeOutput, **kwargs) -> PipeOutput:
+    def collate(self, frm: datetime, to: datetime, *args, po1: PipeOutput[Any], po2: PipeOutput[Any],
+                **kwargs) -> PipeOutput:
         raise NotImplementedError(f"Collate not implemented for object of type: {self.T}")
 
-    def fetch(self, frm: datetime, to: datetime, *args, po: Optional[PipeOutput], **kwargs) -> PipeOutput:
+    def fetch(self, frm: datetime, to: datetime, *args, po: Optional[PipeOutput[Any]], **kwargs) -> PipeOutput:
         raise NotImplementedError(f"Fetch not implemented for object of type: {self.T}")
 
-    def process(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> PipeOutput:
+    def process(self, frm: datetime, to: datetime, *args, po: PipeOutput[Any], **kwargs) -> PipeOutput:
         raise NotImplementedError(f"Process not implemented for object of type: {self.T}")
 
-    def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> None:
+    def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput[Any], **kwargs) -> None:
         raise NotImplementedError(f"Cache not implemented for object of type: {self.T}")
 
     def load(self) -> CacheObject:
