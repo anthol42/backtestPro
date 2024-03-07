@@ -6,7 +6,15 @@ from .datapipe import DataPipe, RevalidateAction, DataPipeType, PipeOutput, Cach
 
 
 class Fetch(DataPipe):
+    """
+    Function decorator designed to make a Fetch pipe out of a function.
+    It is designed to fetch data from a source. The source can be a database, a web API, a file, etc.
+    The pipe is named after the function name.
+    """
     def __init__(self, cb: Callable[[datetime, datetime, ..., Optional[PipeOutput[Any]], ...], Any]):
+        """
+        :param cb: The fetch callback method.
+        """
         super().__init__(DataPipeType.FETCH, name=cb.__name__)
         self._cb = cb
 
@@ -14,7 +22,15 @@ class Fetch(DataPipe):
         return PipeOutput(self._cb(start, end, *args, po=po, **kwargs), self)
 
 class Process(DataPipe):
+    """
+    Function decorator designed to make a Process pipe out of a function.
+    It is designed to process data. The data can be transformed, cleaned, imputed, etc.
+    The pipe is named after the function name.
+    """
     def __init__(self, cb: Callable[[datetime, datetime, ..., PipeOutput[Any], ...], Any]):
+        """
+        :param cb: The process callback method.
+        """
         super().__init__(DataPipeType.PROCESS, name=cb.__name__)
         self._cb = cb
 
@@ -23,7 +39,15 @@ class Process(DataPipe):
 
 
 class Collate(DataPipe):
+    """
+    Function decorator designed to make a Collate pipe out of a function.
+    It is designed to collate data. The data can be combined, aggregated, concatenated, etc.
+    The pipe is named after the function name.
+    """
     def __init__(self, cb: Callable[[datetime, datetime, ..., PipeOutput[Any], PipeOutput, ...], Any]):
+        """
+        :param cb: The collate callback method.
+        """
         super().__init__(DataPipeType.COLLATE, name=cb.__name__)
         self._cb = cb
 
@@ -35,6 +59,36 @@ class Collate(DataPipe):
         return PipeOutput(self._cb(frm, to, *args, po1=po1, po2=po2, **kwargs), self)
 
 class Cache(DataPipe):
+    """
+    Function decorator designed to make a Cache pipe out of a function.
+    The decorated function is expected to be the caching method.  When using this, it is recommended to pass a load
+    callback method to load the cache object from the storage.  The caching method should be able to store the cache
+    and load it from the storage.  The cache object should be a CacheObject instance.  It is also possible to pass a
+    revalidate callback method to define a dynamic revalidate action.  The revalidate action is a method that returns a
+    RevalidateAction enum value.  The revalidate action is used to determine if the cache should be revalidated or not.
+    If no revalidate method is passed, the default revalidate method check if the cache is expired given an expired
+    datetime, a timeout or a maximum number of requests.
+
+    Examples:
+    >>>@Cache(loading_cb=JSON_load, store=True, timeout=timedelta(seconds=1))
+    ...def MyCache(frm: datetime, to: datetime, *args, po: PipeOutput, pipe_id: int, revalidate: datetime,
+    ...          timedelta, max_requests: int, n_requests: int, **kwargs):
+    ...     value = {
+    ...         "data": po.value,
+    ...         "stored_dt": datetime.now().isoformat(),
+    ...         "revalidate": revalidate.isoformat(),
+    ...         "current_n_requests": n_requests,
+    ...         "timeout": timeout.total_seconds(),
+    ...         "max_requests": max_requests
+    ...     }
+    ...     if not os.path.exists(".cache"):
+    ...         os.mkdir(".cache")
+    ...     with open(f".cache/{pipe_id}.json", "w") as f:
+    ...         json.dump(value, f)
+    >>> # The cache pipe can also be used as is:
+    >>> pipe = FetchN | Cache(timeout=timedelta(seconds=1))
+
+    """
     def __init__(self,
                  caching_cb: Callable[[datetime, datetime, ..., PipeOutput[Any], int, ...], None] = None, *,
                  loading_cb: Callable[[int], CacheObject] = None,

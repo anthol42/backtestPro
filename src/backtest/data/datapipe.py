@@ -6,8 +6,18 @@ import os
 import pickle
 
 class CacheObject:
+    """
+    This class holds a the output of a pipe and some metadata to be able to revalidate the cache.
+    """
     def __init__(self, value: Any, pipe_id: int, next_revalidate: Optional[datetime] = None,
                  max_request: Optional[int] = None, current_n_requests: int = 0):
+        """
+        :param value: The output of the pipe
+        :param pipe_id: The pipe_id of the pipe that generated the cache
+        :param next_revalidate: The next time the cache should be revalidated
+        :param max_request: The maximum number of requests that can be made before revalidating the cache
+        :param current_n_requests: The current number of requests made to the cache
+        """
         self.value = value
         self.pipe_id = pipe_id
         self.write_time = datetime.now()
@@ -16,6 +26,11 @@ class CacheObject:
         self.current_n_requests = current_n_requests
 
     def store(self):
+        """
+        Call this method to store the cache to the .cache folder.  The cache file has the pipe_id as its name.  This
+        is why it is strongly recommended to delete the .cache folder when changing the pipeline structure, to avoid
+        unexpected behavior.
+        """
         if not os.path.exists(".cache"):
             os.makedirs(".cache")
         with open(f".cache/{self.pipe_id}.pkl", "wb") as file:
@@ -23,11 +38,23 @@ class CacheObject:
 
     @classmethod
     def load(cls, pipe_id: int) -> 'CacheObject':
+        """
+        Call this method to load a cache from the .cache folder.
+        :param pipe_id: The pipe_id that stored the cache
+        :return: The cache object if it exists else None.  (This function doesn't check if the cache valid)
+        """
         with open(f".cache/{pipe_id}.pkl", "rb") as file:
             return pickle.load(file)
 
 
 class DataPipeType(Enum):
+    """
+    The four types of pipes that can be used in the pipeline.
+    Fetch: Fetch data from an external source (Web, DB, file, api, etc.)
+    Process: Process and transform the data (Filter, transform, etc.)
+    Cache: Cache the output of the pipeline (To avoid to do the previous steps at each runs)
+    Collate: Collate the output of two pipes (This is a special case, it is used to merge two pipelines)
+    """
     FETCH = "FETCH"
     PROCESS = "PROCESS"
     CACHE = "CACHE"
@@ -38,6 +65,10 @@ T_ = TypeVar("T_")
 
 
 class PipeOutput(Generic[T_]):
+    """
+    This class holds the output of a pipe and some metadata that are passed through out the pipeline.
+    This metadata is used for revalidation purpose.
+    """
     def __init__(self, value: T_, output_from: 'DataPipe', revalidate_action: Optional['RevalidateAction'] = None,
                  **kwargs):
         if "value" in kwargs:
@@ -53,17 +84,35 @@ class PipeOutput(Generic[T_]):
             setattr(self, k, v)
 
     def set_revalidate(self, action: 'RevalidateAction'):
+        """
+        Set the revalidate action of the pipe.
+        :param action: The action to set
+        :return: None
+        """
         self._revalidate_action = action
 
     def set_output_from(self, output_from: 'DataPipe'):
+        """
+        Set the output_from of the pipe.  Can be useful when a pip makes a copy of the output of another pipe.
+        :param output_from: The pipe that generated the output
+        :return: None
+        """
         self._output_from = output_from
 
     @property
     def value(self):
+        """
+        The output of the pipe
+        :return: The output value of the pipe
+        """
         return self._value
 
     @property
     def revalidate(self):
+        """
+        Get the revalidate action of the pipe
+        :return: The revalidate action of the pipe
+        """
         return self._revalidate_action
 
     def __str__(self):
@@ -71,12 +120,31 @@ class PipeOutput(Generic[T_]):
 
 
 class RevalidateAction(Enum):
+    """
+    The three possible revalidation action that a pipe can return.
+    REVALIDATE: Revalidate the cache from the current position to the end of the pipeline
+    FULL_REVALIDATE: Revalidate the cache from the beginning to the end of the pipeline
+    NOOP: Do not revalidate the cache (The pipe will load from cache if it exists)
+    """
     REVALIDATE = "REVALIDATE"
     FULL_REVALIDATE = "FULL_REVALIDATE"
     NOOP = "NOOP"
 
 class DataPipe(ABC):
+    """
+    The base element of the data module api.  This object can represent the four types of pipes (Fetch, Process, Cache,
+    and Collate).  It is a recursive object that can be used to build complex pipelines.  The pipeline is built using
+    the pipe operator (|).  Once the pipeline is built, it is run by calling the get method.
+    To make custom pipes, you need to inherit from this class and implement one of the three methods (fetch, process,
+    collate). If you want to implement a cache pipe, you need to implement the load, cache and revalidate methods.
+    Do not forget to call the super().__init__ method in the __init__ method of your custom pipe and pass the
+    appropriate DataPipeType.  You can also pass a name to the pipe to make the pipeline more readable.
+    """
     def __init__(self, T: DataPipeType, name: Optional[str] = None):
+        """
+        :param T: The pipe type (Fetch, Process, Cache, Collate)
+        :param name: The pipe name.  If None, the name of the class is used
+        """
         self._pipes: Optional[Union[DataPipe, List[DataPipe]]] = None
         self.T = T
         self._cache: Optional[CacheObject] = None
@@ -85,6 +153,16 @@ class DataPipe(ABC):
 
 
     def get(self, frm: datetime, to: datetime, *args, **kwargs) -> Any:
+        """
+        Run the pipeline from the beginning to the end and return the output of the pipeline.
+        :param frm: From datetime, this is passed to all pipes and is used to fetch the data from this date to the 'to'
+                date.
+        :param to: The end datetime, this is passed to all pipes and is used to fetch the data from the 'frm' date to
+                this date.
+        :param args: any args that needs to be passed to the subsequent pipes
+        :param kwargs: any keyword args that needs to be passed to the subsequent pipes
+        :return: The output of the pipeline
+        """
         # Step1: Load cache from disk
         flatten: List[DataPipe] = []    # Will become an array of references to all the pipes in the pipeline (Might not be in order)
         self._flatten(flatten)
@@ -103,6 +181,18 @@ class DataPipe(ABC):
 
     def _run(self, frm: datetime, to: datetime, *args, po: Optional[PipeOutput[Any]] = None, force_reload: bool = False,
              **kwargs) -> PipeOutput:
+        """
+        This method is called by the get method to run the pipeline.  It is also called by each pipe to run the next
+        pipe.
+        :param frm: The from datetime
+        :param to: The to datetime
+        :param args: Any args that needs to be passed to the subsequent pipes
+        :param po: The previous output of the pipeline.  Can be None
+        :param force_reload: Whether to force the revalidation of the cache.  If True, the cache will be revalidated
+                            no matter what.
+        :param kwargs: The keyword args that needs to be passed to the subsequent pipes
+        :return: The output of the pipeline
+        """
         # Early exit if the pipe return a FULL_REVALIDATE action because we will need to revalidate everything
         if po is not None and po.revalidate == RevalidateAction.FULL_REVALIDATE:
             return po
@@ -156,6 +246,11 @@ class DataPipe(ABC):
         return po
 
     def _build(self, other: 'DataPipe') -> 'DataPipe':
+        """
+        This method is used to build the pipeline from multiple pipes.  It is called when using the pipe operator (|).
+        :param other: The other pipe (Right hand side of the pipe operator)
+        :return: A new pipe that is the result of the concatenation of the two pipes.  (Multiple pipes makes a pipeline)
+        """
         # new = deepcopy(other)
         new = other
         new._pipes = self
@@ -163,16 +258,34 @@ class DataPipe(ABC):
         return new
 
     def __or__(self, other: 'DataPipe') -> 'DataPipe':
+        """
+        This is called the pipe operator in the case of this class.  It is used to build the pipeline from multiple
+        pipes.
+        :param other: The other pipe (Right hand side of the pipe operator)
+        :return: A new pipe that is the result of the concatenation of the two pipes.  (Multiple pipes makes a pipeline)
+        """
         return self._build(other)
 
     @classmethod
     def Collate(cls, pipe1: 'DataPipe', pipe2: 'DataPipe') -> 'DataPipe':
+        """
+        This method is used to build a collate pipe from two pipes.  It is used top merge two branches of a pipeline.
+        :param pipe1: The first pipeline (or pipe if there is only one)
+        :param pipe2:  The second pipeline (or pipe if there is only one)
+        :return: A new pipe that is the result of the concatenation of the two pipes.  (Multiple pipes makes a pipeline)
+        """
         new = cls(DataPipeType.COLLATE, name=f"Collate")
         new._pipes = [pipe1, pipe2]
         new._pipe_id = pipe1._pipe_id + pipe2._pipe_id + 2
         pipe2._increment_id(pipe1._pipe_id + 1)    # Increment the pipe_id of the second branch and all its children
         return new
     def _increment_id(self, new_pipe_id: int):
+        """
+        This method is used to increment the pipe_id of the pipe and all its children.  It is used to avoid having two
+        pipes with the same pipe_id in the pipeline.  It is called when building a collate pipe.
+        :param new_pipe_id: The start id to increment from
+        :return: None
+        """
         flatten = []    # Will become an array of references to all the pipes in the pipeline (Might not be in order)
         self._flatten(flatten)
         for pipe in flatten:
@@ -180,6 +293,11 @@ class DataPipe(ABC):
             new_pipe_id += 1
 
     def _flatten(self, flatten_pipe: List['DataPipe']):
+        """
+        Flatten the pipeline into a list of pipes.  This is used to access all the pipes in the pipeline.
+        :param flatten_pipe: A list where each reference to a pipe will be appended
+        :return: None
+        """
         if self._pipes is not None:
             if isinstance(self._pipes, list):
                 for pipe in self._pipes:
@@ -189,30 +307,94 @@ class DataPipe(ABC):
         flatten_pipe.append(self)
 
     def _load_cache(self):
+        """
+        Load the cache from the disk.  This method is called by the get method to load the cache from the disk before
+        running the pipeline.
+        :return: None
+        """
         if self.T == DataPipeType.CACHE:
             self._cache = self.load()
 
     def collate(self, frm: datetime, to: datetime, *args, po1: PipeOutput[Any], po2: PipeOutput[Any],
                 **kwargs) -> PipeOutput:
+        """
+        This method is called to merge the output of two pipes.  It is called by the _run method when the pipe is a
+        collate pipe.
+        :param frm: From datetime
+        :param to: To datetime
+        :param args: any args passed to the get method
+        :param po1: The output of the first pipeline (left)
+        :param po2: The output of the second pipeline (right)
+        :param kwargs: Any keyword args passed to the get method
+        :return: A pipe output object that holds the output of the pipe and some metadata
+        """
         raise NotImplementedError(f"Collate not implemented for object of type: {self.T}")
 
     def fetch(self, frm: datetime, to: datetime, *args, po: Optional[PipeOutput[Any]], **kwargs) -> PipeOutput:
+        """
+        This method is called to fetch the data from an external source.  It is called by the _run method when the pipe
+        is a fetch pipe.
+        :param frm: From datetime
+        :param to: To datetime
+        :param args: Any args passed to the get method
+        :param po: The pipe output of the previous pipe
+        :param kwargs: Any keyword args passed to the get method
+        :return: A pipe output object that holds the output of the pipe and some metadata
+        """
         raise NotImplementedError(f"Fetch not implemented for object of type: {self.T}")
 
     def process(self, frm: datetime, to: datetime, *args, po: PipeOutput[Any], **kwargs) -> PipeOutput:
+        """
+        This method is called to process and transform the data.  It is called by the _run method when the pipe is a
+        process pipe.
+        :param frm: From datetime
+        :param to: To datetime
+        :param args: Any args passed to the get method
+        :param po: The pipe output of the previous pipe
+        :param kwargs: Any keyword args passed to the get method
+        :return: A pipe output object that holds the output of the pipe and some metadata
+        """
         raise NotImplementedError(f"Process not implemented for object of type: {self.T}")
 
     def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput[Any], **kwargs) -> None:
+        """
+        This method is called to cache the output of the pipeline.  It is called by the _run method when the pipe is a
+        cache pipe.
+        :param frm: From datetime
+        :param to: To datetime
+        :param args: Any args passed to the get method
+        :param po: The pipe output of the previous pipe
+        :param kwargs: Any keyword args passed to the get method
+        :return: None
+        """
         raise NotImplementedError(f"Cache not implemented for object of type: {self.T}")
 
-    def load(self) -> CacheObject:
+    def load(self) -> Optional[CacheObject]:
+        """
+        This method is called to load the cache from the disk.  It is called by the _load_cache method when the pipe is
+        a cache pipe.  It will return the loaded cache object if found.  Otherwise, it will return None.
+        :return: CacheObject if found else None
+        """
         raise NotImplementedError(f"Load not implemented for object of type: {self.T}")
 
     def revalidate(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> RevalidateAction:
+        """
+        This method is called to revalidate the cache.  It is called by the _run method when the pipe is a cache pipe.
+        :param frm: From datetime
+        :param to: To datetime
+        :param args: Any args passed to the get method
+        :param po: The pipe output of the previous pipe
+        :param kwargs: Any keyword args passed to the get method
+        :return: A pipe output object that holds the output of the pipe and some metadata
+        """
         raise NotImplementedError(f"Revalidate not implemented for object of type: {self.T}")
 
     def __str__(self):
-        render = self._render()
+        """
+        This method is called when the print function is called on the pipe.  It returns a string representation of the
+        pipeline.  (The pipeline is represented as a tree inside a box)
+        """
+        render = self.render()
         lines = render.split("\n")
         if lines[-1] == "":
             lines = lines[:-1]
@@ -226,27 +408,52 @@ class DataPipe(ABC):
         return "\n".join([top_line] + lines + [bottom_line])
 
     def __repr__(self):
+        """
+        This method is called when the repr function is called on the pipe.  It returns a short string representation of
+        the pipe.
+        """
         return f"DataPipe({self.T}, {self.name})"
 
     def __iter__(self) -> Iterator['DataPipe']:
+        """
+        To iter on each pipe in the pipeline.
+
+        Warning:
+            The pipes might not be in order.
+        :return: An iterator on each pipe in the pipeline
+        """
         pipes = []
         self._flatten(pipes)
         return iter(pipes)
 
     @property
     def pipe_id(self) -> int:
+        """
+        Get the pipe_id (Identifier unique to each pipe in the pipeline).  It is given at built time and is deterministic.
+        This means that each time the pipeline is built, the pipe_id will be the same for each pipe, given that the
+        pipeline structure is the same.
+        :return: The pipe_id
+        """
         return self._pipe_id
 
     def __len__(self) -> int:
+        """
+        Get the number of pipes in the pipeline.
+        """
         pipes = []
         self._flatten(pipes)
         return len(pipes)
 
 
-    def _render(self):
+    def render(self):
+        """
+        This method is used to render the pipeline as a string.  It renders the pipe structure as a tree with each node
+        being the name of the pipe.  It is used by the __str__ method to render the pipeline as a tree.
+        :return: The rendered pipeline as a string
+        """
         if self.T == DataPipeType.COLLATE and self._pipes is not None:
-            pipe1 = self._pipes[0]._render()
-            pipe2 = self._pipes[1]._render()
+            pipe1 = self._pipes[0].render()
+            pipe2 = self._pipes[1].render()
             n_lines1 = pipe1.count("\n")
             n_lines2 = pipe2.count("\n")
             # Easy exit
@@ -288,7 +495,7 @@ class DataPipe(ABC):
             if self._pipes is None:
                 return f"{self.name}"
             else:
-                prev_render = self._pipes._render()
+                prev_render = self._pipes.render()
                 n_lines = prev_render.count("\n")
                 if n_lines > 1:
                     return self._format_multiline_output(prev_render, self.name)

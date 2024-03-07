@@ -22,13 +22,18 @@ Features are not implemented yet, but will be one day.
 
 
 ## RoadMap
-- [ ] Backtest Engine
+- [X] Backtest Engine
   - [X] Modules (Implementation)
   - [X] Unit testing
   - [X] Integration Testing
-  - [ ] Documentation
-- [ ] DataPipeline
+  - [X] Documentation
+- [X] DataPipeline
+  - [X] Modules (Implementation)
+  - [X] Unit testing
+  - [X] Documentation
+- [ ] Indicators
   - [ ] Modules (Implementation)
+  - [ ] PineScript to Python translator
   - [ ] Unit testing
   - [ ] Documentation
 - [ ] Server Module

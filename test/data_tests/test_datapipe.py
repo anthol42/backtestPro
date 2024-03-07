@@ -1,3 +1,4 @@
+from typing import Optional
 from unittest import TestCase
 from datetime import datetime
 from src.backtest.data.datapipe import DataPipe, DataPipeType, PipeOutput, CacheObject, RevalidateAction
@@ -30,6 +31,9 @@ class TestDatapipe(TestCase):
             def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> None:
                 call_order.append(self.name)
                 self._cache = CacheObject(po, self._pipe_id)
+
+            def load(self) -> Optional[CacheObject]:
+                return self._cache
 
             def revalidate(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> RevalidateAction:
                 if self.rev:
@@ -77,7 +81,10 @@ class TestDatapipe(TestCase):
                 return PipeOutput([v1 + v2 for v1, v2 in zip(po1.value, po2.value)], self)
             def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> None:
                 call_order.append(self.name)
-                self._cache = CacheObject(po, self._pipe_id)
+                self._cache = CacheObject(po.value, self._pipe_id)
+
+            def load(self) -> Optional[CacheObject]:
+                return self._cache
 
             def revalidate(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> RevalidateAction:
                 if self.rev:
