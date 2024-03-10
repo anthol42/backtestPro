@@ -60,7 +60,7 @@ class JSONEncoder(json.JSONEncoder):
                 raise TypeError(f"Object of type {type(o)} is JSON serializable, but not registered in the JSONEncoder.  "
                                 f"Use the add_types function to add the type to the JSONEncoder.")
         elif isinstance(o, pd.DataFrame):
-            return {"__TYPE__": "pd.DataFrame", "data": o.to_dict(orient="list")}
+            return {"__TYPE__": "pd.DataFrame", "data": o.to_dict(orient="list"), "index": o.index.to_list()}
         elif isinstance(o, np.ndarray):
             return {"__TYPE__": "np.ndarray", "data": o.tolist()}
         elif isinstance(o, np.int64):
@@ -114,7 +114,7 @@ class JSONDecoder(json.JSONDecoder):
         if "__TYPE__" in d:
             # Built-in extended types
             if d["__TYPE__"] == "pd.DataFrame":
-                return pd.DataFrame(d["data"])
+                return pd.DataFrame(d["data"], index=d["index"])
             elif d["__TYPE__"] == "np.ndarray":
                 return np.array(d["data"])
             elif d["__TYPE__"] == "pd.Series":

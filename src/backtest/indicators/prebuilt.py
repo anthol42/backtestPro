@@ -1,4 +1,4 @@
-from indicator import Indicator
+from .indicator import Indicator
 from typing import List
 from datetime import datetime
 import pandas as pd
@@ -84,3 +84,7 @@ def DX(data: np.ndarray, index: List[datetime], features: List[str], period: int
     array are the OHLC data.
     """
     return ta.DX(data[:, 1], data[:, 2], data[:, 3], timeperiod=period)[:, np.newaxis]
+
+@Indicator(out_feat=["SMA"], period=int)
+def SMA(data: np.ndarray, index: List[datetime], features: List[str], period: int = 10) -> np.ndarray:
+    return ta.SMA(data[:, 3], timeperiod=period)[:, np.newaxis]
