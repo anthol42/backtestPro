@@ -2,7 +2,7 @@ from .account import Account
 from .broker import Broker
 from abc import ABC
 from datetime import datetime
-from typing import Final
+from .strategy import Strategy
 from enum import Enum
 from typing import Union, Tuple, Optional
 
@@ -35,15 +35,17 @@ class CashControllerBase(ABC):
     def __init__(self):
         self.broker: Optional[Broker] = None
         self.account: Optional[Account] = None
+        self.strategy: Optional[Strategy] = None
         self._total_deposited = 0    # Record net money added or removed from account
 
-    def init(self, account: Account, broker: Broker):
+    def init(self, account: Account, broker: Broker, strategy: Strategy):
         """
         :param account: The account
         :param broker: The broker [Shoudl not be modified!!]
         """
         self.broker = broker
         self.account = account
+        self.strategy = strategy
 
     def deposit(self, timestamp: datetime, timeframe: Union[str, CashControllerTimeframe]):
         if isinstance(timeframe, str):

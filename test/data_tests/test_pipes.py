@@ -63,6 +63,8 @@ class TestPipes(TestCase):
     def test_cache(self):
         if os.path.exists(f".cache/{1}.pkl"):
             os.remove(f".cache/{1}.pkl")
+        if os.path.exists(f".cache/{1}.json"):
+            os.remove(f".cache/{1}.json")
         i = 0
         @Fetch
         def FetchN(frm: datetime, to: datetime, *args, po: Optional[PipeOutput], **kwargs):

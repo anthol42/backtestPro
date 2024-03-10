@@ -88,7 +88,6 @@ class Backtest:
         # Resolutions are added at the end of the Record objet list.
         self.time_res_extender = time_res_extender
         self.cash_controller = cash_controller
-        self.cash_controller.init(self.account, self.broker)
         self._verbose = verbose    # 0: No print, 1: Only errors, 2: Errors and warnings, 3: All
         self.run_iter: int = 0
 
@@ -213,6 +212,8 @@ class Backtest:
 
         # Initialize strategy
         self.strategy.init(self.account, self.broker, self.available_time_res)
+        # Initialize cash controller
+        self.cash_controller.init(self.account, self.broker, self.strategy)
 
         # This adds freedom to the user if he has custom data
         timesteps_list = self.stadardize_timesteps(timesteps_list)

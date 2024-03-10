@@ -80,7 +80,7 @@ class TestJSONEncoder(TestCase):
         out = json.dumps(pd_series, cls=JSONEncoder)
         self.assertEqual("{\"__TYPE__\": \"pd.Series\", \"data\": {\"0\": 1, \"1\": 2, \"2\": 3}}", out)
         out = json.dumps(pd_dataframe, cls=JSONEncoder)
-        self.assertEqual("{\"__TYPE__\": \"pd.DataFrame\", \"data\": {\"a\": [1, 2, 3], \"b\": [4, 5, 6]}}", out)
+        self.assertEqual("{\"__TYPE__\": \"pd.DataFrame\", \"data\": {\"a\": [1, 2, 3], \"b\": [4, 5, 6]}, \"index\": [0, 1, 2]}", out)
         out = json.dumps(dt, cls=JSONEncoder)
         self.assertEqual('{"__TYPE__": "datetime", "data": "2023-08-22T00:00:00"}', out)
         out = json.dumps(td, cls=JSONEncoder)
