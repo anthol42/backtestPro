@@ -95,4 +95,18 @@ def DX(data: np.ndarray, index: List[datetime], features: List[str], previous_da
 @Indicator(out_feat=["SMA"], period=int)
 def SMA(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
         period: int = 10) -> np.ndarray:
-    return ta.SMA(data[:, 3], timeperiod=period)[:, np.newaxis]
+    """
+    This SMA indicator support the streaming feature.  If the previous_data is not None, the indicator will fill the
+    missing values in the previous_data and return it.  If the previous_data is None, it will calculate the indicator
+    for the whole data.
+    """
+    if previous_data is None:
+        return ta.SMA(data[:, 3], timeperiod=period)[:, np.newaxis]
+    else:
+        prev_sma = previous_data[:, 0]
+        idx = np.argmax(np.isnan(prev_sma))
+        if idx > period:
+            prev_sma[idx:] = ta.SMA(data[idx-period:, 3], timeperiod=period)[period:]
+            return prev_sma[:, np.newaxis]
+        else:
+            return ta.SMA(data[:, 3], timeperiod=period)[:, np.newaxis]
