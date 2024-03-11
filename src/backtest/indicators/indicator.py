@@ -3,6 +3,7 @@ import numpy as np
 import numpy.typing as npt
 from datetime import datetime
 from typing import List, Tuple, Union, Optional, Any, Callable
+from copy import deepcopy
 
 
 class Indicator:
@@ -55,9 +56,11 @@ class Indicator:
         """
         if len(args) > 0 and callable(args[0]):
             self.set_callback(args[0])
+            return self
         else:
-            self.set_params(**kwargs)
-        return self
+            new = deepcopy(self)
+            new.set_params(**kwargs)
+            return new
 
     def set_callback(self, cb: Callable[[npt.NDArray[np.float32], Union[List[datetime], List[str]],
                                    List[str], ...],  npt.NDArray[np.float32]]) -> None:
@@ -115,4 +118,12 @@ class Indicator:
         :return: A 2D array with the indicator results.  Must be the same length as the input data.
         """
         raise NotImplementedError("This method must be implemented in a subclass, or you must set the callback.")
+
+
+    def __str__(self):
+        return f"{self.name}({', '.join([f'{k}={v}' for k, v in self.params.items()])})"
+
+
+    def __repr__(self):
+        return f"Indicator({self.name})"
 
