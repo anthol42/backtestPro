@@ -7,7 +7,7 @@ import numpy.typing as npt
 from datetime import datetime, timedelta
 from .tsData import TSData
 from .strategy import Strategy
-from typing import List, Dict, Type, Optional
+from typing import List, Dict, Type, Optional, Union
 from .backtestResult import BackTestResult
 from .record import Record, RecordsBucket
 from .tsData import DividendFrequency
@@ -16,6 +16,7 @@ import warnings
 from .metadata import Metadata
 from .cashController import CashControllerBase, CashControllerTimeframe
 from .time_resolution_extenders import TimeResExtender
+from ..indicators import IndicatorSet, Indicator
 
 class UnexpectedBehaviorRisk(Warning):
     pass
@@ -38,7 +39,62 @@ class Backtest:
                  sell_at_the_end: bool = True,
                  cash_controller: CashControllerBase = CashControllerBase(),
                  verbose=3,
-                 time_res_extender: Optional[TimeResExtender] = None):
+                 time_res_extender: Optional[TimeResExtender] = None,
+                 indicators: Union[IndicatorSet, List[IndicatorSet], Dict[int, IndicatorSet]] = IndicatorSet(),
+                 streaming_indicators: bool = False):
+        """
+        :param data: The data on which to run the backtest.  It is a list of dictionaries where each dictionary
+                        represents a group of time series data.  The key is the ticker and the value is the TSData object.
+        :param strategy: The strategy to test
+        :param metadata: A metadata object.  This is useful to store information about the backtest to add context.
+        :param market_index: The TSData object containing the reference market index.  (Used to compare the strategy
+                            performances to the market)
+        :param main_timestep: The index of the timeseries data in data list to use as the main series.  i.e. the
+                            frequency at which the strategy is run.  The other timeseries will be passed to the
+                            strategy as additional data.  For example, if our data is a list of two dictionaries,
+                            the first one containing hourly data and the second one containing daily data, and we
+                            extend the daily data to weekly data, we would set main_timestep to 1.  (The second
+                            dictionary) to run our strategy at each open market days.
+        :param initial_cash: The initial cash in bank account
+        :param commission: The absolute commission.  In $ per trade
+        :param relative_commission: The relative commission.  In % of the trade value.  Example: 5% would be 5
+        :param margin_interest: The interest rate on margin.  In % of the margin value.  Example: 5% would be 5
+        :param min_initial_margin: The minimum initial margin.  In % of the trade value.  Example: 5% would be 5
+        :param min_maintenance_margin: The minimum maintenance margin.  In % of the trade value.  Example: 5% would be 5
+        :param liquidation_delay: The delay before liquidating a position in margin call.  In timestep.  Example, if the
+                                delay is 2 and the main time resolution is daily, the position will be liquidated 2 days
+        :param min_initial_margin_short: The minimum initial margin for short positions.  In % of the trade value.
+        :param min_maintenance_margin_short: The minimum maintenance margin for short positions.  In % of the trade value.
+        :param broker: The Broker class to use.  This is useful to use a custom broker.  The broker class must inherit
+                    from the Broker class.
+        :param account: The Account class to use.  This is useful to use a custom account.  The account class must inherit
+                    from the Account class.
+        :param window: The lookback period for the strategy.  The number of datapoint to pass to the strategy at each
+                    timestep.  (The number of datapoint in the main timestep.  There might be more or less for others)
+        :param default_marginable: In case there is no column "Marginable" in the data, this value will be used to know
+                    if the security is marginable.
+        :param default_shortable: In case there is no column "Shortable" in the data, this value will be used to know if
+                    the security is shortable.
+        :param risk_free_rate: The risk-free rate in %.  Used to calculate performance ratios like the Sharpe ratio.
+        :param default_short_rate: The short rate in % in case there is no column 'Short_rate' in the data.
+        :param sell_at_the_end: Whether to sell every open position at the end or not.  If True, the strategy will
+                    sell the positions at the end of the backtest.
+        :param cash_controller: A cash controller object to control the money flow in and out of the bank account during
+                    the backtest.  This is useful to simulate the effect of, for example, weekly deposit or monthly
+                    withdrawal.
+        :param verbose: 0: No print, 1: Only errors, 2: Errors and warnings, 3: All
+        :param time_res_extender: A time resolution extender object.  This is useful to add time resolutions to the data
+        :param indicators: An Indicator set object.  This is useful to add indicators to the data.  The indicators are
+                    calculated at each timestep and passed to the strategy.   It can also be a list with the same length
+                    as the number of time resolution.  Each element of the list will be an IndicatorSet object to use for
+                    the corresponding time resolution.  If it is a dictionary, the keys will be the index of the time
+                    resolution and the values will be the IndicatorSet object to use for the corresponding time resolution.
+                    If a dictionary is used, make sure there is at least a key for the main time resolution.
+        :param streaming_indicators: Whether to recalculate the indicators for the whole window at each timesteps or to
+                    recalculate only the last datapoint.  If True, the indicators will be recalculated for only the
+                    last datapoint at each timestep.  If False, the indicators will be recalculated for the whole
+                    window at each timestep.
+        """
 
 
         self._data = data
@@ -63,6 +119,8 @@ class Backtest:
         self.default_short_rate = default_short_rate / 100
         self.metadata = metadata
         self.sell_at_the_end = sell_at_the_end
+        self.indicators = indicators
+        self.streaming_indicators = streaming_indicators
         self._backtest_parameters = {
             "strategy": strategy.__class__.__name__,
             "main_timestep": main_timestep,
@@ -82,6 +140,8 @@ class Backtest:
             "default_short_rate": default_short_rate,
             "sell_at_the_end": sell_at_the_end,
             "cash_controller": cash_controller.__class__.__name__,
+            "indicators": indicators.toList(),
+            "streaming_indicators": streaming_indicators,
             "verbose": verbose,
             "time_res_extender": time_res_extender.export() if time_res_extender is not None else None
         }
@@ -167,6 +227,8 @@ class Backtest:
         prepared_data[self.main_timestep] = self._prepare_data(self._data, self.main_timestep, timestep, self.window,
                                                                self.default_marginable, self.default_shortable,
                                                                self.default_short_rate, save_next_tick=True)
+        prepared_data[self.main_timestep] = self.apply_indicators(prepared_data[self.main_timestep], self.main_timestep)
+
         max_look_back_dt = datetime.fromisoformat('3000-01-01 00:00:00')
         for record in prepared_data[self.main_timestep]:
             if record.chart is not None:
@@ -180,6 +242,7 @@ class Backtest:
                                                     self.window,
                                                     self.default_marginable, self.default_shortable,
                                                     self.default_short_rate, max_look_back_dt=max_look_back_dt)
+            prepared_data[idx] = self.apply_indicators(prepared_data[idx], idx)
 
         # Forge new candles for the one with bigger time resolution  to avoid peeking into the future.  (Data leaking)
         for idx in time_res_bigger_idx:
@@ -194,7 +257,43 @@ class Backtest:
 
                     assert record.ticker == last_candles[i][-1], "An error happened, securities are no longer aligned"
             prepared_data[idx] = series
+
+            # Apply indicators
+            prepared_data[idx] = self.apply_indicators(prepared_data[idx], idx)
         return prepared_data
+
+    def apply_indicators(self, data: List[Record], time_res_idx: int) -> List[Record]:
+        """
+        Apply the indicators to the data (All tickers in time res)
+        :param data: The list of records to apply the indicators to
+        :param time_res_idx: The current time resolution
+        :return: The updated data
+        """
+        if isinstance(self.indicators, dict):
+            indicators = self.indicators.get(time_res_idx)
+            if indicators is None:
+                return data
+        elif isinstance(self.indicators, list):
+            indicators = self.indicators[time_res_idx]
+        else:
+            indicators = self.indicators
+
+        if len(indicators) > 0:
+            for record in data:
+                if record.chart is not None:
+                    record.chart = self.run_indicator(record.chart, indicators, time_res_idx)
+        return data
+
+    def run_indicator(self, data: pd.DataFrame, indicators: IndicatorSet, time_res_idx: int) -> pd.DataFrame:
+        """
+        Run the indicators on a single chart.
+        :param data: The chart data OHLCV
+        :param indicators: The indicatorSet to use.
+        :param time_res_idx: the current time resolution index
+        :return: The new data
+        """
+        if not self.streaming_indicators:
+            return indicators.run_all(data)
 
     def run(self) -> BackTestResult:
         """

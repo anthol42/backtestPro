@@ -63,6 +63,17 @@ class IndicatorSet:
     def __repr__(self):
         return f"IndicatorSet(n_indicators={len(self._indicators)})"
 
+    def __len__(self):
+        """
+        :return: Return the number of indicators in the IndicatorSet.
+        """
+        return len(self._indicators)
+
+    def __iter__(self):
+        """
+        :return: Return an iterator on the indicators in the IndicatorSet.
+        """
+        return iter(self._indicators)
 
     def toList(self) -> List[str]:
         """
