@@ -10,6 +10,7 @@ from src.backtest.engine import Record
 from src.backtest.engine import DividendFrequency
 from src.backtest.engine import Backtest
 from copy import deepcopy
+from src.backtest.indicators import IndicatorSet, TA
 
 
 class MyStrat(Strategy):
@@ -564,4 +565,57 @@ class TestBacktest(TestCase):
         bcktst._sell_all(datetime.fromisoformat('2024-01-09 00:00:00'))
         self.assertEqual(0, bcktst.broker.portfolio._long["NVDA"].amount)
         self.assertEqual(0, bcktst.broker.portfolio._short["AAPL"].amount)
+
+    def test_run_indicator(self):
+        data = pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date")
+        bcktst = Backtest({}, MyStrat(), main_timestep=0, window=3, verbose=1)
+        ind = IndicatorSet(
+            TA.SMA(period=10)
+        )
+        # Test full run
+        out = bcktst.run_indicator(data, None, ind, streaming=False, bigger_res=False)
+        self.assertEqual(data.columns.tolist() + ["SMA"], out.columns.tolist())
+
+        # Test streaming
+        prev_data = out.copy(deep=True)
+        prev_data["SMA"].iloc[-5:] = np.nan
+        out2 = bcktst.run_indicator(data, prev_data, ind, streaming=True, bigger_res=False)
+        self.assertEqual(data.columns.tolist() + ["SMA"], out.columns.tolist())
+        np.testing.assert_array_equal(out.values, out2.values)
+
+        # Test with bigger res
+        prev_data = out.copy(deep=True)
+        prev_data["SMA"].iloc[-1:] = 8    # Sabotage of the previous data to see if it is overwritten
+        out3 = bcktst.run_indicator(data, prev_data, ind, streaming=True, bigger_res=True)
+        self.assertEqual(data.columns.tolist() + ["SMA"], out.columns.tolist())
+        np.testing.assert_array_equal(out.values, out3.values)
+
+    def test_apply_indicators(self):
+        data = [{
+                "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1h.csv", index_col="Datetime"),
+                               name="AAPL", div_freq=DividendFrequency.QUARTERLY),
+                "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1h.csv", index_col="Datetime"),
+                               name="NVDA", div_freq=DividendFrequency.NO_DIVIDENDS),
+            },
+            {
+                "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"),
+                               name="AAPL", time_res=timedelta(days=1), div_freq=DividendFrequency.QUARTERLY),
+                "NVDA": TSData(pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date"),
+                               name="NVDA", time_res=timedelta(days=1), div_freq=DividendFrequency.NO_DIVIDENDS),
+             },
+            {
+                "AAPL": TSData(pd.read_csv("test_data/AAPL_1y_5d.csv", index_col="Date"),
+                               name="AAPL", time_res=timedelta(days=5), div_freq=DividendFrequency.QUARTERLY),
+                "NVDA": TSData(pd.read_csv("test_data/NVDA_1y_5d.csv", index_col="Date"),
+                               name="NVDA", time_res=timedelta(days=5), div_freq=DividendFrequency.NO_DIVIDENDS),
+            }
+        ]
+        bcktst = Backtest(deepcopy(data), MyStrat(), main_timestep=1, window=100,
+                          indicators=IndicatorSet(TA.SMA(period=10), streaming=True), verbose=1)
+
+        # Now, we will try the first run, which should run the indicator on the whole data.
+        prepared_data = bcktst._prepare_data(data, 1, datetime(2024, 1, 26), 100,
+                                             False, False, 0)
+
+        # TODO: Finish this test
 

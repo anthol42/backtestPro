@@ -515,6 +515,8 @@ class Backtest:
                                 with nan.  This can be useful for time resolutions that are not the main one.
         :param save_next_tick: If True, it will save the current tick data as a next tick in the Record object.
                                 (This is useful for the sell all at the end of the backtest)
+        :param next_tick_is_current: If True, the next tick will be the current tick.  This is useful at the end of the
+                                        backtest to sell everything at current market value.
         :return: The prepared data
         """
         prepared_data: List[Record] = []
