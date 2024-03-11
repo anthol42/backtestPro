@@ -10,7 +10,8 @@ except ImportError:
 import numpy as np
 
 @Indicator(out_feat=["ADX"], period=int)
-def ADX(data: np.ndarray, index: List[datetime], features: List[str], period: int = 14) -> np.ndarray:
+def ADX(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
+        period: int = 14) -> np.ndarray:
     """
     Data is a 2D numpy array with the shape (n, f) where n is the number of observations.  The first 4 columns of the
     array are the OHLC data.
@@ -18,7 +19,8 @@ def ADX(data: np.ndarray, index: List[datetime], features: List[str], period: in
     return ta.ADX(data[:, 1], data[:, 2], data[:, 3], timeperiod=period)[:, np.newaxis]
 
 @Indicator(out_feat=["ADXR"], period=int)
-def ADXR(data: np.ndarray, index: List[datetime], features: List[str], period: int = 14) -> np.ndarray:
+def ADXR(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
+         period: int = 14) -> np.ndarray:
     """
     Data is a 2D numpy array with the shape (n, f) where n is the number of observations.  The first 4 columns of the
     array are the OHLC data.
@@ -26,7 +28,7 @@ def ADXR(data: np.ndarray, index: List[datetime], features: List[str], period: i
     return ta.ADXR(data[:, 1], data[:, 2], data[:, 3], timeperiod=period)[:, np.newaxis]
 
 @Indicator(out_feat=["APO"], fastperiod=int, slowperiod=int, matype=int)
-def APO(data: np.ndarray, index: List[datetime], features: List[str],
+def APO(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
         fastperiod: int = 12, slowperiod: int = 26, matype: int = 0) -> np.ndarray:
     """
     Data is a 2D numpy array with the shape (n, f) where n is the number of observations.  The first 4 columns of the
@@ -35,7 +37,8 @@ def APO(data: np.ndarray, index: List[datetime], features: List[str],
     return ta.APO(data[:, 4], fastperiod=fastperiod, slowperiod=slowperiod, matype=matype)[:, np.newaxis]
 
 @Indicator(out_feat=["aroondown", "aroonup"], period=int)
-def AROON(data: np.ndarray, index: List[datetime], features: List[str], period: int = 14) -> np.ndarray:
+def AROON(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
+          period: int = 14) -> np.ndarray:
     """
     Data is a 2D numpy array with the shape (n, f) where n is the number of observations.  The first 4 columns of the
     array are the OHLC data.
@@ -45,7 +48,8 @@ def AROON(data: np.ndarray, index: List[datetime], features: List[str], period: 
 
 
 @Indicator(out_feat=["AROONOSC"], period=int)
-def AROONOSC(data: np.ndarray, index: List[datetime], features: List[str], period: int = 14) -> np.ndarray:
+def AROONOSC(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
+             period: int = 14) -> np.ndarray:
     """
     Data is a 2D numpy array with the shape (n, f) where n is the number of observations.  The first 4 columns of the
     array are the OHLC data.
@@ -54,7 +58,7 @@ def AROONOSC(data: np.ndarray, index: List[datetime], features: List[str], perio
 
 
 @Indicator(out_feat=["BOP"])
-def BOP(data: np.ndarray, index: List[datetime], features: List[str]) -> np.ndarray:
+def BOP(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray) -> np.ndarray:
     """
     Data is a 2D numpy array with the shape (n, f) where n is the number of observations.  The first 4 columns of the
     array are the OHLC data.
@@ -62,7 +66,8 @@ def BOP(data: np.ndarray, index: List[datetime], features: List[str]) -> np.ndar
     return ta.BOP(data[:, 0], data[:, 1], data[:, 2], data[:, 3])[:, np.newaxis]
 
 @Indicator(out_feat=["CCI"], period=int)
-def CCI(data: np.ndarray, index: List[datetime], features: List[str], period: int = 14) -> np.ndarray:
+def CCI(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
+        period: int = 14) -> np.ndarray:
     """
     Data is a 2D numpy array with the shape (n, f) where n is the number of observations.  The first 4 columns of the
     array are the OHLC data.
@@ -70,7 +75,8 @@ def CCI(data: np.ndarray, index: List[datetime], features: List[str], period: in
     return ta.CCI(data[:, 1], data[:, 2], data[:, 3], timeperiod=period)[:, np.newaxis]
 
 @Indicator(out_feat=["CMO"], period=int)
-def CMO(data: np.ndarray, index: List[datetime], features: List[str], period: int = 14) -> np.ndarray:
+def CMO(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
+        period: int = 14) -> np.ndarray:
     """
     Data is a 2D numpy array with the shape (n, f) where n is the number of observations.  The first 4 columns of the
     array are the OHLC data.
@@ -78,7 +84,8 @@ def CMO(data: np.ndarray, index: List[datetime], features: List[str], period: in
     return ta.CMO(data[:, 3], timeperiod=period)[:, np.newaxis]
 
 @Indicator(out_feat=["DX"], period=int)
-def DX(data: np.ndarray, index: List[datetime], features: List[str], period: int = 14) -> np.ndarray:
+def DX(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
+       period: int = 14) -> np.ndarray:
     """
     Data is a 2D numpy array with the shape (n, f) where n is the number of observations.  The first 4 columns of the
     array are the OHLC data.
@@ -86,5 +93,6 @@ def DX(data: np.ndarray, index: List[datetime], features: List[str], period: int
     return ta.DX(data[:, 1], data[:, 2], data[:, 3], timeperiod=period)[:, np.newaxis]
 
 @Indicator(out_feat=["SMA"], period=int)
-def SMA(data: np.ndarray, index: List[datetime], features: List[str], period: int = 10) -> np.ndarray:
+def SMA(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
+        period: int = 10) -> np.ndarray:
     return ta.SMA(data[:, 3], timeperiod=period)[:, np.newaxis]

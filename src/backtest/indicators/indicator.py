@@ -11,7 +11,9 @@ class Indicator:
     This class is a decorator designed to make an Indicator out of a function.
     Example:
         >>> @Indicator(out_feat=["SMA"], period=int)
-        ... def SMA(data: np.ndarray, index: List[str], features: List[str], period: int = 10) -> np.ndarray:
+        ... def SMA(data: np.ndarray, index: List[str], features: List[str],
+        ...     previous_data: Optional[npt.NDArray[np.float32]], period: int = 10) -> np.ndarray:
+        ...
         ...     out = np.zeros(len(data), dtype=np.float32)
         ...     for i in range(len(data) - period + 1):
         ...         out[i] = data[i: i+period, 0].sum() / period
@@ -39,7 +41,7 @@ class Indicator:
         self.out = out_feat
         self.use_numba = numba
         self._cb: Optional[Callable[[npt.NDArray[np.float32], Union[List[datetime], List[str]],
-                                     List[str], ...],  npt.NDArray[np.float32]]] = None
+                                     List[str], Optional[npt.NDArray[np.float32]], ...],  npt.NDArray[np.float32]]] = None
         self.name = name
         self.params = {}
         self.expected_params = expected_params
@@ -63,7 +65,8 @@ class Indicator:
             return new
 
     def set_callback(self, cb: Callable[[npt.NDArray[np.float32], Union[List[datetime], List[str]],
-                                   List[str], ...],  npt.NDArray[np.float32]]) -> None:
+                                   List[str], Optional[npt.NDArray[np.float32]], ...],
+                                    npt.NDArray[np.float32]]) -> None:
         """
         Set the callback method to be used when the indicator is called.
         :param cb: The indicator logic
@@ -86,11 +89,11 @@ class Indicator:
                 raise ValueError(f"Invalid type for parameter {param}.  Expect: {self.expected_params[param]}")
         self.params = params
 
-
-    def get(self, data: pd.DataFrame) -> pd.DataFrame:
+    def get(self, data: pd.DataFrame, previous_values: Optional[pd.DataFrame]) -> pd.DataFrame:
         """
         Run the indicator logic on the data and returns the result as a DataFrame.
         :param data: The input dataframe with a datetime index.  (Usually the chart)
+        :param previous_values: The previous values of the indicator.  (Used when streaming the indicator)
         :return: The indicator results as a dataframe
         """
         np_data = data.to_numpy()
@@ -99,21 +102,28 @@ class Indicator:
         else:
             index = data.index.tolist()
         features = data.columns.tolist()
-        if self._cb is None:
-            out = self.run(np_data, index, features, **self.params)
+        if previous_values is not None:
+            previous_values = previous_values[self.out].to_numpy()
         else:
-            out = self._cb(np_data, index, features, **self.params)
+            previous_values = None
+        if self._cb is None:
+            out = self.run(np_data, index, features, previous_values, **self.params)
+        else:
+            out = self._cb(np_data, index, features, previous_values, **self.params)
         return pd.DataFrame(out, index=index, columns=self.out)
 
     @staticmethod
     def run(data: npt.NDArray[np.float32], index: Union[List[datetime], List[str]], features: List[str],
-            **params) -> npt.NDArray[np.float32]:
+            previous_data: Optional[npt.NDArray[np.float32]] = None, **params) -> npt.NDArray[np.float32]:
         """
         This method can be overridden to implement the indicator logic.  This method is called when the callback method
         is not set.
         :param data: The input data as a 2d numpy array.
         :param index: The index of the input data.  (datetime if not compiled with numba or string if compiled
         :param features: The features of the input data
+        :param previous_data: An array of the previous indicator results.  The recent points in the array will be nan.
+                        These are the values to fill.  This parameter is useful when streaming the indicator
+                        (more compute efficient, but not all indicators support it.)
         :param params: Any parameters set by the user
         :return: A 2D array with the indicator results.  Must be the same length as the input data.
         """

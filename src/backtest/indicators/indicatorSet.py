@@ -1,12 +1,18 @@
 import pandas as pd
 from .indicator import Indicator
-from typing import List, Union, Dict
+from typing import List, Union, Dict, Optional
 
 
 
 class IndicatorSet:
-    def __init__(self, *indicators: Indicator):
+    def __init__(self, *indicators: Indicator, streaming: bool = False):
+        """
+        :param indicators: Indicators passed as arguments
+        :param streaming: Whether to use the streaming capabilities of the indicators or not.  (Note that if true,
+                            indicators will have the choice to use it or not.)  Streaming can improve backtest run time.
+        """
         self._indicators: List[Indicator] = list(indicators)
+        self._streaming = streaming
 
     def add(self, indicators: Union[Indicator, List[Indicator]]):
         """
@@ -20,16 +26,21 @@ class IndicatorSet:
             self._indicators.append(indicators)
         self._indicators.append(indicators)
 
-    def run_all(self, data: pd.DataFrame) -> pd.DataFrame:
+    def run_all(self, data: pd.DataFrame, previous_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """
         Run all the indicators in the IndicatorSet on the data and return the results as a DataFrame.  It concatenates
         the input data with the results of the indicators.  (The index should be a datetime index)
         :param data: The input data.  At least an OHLCV chart. [Open, High, Low, Close, Volume]
+        :param data: A dataframe containing the previously calculated values of the indicators.  (Used when streaming)
+                    If streaming is False, this parameter is ignored.  This should be a dataframe with the same index
+                    as the data.  This means that the indicators points that needs to be calculated should be nan, and
+                    one already calculated should be the previously calculated values.  The columns should be the output
+                    columns names of the indicators.
         :return: The data concatenated with the indicator results
         """
         out = [data]
         for indicator in self._indicators:
-            out.append(indicator.get(data))
+            out.append(indicator.get(data, previous_data))
         out_df = pd.concat(out, axis=1)
         return out_df
 
