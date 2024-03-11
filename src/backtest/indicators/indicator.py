@@ -77,7 +77,7 @@ class Indicator:
             self._name = cb.__name__
         self._cb = cb
 
-    def set_params(self, **params: type) -> None:
+    def set_params(self, **params: Any) -> None:
         """
         Set the parameters of the indicator.
         :param params: The parameters set by the user

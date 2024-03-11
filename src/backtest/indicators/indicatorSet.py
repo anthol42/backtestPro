@@ -36,7 +36,6 @@ class IndicatorSet:
             self._indicators.extend(indicators)
         else:
             self._indicators.append(indicators)
-        self._indicators.append(indicators)
         names = {indicator.type_name: 0 for indicator in self._indicators}
         for indicator in self._indicators:
             names[indicator.type_name] += 1
