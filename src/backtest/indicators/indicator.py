@@ -38,11 +38,12 @@ class Indicator:
         :param expected_params: The expected parameters of the indicator.  Used to validate the parameters passed to the
                                 indicator.
         """
-        self.out = out_feat
+        self._out = out_feat
+        self._id = 0
         self.use_numba = numba
         self._cb: Optional[Callable[[npt.NDArray[np.float32], Union[List[datetime], List[str]],
                                      List[str], Optional[npt.NDArray[np.float32]], ...],  npt.NDArray[np.float32]]] = None
-        self.name = name
+        self._name = name
         self.params = {}
         self.expected_params = expected_params
 
@@ -72,8 +73,8 @@ class Indicator:
         :param cb: The indicator logic
         :return: None
         """
-        if self.name is None:
-            self.name = cb.__name__
+        if self._name is None:
+            self._name = cb.__name__
         self._cb = cb
 
     def set_params(self, **params: type) -> None:
@@ -110,7 +111,18 @@ class Indicator:
             out = self.run(np_data, index, features, previous_values, **self.params)
         else:
             out = self._cb(np_data, index, features, previous_values, **self.params)
+
         return pd.DataFrame(out, index=index, columns=self.out)
+
+    @property
+    def out(self) -> List[str]:
+        """
+        :return: The output features of the indicator
+        """
+        if self._id != 0:
+            return [f"{feat}_{self._id}" for feat in self._out]
+        else:
+            return self._out
 
     @staticmethod
     def run(data: npt.NDArray[np.float32], index: Union[List[datetime], List[str]], features: List[str],
@@ -131,9 +143,39 @@ class Indicator:
 
 
     def __str__(self):
-        return f"{self.name}({', '.join([f'{k}={v}' for k, v in self.params.items()])})"
+        return f"{self._name}({', '.join([f'{k}={v}' for k, v in self.params.items()])})"
 
 
     def __repr__(self):
-        return f"Indicator({self.name})"
+        return f"Indicator({self._name})"
+
+    @property
+    def name(self) -> str:
+        """
+        :return: A unique name for the indicator.  (The name of the function and its identifier if different from 0)
+        """
+        if self._id == 0:
+            return self._name
+        else:
+            return f"{self._name}_{self._id}"
+
+    @property
+    def type_name(self) -> str:
+        """
+        :return: The name of the indicator type
+        """
+        return self._name
+
+    @property
+    def identifier(self) -> int:
+        return self._id
+
+    def set_id(self, new: int):
+        """
+        Set the identifier of the indicator.  Used to identify the indicator in the indicator set when there are multiple
+        indicators with the same name.
+        :param new: The new id
+        :return: None
+        """
+        self._id = new
 

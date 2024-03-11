@@ -16,7 +16,7 @@ import warnings
 from .metadata import Metadata
 from .cashController import CashControllerBase, CashControllerTimeframe
 from .time_resolution_extenders import TimeResExtender
-from ..indicators import IndicatorSet, Indicator
+from ..indicators import IndicatorSet
 
 class UnexpectedBehaviorRisk(Warning):
     pass
@@ -90,10 +90,6 @@ class Backtest:
                     the corresponding time resolution.  If it is a dictionary, the keys will be the index of the time
                     resolution and the values will be the IndicatorSet object to use for the corresponding time resolution.
                     If a dictionary is used, make sure there is at least a key for the main time resolution.
-        :param streaming_indicators: Whether to recalculate the indicators for the whole window at each timesteps or to
-                    recalculate only the last datapoint.  If True, the indicators will be recalculated for only the
-                    last datapoint at each timestep.  If False, the indicators will be recalculated for the whole
-                    window at each timestep.
         """
 
 
@@ -120,7 +116,7 @@ class Backtest:
         self.metadata = metadata
         self.sell_at_the_end = sell_at_the_end
         self.indicators = indicators
-        self.streaming_indicators = streaming_indicators
+        self.streaming_indicators = self.indicators.streaming
         self._backtest_parameters = {
             "strategy": strategy.__class__.__name__,
             "main_timestep": main_timestep,
@@ -150,6 +146,9 @@ class Backtest:
         self.cash_controller = cash_controller
         self._verbose = verbose    # 0: No print, 1: Only errors, 2: Errors and warnings, 3: All
         self.run_iter: int = 0
+        # This is used to cache the prepared data after each step.  This is useful to avoid recomputing the same data
+        # as when using the streaming mode of indicators.
+        self.cache_data: List[Dict[str, pd.DataFrame]] = []
 
     def step(self, i: int, timestep: datetime, next_time_step: datetime):
         # Step 1: Prepare the data
@@ -227,7 +226,8 @@ class Backtest:
         prepared_data[self.main_timestep] = self._prepare_data(self._data, self.main_timestep, timestep, self.window,
                                                                self.default_marginable, self.default_shortable,
                                                                self.default_short_rate, save_next_tick=True)
-        prepared_data[self.main_timestep] = self.apply_indicators(prepared_data[self.main_timestep], self.main_timestep)
+        prepared_data[self.main_timestep] = self.apply_indicators(prepared_data[self.main_timestep],
+                                                                  self.main_timestep, bigger_res=False)
 
         max_look_back_dt = datetime.fromisoformat('3000-01-01 00:00:00')
         for record in prepared_data[self.main_timestep]:
@@ -242,7 +242,7 @@ class Backtest:
                                                     self.window,
                                                     self.default_marginable, self.default_shortable,
                                                     self.default_short_rate, max_look_back_dt=max_look_back_dt)
-            prepared_data[idx] = self.apply_indicators(prepared_data[idx], idx)
+            prepared_data[idx] = self.apply_indicators(prepared_data[idx], idx, bigger_res=False)
 
         # Forge new candles for the one with bigger time resolution  to avoid peeking into the future.  (Data leaking)
         for idx in time_res_bigger_idx:
@@ -259,14 +259,16 @@ class Backtest:
             prepared_data[idx] = series
 
             # Apply indicators
-            prepared_data[idx] = self.apply_indicators(prepared_data[idx], idx)
+            prepared_data[idx] = self.apply_indicators(prepared_data[idx], idx, bigger_res=True)
         return prepared_data
 
-    def apply_indicators(self, data: List[Record], time_res_idx: int) -> List[Record]:
+    def apply_indicators(self, data: List[Record], time_res_idx: int, bigger_res: bool = False) -> List[Record]:
         """
         Apply the indicators to the data (All tickers in time res)
         :param data: The list of records to apply the indicators to
         :param time_res_idx: The current time resolution
+        :param bigger_res: Whether we are computing the indicator for a bigger time resolution or not.  If True and we
+                    are in streaming mode, the last cache datapoint will be set to nan in order to recompute it.
         :return: The updated data
         """
         if isinstance(self.indicators, dict):
@@ -281,19 +283,41 @@ class Backtest:
         if len(indicators) > 0:
             for record in data:
                 if record.chart is not None:
-                    record.chart = self.run_indicator(record.chart, indicators, time_res_idx)
+                    previous_data = self.cache_data[time_res_idx][record.ticker]
+                    if previous_data is not None:
+                        previous_data = previous_data.reindex(record.chart.index)
+                    record.chart = self.run_indicator(record.chart, previous_data, indicators, bigger_res)
+                    # Now cache the prepared indicators
+                    if self.streaming_indicators:
+                        self.cache_data[time_res_idx][record.ticker] = record.chart
         return data
 
-    def run_indicator(self, data: pd.DataFrame, indicators: IndicatorSet, time_res_idx: int) -> pd.DataFrame:
+    @staticmethod
+    def run_indicator(data: pd.DataFrame, previous_data: Optional[pd.DataFrame],
+                      indicators: IndicatorSet, streaming: bool,
+                      bigger_res: bool = False) -> pd.DataFrame:
         """
         Run the indicators on a single chart.
         :param data: The chart data OHLCV
+        :param previous_data: The previously cached data.  Used when streaming is True.  If streaming is False, this
+                    parameter is ignored.  This should be a dataframe with the same index as the data.  This means that
+                    the indicators points that needs to be calculated should be nan, and one already calculated should be
+                    the previously calculated values.  The columns names should be the output columns names of the
+                    indicators.
         :param indicators: The indicatorSet to use.
-        :param time_res_idx: the current time resolution index
+        :param streaming: Whether to use the streaming capabilities of the indicators or not.
+        :param bigger_res: Whether we are computing the indicator for a bigger time resolution or not.  If True and we
+                    are in streaming mode, the last cache datapoint will be set to nan in order to recompute it.
         :return: The new data
         """
-        if not self.streaming_indicators:
+        if not streaming:
             return indicators.run_all(data)
+        else:
+            if bigger_res:
+                # We are going to set to nan the last row of the indicators.
+                feat = indicators.out
+                previous_data[feat].iloc[-1] = np.nan
+            return indicators.run_all(data, previous_data)
 
     def run(self) -> BackTestResult:
         """
@@ -325,6 +349,9 @@ class Backtest:
         if self.metadata.time_res is None:
             self.metadata.time_res = self.available_time_res[self.main_timestep].total_seconds()
 
+        # Initialize the cache
+        self.cache_data = [{ticker: None for ticker in self._data[time_res]}
+                           for time_res in range(len(self.available_time_res))]
 
         # Step 2: Run the backtest
         last_timestep: Optional[datetime] = None
