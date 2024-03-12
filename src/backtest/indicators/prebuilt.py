@@ -104,9 +104,15 @@ def SMA(data: np.ndarray, index: List[datetime], features: List[str], previous_d
         return ta.SMA(data[:, 3], timeperiod=period)[:, np.newaxis]
     else:
         prev_sma = previous_data[:, 0]
+        # Replace nan padding at the leading edge of the prev_sma array with 0, to get the correct index
+        nan_indices = np.isnan(prev_sma)
+        leading_nans = np.cumsum(nan_indices) == np.arange(1, len(prev_sma) + 1)
+        prev_sma[leading_nans] = 0
         idx = np.argmax(np.isnan(prev_sma))
         if idx > period:
             prev_sma[idx:] = ta.SMA(data[idx-period:, 3], timeperiod=period)[period:]
+            # Put back the nans
+            prev_sma[leading_nans] = np.nan
             return prev_sma[:, np.newaxis]
         else:
             return ta.SMA(data[:, 3], timeperiod=period)[:, np.newaxis]

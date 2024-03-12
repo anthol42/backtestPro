@@ -612,10 +612,119 @@ class TestBacktest(TestCase):
         ]
         bcktst = Backtest(deepcopy(data), MyStrat(), main_timestep=1, window=100,
                           indicators=IndicatorSet(TA.SMA(period=10), streaming=True), verbose=1)
-
+        bcktst._initialize_bcktst()
+        bcktst.cache_data = [{ticker: None for ticker in bcktst._data[time_res]}
+                           for time_res in range(len(bcktst.available_time_res))]
         # Now, we will try the first run, which should run the indicator on the whole data.
         prepared_data = bcktst._prepare_data(data, 1, datetime(2024, 1, 26), 100,
                                              False, False, 0)
 
-        # TODO: Finish this test
 
+        out1 = bcktst.apply_indicators(prepared_data, 1, False)
+
+        # Now, test streaming
+        prepared_data = bcktst._prepare_data(data, 1, datetime(2024, 1, 29), 100,
+                                             False, False, 0)
+        out2 = bcktst.apply_indicators(prepared_data, 1, True)
+        np.testing.assert_array_equal(out1[0].chart.values[1:], out2[0].chart.values[:-1])
+        np.testing.assert_array_equal(out1[1].chart.values[1:], out2[1].chart.values[:-1])
+
+        # Now, test with smaller time res
+        prepared_data = bcktst._prepare_data(data, 0, datetime(2024, 1, 26), 100,
+                                             False, False, 0,
+                                             max_look_back_dt=out1[0].chart.index[0])
+        out3 = bcktst.apply_indicators(prepared_data, 0, False)
+        self.assertEqual(out3[0].chart["SMA"].isna().sum(), 9)
+        self.assertEqual(out3[1].chart["SMA"].isna().sum(), 9)
+
+        # Now with streaming with smaller time res
+        prepared_data = bcktst._prepare_data(data, 0, datetime(2024, 1, 29), 100,
+                                             False, False, 0,
+                                             max_look_back_dt=out2[0].chart.index[0])
+        out4 = bcktst.apply_indicators(prepared_data, 0, True)
+        self.assertEqual(out4[0].chart["SMA"].isna().sum(), 2)
+        self.assertEqual(out4[1].chart["SMA"].isna().sum(), 2)
+
+        # Now with bigger time res
+        prepared_data = bcktst._prepare_data(data, 2, datetime(2024, 1, 26), 100,
+                                             False, False, 0,
+                                             max_look_back_dt=out1[0].chart.index[0])
+        out5 = bcktst.apply_indicators(prepared_data, 2, False)
+        self.assertEqual(out5[0].chart["SMA"].isna().sum(), 9)
+        self.assertEqual(out5[1].chart["SMA"].isna().sum(), 9)
+
+        # Now with streaming with bigger time res
+        prepared_data = bcktst._prepare_data(data, 2, datetime(2024, 1, 29), 100,
+                                             False, False, 0,
+                                             max_look_back_dt=out2[0].chart.index[0])
+        # Sabotage the cache to make a non-sense value at last time step of SMA to see if it is overwritten
+        bcktst.cache_data[2]["AAPL"]["SMA"].iloc[-1] = -1
+        bcktst.cache_data[2]["AAPL"]["SMA"].iloc[-2] = 10
+        bcktst.cache_data[2]["NVDA"]["SMA"].iloc[-1] = -1
+        bcktst.cache_data[2]["NVDA"]["SMA"].iloc[-2] = 10
+        out6 = bcktst.apply_indicators(prepared_data, 2, True)
+        self.assertEqual(out6[0].chart["SMA"].iloc[-2], 10)
+        self.assertEqual(out6[1].chart["SMA"].iloc[-2], 10)
+        self.assertEqual(out6[0].chart["SMA"].iloc[-1], 190.75359344482422)
+        self.assertEqual(out6[1].chart["SMA"].iloc[-1], 505.6915710449219)
+
+        # Now, try with different indicators with different time resolutions - list
+        indicators = [None, IndicatorSet(TA.SMA(period=10)), IndicatorSet(TA.ADX(period=6))]
+        bcktst = Backtest(deepcopy(data), MyStrat(), main_timestep=1, window=100,
+                          indicators=indicators, verbose=1)
+        bcktst._initialize_bcktst()
+        bcktst.cache_data = [{ticker: None for ticker in bcktst._data[time_res]}
+                           for time_res in range(len(bcktst.available_time_res))]
+
+        # Run with resolution 0
+        prepared_data = bcktst._prepare_data(data, 0, datetime(2024, 1, 26), 100,
+                                             False, False, 0)
+        out7 = bcktst.apply_indicators(prepared_data, 0, False)
+        self.assertEqual(out7[0].chart.columns.tolist(), data[0]["AAPL"].data.columns.tolist())
+        self.assertEqual(out7[1].chart.columns.tolist(), data[0]["NVDA"].data.columns.tolist())
+
+        # Run with resolution 1
+        prepared_data = bcktst._prepare_data(data, 1, datetime(2024, 1, 26), 100,
+                                             False, False, 0)
+        out8 = bcktst.apply_indicators(prepared_data, 1, False)
+        self.assertEqual(out8[0].chart.columns.tolist(), data[1]["AAPL"].data.columns.tolist() + ["SMA"])
+        self.assertEqual(out8[1].chart.columns.tolist(), data[1]["NVDA"].data.columns.tolist() + ["SMA"])
+
+        # Run with resolution 2
+        prepared_data = bcktst._prepare_data(data, 2, datetime(2024, 1, 26), 100,
+                                             False, False, 0)
+        out9 = bcktst.apply_indicators(prepared_data, 2, True)
+        self.assertEqual(out9[0].chart.columns.tolist(), data[2]["AAPL"].data.columns.tolist() + ["ADX"])
+        self.assertEqual(out9[1].chart.columns.tolist(), data[2]["NVDA"].data.columns.tolist() + ["ADX"])
+
+        # Now, try with different indicators with different time resolutions - dict
+        indicators = {
+            0: IndicatorSet(TA.ADX(period=6)),
+            1: IndicatorSet(TA.SMA(period=10)),
+        }
+
+        bcktst = Backtest(deepcopy(data), MyStrat(), main_timestep=1, window=100,
+                          indicators=indicators, verbose=1)
+        bcktst._initialize_bcktst()
+        bcktst.cache_data = [{ticker: None for ticker in bcktst._data[time_res]}
+                           for time_res in range(len(bcktst.available_time_res))]
+        # Run with resolution 0
+        prepared_data = bcktst._prepare_data(data, 0, datetime(2024, 1, 26), 100,
+                                             False, False, 0)
+        out10 = bcktst.apply_indicators(prepared_data, 0, False)
+        self.assertEqual(out10[0].chart.columns.tolist(), data[0]["AAPL"].data.columns.tolist() + ["ADX"])
+        self.assertEqual(out10[1].chart.columns.tolist(), data[0]["NVDA"].data.columns.tolist() + ["ADX"])
+
+        # Run with resolution 1
+        prepared_data = bcktst._prepare_data(data, 1, datetime(2024, 1, 26), 100,
+                                             False, False, 0)
+        out11 = bcktst.apply_indicators(prepared_data, 1, False)
+        self.assertEqual(out11[0].chart.columns.tolist(), data[1]["AAPL"].data.columns.tolist() + ["SMA"])
+        self.assertEqual(out11[1].chart.columns.tolist(), data[1]["NVDA"].data.columns.tolist() + ["SMA"])
+
+        # Run with resolution 2
+        prepared_data = bcktst._prepare_data(data, 2, datetime(2024, 1, 26), 100,
+                                             False, False, 0)
+        out12 = bcktst.apply_indicators(prepared_data, 2, True)
+        self.assertEqual(out12[0].chart.columns.tolist(), data[2]["AAPL"].data.columns.tolist())
+        self.assertEqual(out12[1].chart.columns.tolist(), data[2]["NVDA"].data.columns.tolist())

@@ -89,7 +89,9 @@ class Backtest:
                     as the number of time resolution.  Each element of the list will be an IndicatorSet object to use for
                     the corresponding time resolution.  If it is a dictionary, the keys will be the index of the time
                     resolution and the values will be the IndicatorSet object to use for the corresponding time resolution.
-                    If a dictionary is used, make sure there is at least a key for the main time resolution.
+                    If a dictionary is used, make sure there is at least a key for the main time resolution.  If the
+                    streaming parameter is True for one of the IndicatorSet, the streaming will be activated for every
+                    supported indicators.
         """
 
 
@@ -116,7 +118,17 @@ class Backtest:
         self.metadata = metadata
         self.sell_at_the_end = sell_at_the_end
         self.indicators = indicators
-        self.streaming_indicators = self.indicators.streaming
+        if isinstance(indicators, dict):
+            self.streaming_indicators = any([ind.streaming for ind in indicators.values() if ind is not None])
+            output_indicators = [ind.toList() for ind in indicators.values() if ind is not None]
+        elif isinstance(indicators, list):
+            self.streaming_indicators = any([ind.streaming for ind in indicators if ind is not None])
+            output_indicators = [ind.toList() for ind in indicators if ind is not None]
+        else:
+            self.streaming_indicators = indicators.streaming
+            output_indicators = indicators.toList()
+
+        output_indicators
         self._backtest_parameters = {
             "strategy": strategy.__class__.__name__,
             "main_timestep": main_timestep,
@@ -136,7 +148,7 @@ class Backtest:
             "default_short_rate": default_short_rate,
             "sell_at_the_end": sell_at_the_end,
             "cash_controller": cash_controller.__class__.__name__,
-            "indicators": indicators.toList(),
+            "indicators": output_indicators,
             "streaming_indicators": streaming_indicators,
             "verbose": verbose,
             "time_res_extender": time_res_extender.export() if time_res_extender is not None else None
@@ -277,8 +289,12 @@ class Backtest:
                 return data
         elif isinstance(self.indicators, list):
             indicators = self.indicators[time_res_idx]
+            if indicators is None:
+                return data
         else:
             indicators = self.indicators
+            if indicators is None:
+                return data
 
         if len(indicators) > 0:
             for record in data:
@@ -286,7 +302,8 @@ class Backtest:
                     previous_data = self.cache_data[time_res_idx][record.ticker]
                     if previous_data is not None:
                         previous_data = previous_data.reindex(record.chart.index)
-                    record.chart = self.run_indicator(record.chart, previous_data, indicators, bigger_res)
+                    record.chart = self.run_indicator(record.chart, previous_data, indicators, self.streaming_indicators,
+                                                      bigger_res)
                     # Now cache the prepared indicators
                     if self.streaming_indicators:
                         self.cache_data[time_res_idx][record.ticker] = record.chart
@@ -316,7 +333,7 @@ class Backtest:
             if bigger_res:
                 # We are going to set to nan the last row of the indicators.
                 feat = indicators.out
-                previous_data[feat].iloc[-1] = np.nan
+                previous_data.loc[previous_data.index[-1], feat] = np.nan
             return indicators.run_all(data, previous_data)
 
     def run(self) -> BackTestResult:
