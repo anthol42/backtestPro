@@ -1,9 +1,11 @@
 import pandas as pd
-
+import numpy as np
+import numpy.typing as npt
 from src.backtest import Backtest, Strategy, Metadata, TSData, DividendFrequency, RecordsBucket
 from src.backtest.engine import CashControllerBase, BasicExtender
+from src.backtest.indicators import Indicator, IndicatorSet, TA
 from datetime import datetime, timedelta
-from typing import Tuple
+from typing import Tuple, Optional, List, Union
 from unittest import TestCase
 from integration_src.strategy import ComplexGoodStrategy, WeekCashController, ComplexBadStrategy, BadCashController
 
@@ -37,20 +39,30 @@ class MyStrategy(Strategy):
 
         # print(f"Data len: {data[-1]['NVDA'].chart.shape[0]}")
 
-    def indicators(self, data: RecordsBucket, timestep: datetime):
-        """
-        This method will add a 7 days moving average columns called MA to the dataframes
-        :param data: The stock data
-        :param timestep: The current timestep (Datetime)
-        :return: The extended data
-        """
-        for time_res, records in data:
-            if time_res == timedelta(days=1):
-                for ticker, record in records:
-                    record.chart['MA'] = record.chart['Close'].rolling(window=7).mean()
-                    record.chart['MA_delta'] = (record.chart['MA'] - record.chart['MA'].shift(1)) / record.chart['MA'].shift(1)
-                records.update_features()
-        return data
+    # def indicators(self, data: RecordsBucket, timestep: datetime):
+    #     """
+    #     This method will add a 7 days moving average columns called MA to the dataframes
+    #     :param data: The stock data
+    #     :param timestep: The current timestep (Datetime)
+    #     :return: The extended data
+    #     """
+    #     for time_res, records in data:
+    #         if time_res == timedelta(days=1):
+    #             for ticker, record in records:
+    #                 record.chart['MA'] = record.chart['Close'].rolling(window=7).mean()
+    #                 record.chart['MA_delta'] = (record.chart['MA'] - record.chart['MA'].shift(1)) / record.chart['MA'].shift(1)
+    #             records.update_features()
+    #     return data
+
+
+@Indicator(out_feat=["MA", "MA_delta"], period=int)
+def MADerivative(data: npt.NDArray[np.float32], index: Union[List[datetime], List[str]], features: List[str],
+            previous_data: Optional[npt.NDArray[np.float32]] = None, period: int = 7):
+        data = pd.DataFrame(data, index=index, columns=features)
+        ma = data["Close"].rolling(window=period).mean()
+        delta = (ma - ma.shift(1)) / ma.shift(1)
+        return np.array([ma.values, delta.values]).T
+
 
 class MyCashController(CashControllerBase):
     def every_month(self, timestamp: datetime) -> Tuple[float, str]:
@@ -73,7 +85,7 @@ class TestIntegration(TestCase):
         backtest = Backtest(data, MyStrategy(), main_timestep=1, initial_cash=10_000, commission=10.,
                             metadata=metadata, margin_interest=10,
                             time_res_extender=BasicExtender("1d") + BasicExtender("1w"),
-                            cash_controller=MyCashController())
+                            cash_controller=MyCashController(), indicators=IndicatorSet(MADerivative(period=7)))
 
         results = backtest.run()
 
