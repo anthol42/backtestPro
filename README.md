@@ -62,3 +62,8 @@ Iterative:
   - Check Accordion: What are common issues with back testing and performance results?
 
 ## [TODO](src/backtest/README.md)
+
+
+
+## Useful ressources for the future
+Compile C++ wheels for multiple platform using GitHub Actions:  https://cibuildwheel.pypa.io/en/stable/
