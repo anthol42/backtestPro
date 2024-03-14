@@ -104,15 +104,30 @@ def SMA(data: np.ndarray, index: List[datetime], features: List[str], previous_d
         return ta.SMA(data[:, 3], timeperiod=period)[:, np.newaxis]
     else:
         prev_sma = previous_data[:, 0]
-        # Replace nan padding at the leading edge of the prev_sma array with 0, to get the correct index
-        nan_indices = np.isnan(prev_sma)
-        leading_nans = np.cumsum(nan_indices) == np.arange(1, len(prev_sma) + 1)
-        prev_sma[leading_nans] = 0
-        idx = np.argmax(np.isnan(prev_sma))
+        flipped_idx = np.flip(np.isnan(prev_sma)).argmin()
+        idx = len(prev_sma) - flipped_idx
         if idx > period:
             prev_sma[idx:] = ta.SMA(data[idx-period:, 3], timeperiod=period)[period:]
-            # Put back the nans
-            prev_sma[leading_nans] = np.nan
             return prev_sma[:, np.newaxis]
         else:
             return ta.SMA(data[:, 3], timeperiod=period)[:, np.newaxis]
+
+@Indicator(out_feat=["EMA"], period=int)
+def EMA(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
+        period: int = 10) -> np.ndarray:
+    """
+    This EMA indicator support the streaming feature.  If the previous_data is not None, the indicator will fill the
+    missing values in the previous_data and return it.  If the previous_data is None, it will calculate the indicator
+    for the whole data.
+    """
+    if previous_data is None:
+        return ta.EMA(data[:, 3], timeperiod=period)[:, np.newaxis]
+    else:
+        prev_sma = previous_data[:, 0]
+        flipped_idx = np.flip(np.isnan(prev_sma)).argmin()
+        idx = len(prev_sma) - flipped_idx
+        if idx > period:
+            prev_sma[idx:] = ta.EMA(data[idx-period:, 3], timeperiod=period)[period:]
+            return prev_sma[:, np.newaxis]
+        else:
+            return ta.EMA(data[:, 3], timeperiod=period)[:, np.newaxis]
