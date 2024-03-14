@@ -8,7 +8,7 @@ from .trade import Trade, TradeOrder, TradeType
 from .trade import BuyLongOrder, SellLongOrder, BuyShortOrder, SellShortOrder
 from .trade import BuyLong, SellLong, BuyShort, SellShort
 from .backtestResult import BackTestResult
-from .cashController import CashControllerBase, SimpleCashController
+from .cashController import CashControllerBase, SimpleCashController, CashControllerTimeframe
 from .strategy import Strategy
 from .metadata import Metadata
 from .record import Record, Records, RecordsBucket

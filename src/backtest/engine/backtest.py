@@ -40,8 +40,7 @@ class Backtest:
                  cash_controller: CashControllerBase = CashControllerBase(),
                  verbose=3,
                  time_res_extender: Optional[TimeResExtender] = None,
-                 indicators: Union[IndicatorSet, List[IndicatorSet], Dict[int, IndicatorSet]] = IndicatorSet(),
-                 streaming_indicators: bool = False):
+                 indicators: Union[IndicatorSet, List[IndicatorSet], Dict[int, IndicatorSet]] = IndicatorSet()):
         """
         :param data: The data on which to run the backtest.  It is a list of dictionaries where each dictionary
                         represents a group of time series data.  The key is the ticker and the value is the TSData object.
@@ -94,7 +93,6 @@ class Backtest:
                     supported indicators.
         """
 
-
         self._data = data
         self._initial_cash = initial_cash
         self.market_index = market_index
@@ -127,8 +125,6 @@ class Backtest:
         else:
             self.streaming_indicators = indicators.streaming
             output_indicators = indicators.toList()
-
-        output_indicators
         self._backtest_parameters = {
             "strategy": strategy.__class__.__name__,
             "main_timestep": main_timestep,
@@ -149,7 +145,7 @@ class Backtest:
             "sell_at_the_end": sell_at_the_end,
             "cash_controller": cash_controller.__class__.__name__,
             "indicators": output_indicators,
-            "streaming_indicators": streaming_indicators,
+            "streaming_indicators": self.streaming_indicators,
             "verbose": verbose,
             "time_res_extender": time_res_extender.export() if time_res_extender is not None else None
         }
@@ -531,7 +527,7 @@ class Backtest:
                                 or the nearest one before that timestep in the data's index assuming it is not padded
                                 with nan.  This can be useful for time resolutions that are not the main one.
         :param save_next_tick: If True, it will save the current tick data as a next tick in the Record object.
-                                (This is useful for the sell all at the end of the backtest)
+                                If the current timestep is the last timestep, this option is automatically turned off.
         :param next_tick_is_current: If True, the next tick will be the current tick.  This is useful at the end of the
                                         backtest to sell everything at current market value.
         :return: The prepared data
@@ -594,6 +590,9 @@ class Backtest:
                 cropped["Close"] /= multiplier
                 cropped["Volume"] *= multiplier
                 cropped["Dividends"] *= multiplier
+
+            if end_idx == len(ts.data) and not next_tick_is_current:
+                save_next_tick = False
             if save_next_tick:
                 if next_tick_is_current:
                     end_idx = end_idx - 1
