@@ -8,11 +8,14 @@ from typing import Any, Optional, List, Dict, Union, Tuple, Callable
 from pathlib import PurePath
 import os
 import json
-import numpy as np
-import numpy.typing as npt
+import time
 from .state_signals import StateSignals
 from .renderer import Renderer, RendererList
-
+try:
+    import schedule
+    SCHEDULE_INSTALLED = True
+except ImportError:
+    SCHEDULE_INSTALLED = False
 
 class RecordingBroker(Broker):
     """
@@ -88,9 +91,15 @@ class Job(Backtest):
     def run(self) -> BackTestResult:
         raise NotImplementedError("This method is not implemented for Job, use Backtest to run run_jib instead.")
 
-    def run_job(self, every):
-        # TODO: Handle the every parameter if not None
-        self.pipeline()
+    def run_job(self, every: Optional['schedule.Job'] = None):
+        if SCHEDULE_INSTALLED and every is not None:
+            every.do(self.pipeline)
+            while True:
+                schedule.run_pending()
+                time.sleep(1)
+
+        else:
+            self.pipeline()
 
     def setup(self) -> Optional[datetime]:
         """
