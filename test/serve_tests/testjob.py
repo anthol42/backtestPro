@@ -2,12 +2,15 @@ from unittest import TestCase
 from src.backtest.serve.job import Job, RecordingBroker
 from src.backtest.engine import Account, TradeOrder, TradeType, TSData, Record, Strategy, RecordsBucket, Metadata
 from src.backtest.data import Fetch, ToTSData, Process
+from src.backtest.serve.renderer import Renderer
 from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 from pathlib import PurePath
 import os
 import shutil
+
+from src.backtest.serve.state_signals import StateSignals
 
 
 class TestRecordingJob(TestCase):
@@ -59,9 +62,17 @@ def LoadPipe(*args, **kwargs):
 
 class MyStrat(Strategy):
     def run(self, data: RecordsBucket, timestep: datetime):
-        data = data.main
-        if timestep == datetime.fromisoformat("2024-01-26 00:00:00"):
-            self.broker.buy_long("AAPL", 100, 100, price_limit=(150, None))
+        # NVDA
+        if timestep == datetime(2024, 1, 26):
+            self.broker.buy_long("NVDA", 100)  # Buy all on the 29th of January at $612.32
+        if timestep == datetime(2024, 2, 6):
+            self.broker.sell_long("NVDA", 100)  # Sell all on the 7th of February at $683.19
+
+        # AAPL
+        if timestep == datetime(2024, 1, 23):
+            self.broker.sell_short("AAPL", 100)  # Will sell on the 24th of January at $195.1709
+        if timestep == datetime(2024, 2, 1):
+            self.broker.buy_short("AAPL", 100)  # Will buy on the 2nd of February at $179.6308
 
 def param2Dict(**kwargs):
     return kwargs
@@ -107,6 +118,7 @@ class TestJob(TestCase):
         np.testing.assert_allclose(nvda[["Open", "High", "Low", "Close"]].iloc[-2].values, yesterday_data[1])
         np.testing.assert_allclose(nvda[["Open", "High", "Low", "Close"]].iloc[-1].values, current_tick_data[1])
         np.testing.assert_array_equal([[False, False], [True, False]], marginables)
+
     def test_pipeline(self):
         """
         Test the pipeline in a simulated environment
@@ -136,6 +148,20 @@ class TestJob(TestCase):
             chart1 = chart1.loc[frm:to]
             return {"SPY": chart1}
 
+        class MyRenderer(Renderer):
+            def render(self, state: StateSignals, base_path: PurePath):
+                if len(state.broker.historical_states) == 0:
+                    return
+                print(state.broker.historical_states[-1].worth)
+                # if len(state.buy_long_signals) != 0:
+                #     print(f"Buy Long at {state.timestamp}")
+                # if len(state.sell_long_signals) != 0:
+                #     print(f"Sell Long at {state.timestamp}")
+                # if len(state.buy_short_signals) != 0:
+                #     print(f"Buy Short at {state.timestamp}")
+                # if len(state.sell_short_signals) != 0:
+                #     print(f"Sell Short at {state.timestamp}")
+
         pipe = SimulatedFetch() | ToTSData()
         index_pipe = IndexPipe() | ToTSData()
         params = param2Dict(metadata=Metadata(author="Tester", version="0.1.0"),
@@ -148,13 +174,13 @@ class TestJob(TestCase):
                  liquidation_delay=2, min_initial_margin_short=50,
                  min_maintenance_margin_short=25,
                  window=50, default_marginable=True,
-                 default_shortable=False,
+                 default_shortable=True,
                  risk_free_rate=1.5,
                  default_short_rate=1.5,
                  sell_at_the_end=True,
                  verbose=3)
         job = Job(MyStrat(), pipe, timedelta(days=90), params=params, index_pipe=index_pipe,
-                  working_directory=PurePath("./.cache"))
+                  working_directory=PurePath("./.cache"), renderer=MyRenderer())
 
         if os.path.exists(".cache"):
             shutil.rmtree(".cache")

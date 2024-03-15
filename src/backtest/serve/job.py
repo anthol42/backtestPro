@@ -113,6 +113,7 @@ class Job(Backtest):
             self.last_timestep = datetime.fromisoformat(data["last_timestep"])
             prev_last_data_dt = datetime.fromisoformat(data["last_data_dt"])
             self.strategy = self.strategy.load(self.working_directory / PurePath("cache/strategy.pkl"))
+            self.signal = {}    # Reset the signals in case the script was kept running
             self.broker.bind(self.signal)
 
         return prev_last_data_dt
@@ -164,6 +165,7 @@ class Job(Backtest):
             self.broker.tick(self.last_timestep, now, security_names, current_data, next_tick_data, marginables,
                              dividends, div_freq,
                              short_rate)
+            print([len(s.pending_orders) for s in self.broker.historical_states])
 
         # Step 6: Run the strategy
         self.broker.set_current_timestamp(now)
