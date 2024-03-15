@@ -165,7 +165,6 @@ class Job(Backtest):
             self.broker.tick(self.last_timestep, now, security_names, current_data, next_tick_data, marginables,
                              dividends, div_freq,
                              short_rate)
-            print([len(s.pending_orders) for s in self.broker.historical_states])
 
         # Step 6: Run the strategy
         self.broker.set_current_timestamp(now)

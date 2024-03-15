@@ -9,6 +9,7 @@ import numpy as np
 from pathlib import PurePath
 import os
 import shutil
+from typing import Optional
 
 from src.backtest.serve.state_signals import StateSignals
 
@@ -149,18 +150,13 @@ class TestJob(TestCase):
             return {"SPY": chart1}
 
         class MyRenderer(Renderer):
+            def __init__(self):
+                super().__init__()
+                self.signal: Optional[StateSignals] = None
             def render(self, state: StateSignals, base_path: PurePath):
-                if len(state.broker.historical_states) == 0:
-                    return
-                print(state.broker.historical_states[-1].worth)
-                # if len(state.buy_long_signals) != 0:
-                #     print(f"Buy Long at {state.timestamp}")
-                # if len(state.sell_long_signals) != 0:
-                #     print(f"Sell Long at {state.timestamp}")
-                # if len(state.buy_short_signals) != 0:
-                #     print(f"Buy Short at {state.timestamp}")
-                # if len(state.sell_short_signals) != 0:
-                #     print(f"Sell Short at {state.timestamp}")
+                self.signal = state
+
+        renderer = MyRenderer()
 
         pipe = SimulatedFetch() | ToTSData()
         index_pipe = IndexPipe() | ToTSData()
@@ -180,9 +176,70 @@ class TestJob(TestCase):
                  sell_at_the_end=True,
                  verbose=3)
         job = Job(MyStrat(), pipe, timedelta(days=90), params=params, index_pipe=index_pipe,
-                  working_directory=PurePath("./.cache"), renderer=MyRenderer())
+                  working_directory=PurePath("./.cache"), renderer=renderer)
 
         if os.path.exists(".cache"):
             shutil.rmtree(".cache")
         for day in days:
             job.pipeline(day)
+
+            # Make asserts at key checkpoints
+            if day == datetime(2024, 1, 23):
+                self.assertEqual(0, job.broker.portfolio.len_long)
+                self.assertEqual(0, job.broker.portfolio.len_short)
+                self.assertEqual(1, len(job.broker._queued_trade_offers))
+                self.assertEqual(0, len(job.broker.filled_orders))
+                self.assertEqual(day, renderer.signal.timestamp)
+                self.assertEqual(1, len(renderer.signal.sell_short_signals))
+
+            if day == datetime(2024, 1, 24):
+                self.assertEqual(0, job.broker.portfolio.len_long)
+                self.assertEqual(1, job.broker.portfolio.len_short)
+                self.assertEqual(0, len(job.broker._queued_trade_offers))
+                self.assertEqual(1, len(job.broker.filled_orders))
+                self.assertEqual(day, renderer.signal.timestamp)
+                self.assertEqual(0, len(renderer.signal.sell_short_signals))
+
+            if day == datetime(2024, 1, 26):
+                self.assertEqual(0, job.broker.portfolio.len_long)
+                self.assertEqual(1, job.broker.portfolio.len_short)
+                self.assertEqual(1, len(job.broker._queued_trade_offers))
+                self.assertEqual(0, len(job.broker.filled_orders))
+                self.assertEqual(1, len(renderer.signal.buy_long_signals))
+
+            if day == datetime(2024, 2, 1):
+                self.assertEqual(1, job.broker.portfolio.len_long)
+                self.assertEqual(1, job.broker.portfolio.len_short)
+                self.assertEqual(1, len(job.broker._queued_trade_offers))
+                self.assertEqual(0, len(job.broker.filled_orders))
+                self.assertEqual(1, len(renderer.signal.buy_short_signals))
+
+            if day == datetime(2024, 2, 2):
+                self.assertEqual(1, job.broker.portfolio.len_long)
+                self.assertEqual(0, job.broker.portfolio.len_short)
+                self.assertEqual(0, len(job.broker._queued_trade_offers))
+                self.assertEqual(1, len(job.broker.filled_orders))
+                self.assertEqual(0, len(renderer.signal.buy_short_signals))
+
+            if day == datetime(2024, 2, 6):
+                self.assertEqual(1, job.broker.portfolio.len_long)
+                self.assertEqual(0, job.broker.portfolio.len_short)
+                self.assertEqual(1, len(job.broker._queued_trade_offers))
+                self.assertEqual(0, len(job.broker.filled_orders))
+                self.assertEqual(1, len(renderer.signal.sell_long_signals))
+
+            if day == datetime(2024, 2, 7):
+                self.assertEqual(0, job.broker.portfolio.len_long)
+                self.assertEqual(0, job.broker.portfolio.len_short)
+                self.assertEqual(0, len(job.broker._queued_trade_offers))
+                self.assertEqual(1, len(job.broker.filled_orders))
+                self.assertEqual(0, len(renderer.signal.sell_long_signals))
+
+
+
+        # Check that the money is correctly calculated
+        self.assertAlmostEqual(108_601.01, job.broker.historical_states[-1].worth, delta=0.1)
+
+        # Check that the portfolio is empty
+        self.assertEqual(0, job.broker.portfolio.len_long)
+        self.assertEqual(0, job.broker.portfolio.len_short)

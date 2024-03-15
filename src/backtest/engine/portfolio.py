@@ -679,7 +679,7 @@ class Portfolio:
             "trades": [{"type": trade.__class__.__name__, **trade.export()} for trade in self._trades],
             "transaction_cost": self._transaction_cost,
             "transaction_relative": self._relative,
-            "transaction_ids": list(self._transaction_ids)
+            "transaction_ids": list(self._transaction_ids),
         }
 
     @classmethod
@@ -696,6 +696,8 @@ class Portfolio:
         self._short = {ticker: Position.load(pos) for ticker, pos in data["short"].items()}
         self._trades = [TradeStats.load(trade) if trade["type"] == "TradeStats" else Trade.load(trade) for trade in data["trades"]]
         self._transaction_ids = set(data["transaction_ids"])
+        self._long_len = len([pos for pos in self._long.values() if pos.amount > 0])
+        self._short_len = len([pos for pos in self._short.values() if pos.amount > 0])
         return self
 
     def empty(self) -> bool:
