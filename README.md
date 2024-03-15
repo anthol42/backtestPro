@@ -31,13 +31,13 @@ Features are not implemented yet, but will be one day.
   - [X] Modules (Implementation)
   - [X] Unit testing
   - [X] Documentation
-- [ ] Indicators
-  - [ ] Modules (Implementation)
-  - [ ] PineScript to Python translator
-  - [ ] Unit testing
-  - [ ] Documentation
+- [X] Indicators
+  - [X] Modules (Implementation)
+  - [X] Unit testing
+  - [X] Documentation
 - [ ] Server Module
-  - [ ] Modules (Implementation)
+  - [X] Modules (Implementation)
+  - [ ] Prebuilt renderers
   - [ ] Unit testing
   - [ ] Documentation
 - [ ] Integration Testing
@@ -66,6 +66,7 @@ Iterative:
 
 
 ## Useful ressources for the future
+Convert html to pdf: [WeasyPrint](https://weasyprint.org)  
 Compile C++ wheels for multiple platform using GitHub Actions:  https://cibuildwheel.pypa.io/en/stable/
 Package binaries tutorial: https://pybind11.readthedocs.io/en/stable/compiling.html#generating-binding-code-automatically
 Automatically compile c++ code (on the fly, but not for packaging): [cppimport](https://github.com/tbenthompson/cppimport)
