@@ -133,6 +133,7 @@ class Job(Backtest):
         # Step 2: Setup the object
         previous_last_data_dt = self.setup()
         self.strategy.init(self.account, self.broker, self.available_time_res)
+        self.cash_controller.init(self.account, self.broker, self.strategy)
 
         # Step 4: Prepare the data, no need to filter None charts, as the data is supposed to be up-to-date
         processed_data: List[List[Record]] = self._prep_data(now)

@@ -1,6 +1,6 @@
 from unittest import TestCase
 from src.backtest.serve.job import Job, RecordingBroker
-from src.backtest.engine import Account, TradeOrder, TradeType, TSData, Record, Strategy, RecordsBucket, Metadata
+from src.backtest.engine import Account, TradeOrder, TradeType, TSData, Record, Strategy, RecordsBucket, Metadata, SimpleCashController
 from src.backtest.data import Fetch, ToTSData, Process
 from src.backtest.serve.renderer import Renderer
 from datetime import datetime, timedelta
@@ -156,6 +156,12 @@ class TestJob(TestCase):
             def render(self, state: StateSignals, base_path: PurePath):
                 self.signal = state
 
+        trigger_run: int = 0
+        def trigger(signal: StateSignals, base_path: PurePath):
+            # Increase trigger_run by 1
+            nonlocal trigger_run
+            trigger_run += 1
+
         renderer = MyRenderer()
 
         pipe = SimulatedFetch() | ToTSData()
@@ -176,7 +182,8 @@ class TestJob(TestCase):
                  sell_at_the_end=True,
                  verbose=3)
         job = Job(MyStrat(), pipe, timedelta(days=90), params=params, index_pipe=index_pipe,
-                  working_directory=PurePath("./.cache"), renderer=renderer)
+                  working_directory=PurePath("./.cache"), renderer=renderer, trigger_cb=trigger,
+                  cash_controller=SimpleCashController(every_week=10.))
 
         if os.path.exists(".cache"):
             shutil.rmtree(".cache")
@@ -238,8 +245,10 @@ class TestJob(TestCase):
 
 
         # Check that the money is correctly calculated
-        self.assertAlmostEqual(108_601.01, job.broker.historical_states[-1].worth, delta=0.1)
+        self.assertAlmostEqual(108_641.01, job.broker.historical_states[-1].worth, delta=0.1)
 
         # Check that the portfolio is empty
         self.assertEqual(0, job.broker.portfolio.len_long)
         self.assertEqual(0, job.broker.portfolio.len_short)
+
+        self.assertEqual(len(days), trigger_run)

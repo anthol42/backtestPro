@@ -2,17 +2,20 @@ from .state_signals import StateSignals
 from pathlib import PurePath
 from abc import ABC, abstractmethod
 from typing import Callable, Optional, Union
+from copy import deepcopy
 
 
 class Renderer(ABC):
     def __init__(self):
         self._cb: Optional[Callable[[StateSignals, PurePath], None]] = None
-        self.name: Optional[str] = None
+        self.name: Optional[str] = self.__class__.__name__
 
-    def __call__(self, cb: Callable[[StateSignals, PurePath], None]):
-        self._cb = cb
-        self.name = cb.__name__
-        return self
+    def __call__(self, cb: Optional[Callable[[StateSignals, PurePath], None]] = None) -> 'Renderer':
+        new = deepcopy(self)
+        if cb is not None:
+            new._cb = cb
+            new.name = cb.__name__
+        return new
 
     def __str__(self):
         return repr(self)

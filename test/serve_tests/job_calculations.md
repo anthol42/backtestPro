@@ -13,8 +13,9 @@ Gain: 19517.09 - 17963.08 = 1 554.01$
 
 Sub total: 7 087 + 1 554.01 = 8 641.01$
 Minus transaction fees: 4 * 10$ = 40$
-Total = 8 641.01 - 40 = 8 601.01$
-Final cash: 100 000 + 8 601.01 = 108 601.01$
+Plus deposits: 4 x 10$ = 40$
+Total = 8 641.01 - 40 + 40= 8 641.01$
+Final cash: 100 000 + 8 641.01 = 108 641.01$
 
 ## Deductions from borrowing rates
 Because we did not change month, no deductions are made.
