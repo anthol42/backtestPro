@@ -6,6 +6,8 @@ from .broker import Broker
 from .record import Record, Records, RecordsBucket
 from datetime import datetime
 import numpy.typing as npt
+from pathlib import PurePath
+import pickle
 
 
 class Strategy(ABC):
@@ -45,3 +47,31 @@ class Strategy(ABC):
         :param timestep: The current time step
         """
         self.run(data, timestep)
+
+
+    def save(self, path: PurePath):
+        """
+        This method is used to save the state of the strategy to a file.  If you would like to save in an other format,
+        you can override this method and the load method.
+        Note:
+            To avoid saving things twice, we set the account, broker and available_time_res to None before saving.
+            Only the other attributes will be saved.  (If any)
+        :param path: The path to save the strategy (.pkl)
+        """
+        # Before saving, we set the account and broker to None to avoid pickling them.
+        # (They should be saved separately as json)
+        self.broker = None
+        self.account = None
+        self.available_time_res = None
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, path: PurePath):
+        """
+        This method is used to load the state of a strategy from a file.  If you would like to save in an other format,
+        you can override this method and the save method.
+        :param path: The path to load the strategy from.  (.pkl)
+        """
+        with open(path, 'rb') as f:
+            return pickle.load(f)

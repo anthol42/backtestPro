@@ -1,7 +1,7 @@
 from .state_signals import StateSignals
 from pathlib import PurePath
 from abc import ABC, abstractmethod
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 
 class Renderer(ABC):
@@ -35,7 +35,7 @@ class Renderer(ABC):
 
 
 # TODO: Implement a __str__ method similiar to the one in the IndicatorSet class
-class RendererSet:
+class RendererList:
     """
     Class to run multiple renderers at once
     """

@@ -4,14 +4,14 @@ from ..engine import BuyLongOrder, SellLongOrder, BuyShortOrder, SellShortOrder,
 from ..engine import RecordsBucket, DividendFrequency
 from ..data import DataPipe
 from ..indicators import IndicatorSet
-from typing import Any, Optional, List, Dict, Union, Tuple
+from typing import Any, Optional, List, Dict, Union, Tuple, Callable
 from pathlib import PurePath
 import os
 import json
 import numpy as np
 import numpy.typing as npt
 from .state_signals import StateSignals
-from .renderer import Renderer, RendererSet
+from .renderer import Renderer, RendererList
 
 
 class RecordingBroker(Broker):
@@ -49,12 +49,13 @@ class RecordingBroker(Broker):
 
 
 class Job(Backtest):
-    def __init__(self, strategy: Strategy, data: DataPipe, lookback: timedelta, result_path: str,
+    def __init__(self, strategy: Strategy, data: DataPipe, lookback: timedelta, result_path: str, *,
+                 index_pipe: Optional[DataPipe] = None,
                  working_directory: PurePath = PurePath("./prod_data"),
                  initial_cash: float = 100000,
                  indicators: Union[IndicatorSet, List[IndicatorSet], Dict[int, IndicatorSet]] = IndicatorSet(),
-                 trigger_cb: Any = None,
-                 renderer: Union[RendererSet, Renderer] = None, cash_controller: CashControllerBase = CashControllerBase(),
+                 trigger_cb: Optional[Callable[[StateSignals, PurePath], None]] = None,
+                 renderer: Union[RendererList, Renderer] = None, cash_controller: CashControllerBase = CashControllerBase(),
                  time_res_extender: Optional[TimeResExtender] = None):
         self.data_pipe = data
         self.lookback = lookback
@@ -79,16 +80,17 @@ class Job(Backtest):
         self.broker.bind(self.signal)
         self.working_directory = working_directory
         self.last_timestep: Optional[datetime] = None
+        self.index_pipe = index_pipe
+        self._index_data: Optional[List[Dict[str, TSData]]] = None
 
     def run(self) -> BackTestResult:
         raise NotImplementedError("This method is not implemented for Job, use Backtest to run run_jib instead.")
 
     def run_job(self, every):
-        pass
+        # TODO: Handle the every parameter if not None
+        self.pipeline()
 
-
-
-    def setup(self, data: List[Dict[str, TSData]]):
+    def setup(self):
         """
         This method will setup the backtest.  It will load from cache, if it exists, the backtest state.
         :return: None
@@ -110,6 +112,7 @@ class Job(Backtest):
             self.account = Account.load_state(data["account"])
             self.broker = RecordingBroker.load_state(data["broker"], self.account)
             self.last_timestep = datetime.fromisoformat(data["last_timestep"])
+            self.strategy = self.strategy.load(self.working_directory / PurePath("cache/strategy.pkl"))
             self.broker.bind(self.signal)
 
     def pipeline(self):
@@ -120,9 +123,12 @@ class Job(Backtest):
         # Step 1: Fetch the data
         now = datetime.now()
         self._data: List[Dict[str, TSData]] = self.data_pipe.get(now - self.lookback, now)
+        if self.index_pipe is not None:
+            self._index_data = self.index_pipe.get(now - self.lookback, now)
 
         # Step 2: Setup the object
-        self.setup(self._data)
+        self.setup()
+        self.strategy.init(self.account, self.broker, self.available_time_res)
 
         # Step 3: Run the cash controller (if in the right conditions)
         if self.last_timestep is not None:
@@ -160,14 +166,18 @@ class Job(Backtest):
         with open(self.working_directory / PurePath("cache/job_cache.json"), "w") as f:
             json.dump({"account": self.account.save_state(), "broker": self.broker.save_state(),
                        "last_timestep": now.isoformat()}, f)
+        self.strategy.save(self.working_directory / PurePath("cache/strategy.pkl"))
 
         # Step 8: Package the signals and the current state in a ActionStates object
-        state_signals = StateSignals(self.account, self.broker, self.signal, now)
+        state_signals = StateSignals(self.account, self.broker, self.signal, now, self._index_data)
+
         # Step 9: Render the report using the renderer
         if self._renderer is not None:
-            self._renderer.render(state_signals, path=self.working_directory / PurePath("reports"))
-        # Step 10: Call the trigger callback
+            self._renderer.render(state_signals, base_path=self.working_directory / PurePath("reports"))
 
+        # Step 10: Call the trigger callback
+        if self._trigger_cb is not None:
+            self._trigger_cb(state_signals, self.working_directory)
 
 
     @staticmethod
