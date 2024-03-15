@@ -1,0 +1,114 @@
+/* Luxurious Dark Material Theme with More Green */
+:root {
+  --primary-color: #2E8B57; /* Dark Sea Green */
+  --secondary-color: #FFC107; /* Material Yellow */
+  --background-color: #212121; /* Dark Grey */
+  --surface-color: #303030; /* Slightly lighter Grey */
+  --text-color: #FFFFFF; /* White */
+}
+
+body {
+  font-family: 'Roboto', sans-serif; /* Default Material Design font */
+  background-color: var(--background-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 0;
+}
+
+header {
+  background-color: var(--primary-color);
+  color: #fff;
+  padding: 20px;
+  text-align: center;
+}
+
+h1 {
+  margin: 0;
+  font-size: 3em; /* Larger font size for emphasis */
+}
+
+section {
+  padding: 20px;
+}
+
+footer {
+  background-color: var(--surface-color);
+  color: var(--text-color);
+  text-align: center;
+  padding: 10px;
+}
+
+.status-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+
+.container {
+  width: 80%;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Signals Section */
+#signals-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 20px; /* Add margin to match other sections */
+}
+
+#signals-table th, #signals-table td {
+  border: 1px solid var(--surface-color); /* Slightly lighter border color */
+  padding: 14px; /* Larger padding for consistency */
+}
+
+#signal-filter {
+  margin-bottom: 10px;
+  padding: 5px;
+  width: 100%;
+}
+
+/* Portfolio Section */
+.portfolio-tables {
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+  align-items: center;
+}
+
+#long-positions, #short-positions {
+  width: 100%;
+  margin-bottom: 40px;
+}
+
+#long-positions caption, #short-positions caption {
+  text-align: left;
+  font-weight: bold;
+  margin-bottom: 20px;
+  font-size: 2em; /* Larger font size for emphasis */
+}
+
+#long-positions th, #short-positions th,
+#signals-table th {
+  background-color: var(--surface-color);
+  color: var(--text-color);
+}
+
+#long-positions th, #long-positions td,
+#short-positions th, #short-positions td,
+#signals-table th, #signals-table td {
+  padding: 14px; /* Larger padding for improved readability */
+  border: 1px solid var(--surface-color); /* Slightly lighter border color */
+  text-align: center;
+}
+
+.coin-icon {
+  width: 28px; /* Slightly larger icon size for emphasis */
+  height: 28px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px; /* Slightly larger margin for better spacing */
+}

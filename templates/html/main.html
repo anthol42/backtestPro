@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Report</title>
+    <link rel="stylesheet" href="rich.css">
+</head>
+<body>
+<header>
+    <h1>Financial Report</h1>
+</header>
+<div class="container">
+<section id="signals">
+    <h2>Signals</h2>
+    <table id="signals-table">
+        <thead>
+        <tr>
+            <th>Timestamp</th>
+            <th>Ticker</th>
+            <th>Signal Type</th>
+            <th>Price Lower Limit</th>
+            <th>Price Upper Limit</th>
+            <th># Shares</th>
+            <th># Shares Borrowed</th>
+            <th>Expiry</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tbody>
+        <tr>
+            <td>03-10</td>
+            <td>ABC</td>
+            <td>BuyLong</td>
+            <td>100</td>
+            <td>110</td>
+            <td>50</td>
+            <td>0</td>
+            <td>2024-03-20T12:00:00Z</td>
+        </tr>
+        <tr>
+            <td>03-12</td>
+            <td>XYZ</td>
+            <td>SellShort</td>
+            <td>80</td>
+            <td>90</td>
+            <td>30</td>
+            <td>10</td>
+            <td>2024-03-25T12:00:00Z</td>
+        </tr>
+        <!-- More rows of dummy data -->
+        </tbody>
+    </table>
+</section>
+
+<section id="portfolio">
+    <h2>Portfolio</h2>
+    <div class="portfolio-tables">
+        <table id="long-positions">
+            <caption>Long Positions</caption>
+            <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Average Buy Price</th>
+                <th># Shares</th>
+                <th>Change ($)</th>
+                <th>Change (%)</th>
+                <th>Uncapitalized Profits ($)</th>
+                <th>Uncapitalized Profits (%)</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>DEF</td>
+                <td>75</td>
+                <td>40</td>
+                <td>5</td>
+                <td>8%</td>
+                <td>200</td>
+                <td>12%</td>
+            </tr>
+            <tr>
+                <td>GHI</td>
+                <td>120</td>
+                <td>20</td>
+                <td>-10</td>
+                <td>-5%</td>
+                <td>-150</td>
+                <td>-8%</td>
+            </tr>
+            </tbody>
+        </table>
+        <table id="short-positions">
+            <caption>Short Positions</caption>
+            <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Average Buy Price</th>
+                <th># Shares</th>
+                <th>Change ($)</th>
+                <th>Change (%)</th>
+                <th>Uncapitalized Profits ($)</th>
+                <th>Uncapitalized Profits (%)</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td>DEF</td>
+                <td>75</td>
+                <td>40</td>
+                <td>5</td>
+                <td>8%</td>
+                <td>200</td>
+                <td>12%</td>
+            </tr>
+            <tr>
+                <td>GHI</td>
+                <td>120</td>
+                <td>20</td>
+                <td>-10</td>
+                <td>-5%</td>
+                <td>-150</td>
+                <td>-8%</td>
+            </tr>
+            <!-- More rows of dummy data -->
+            </tbody>
+        </table>
+    </div>
+</section>
+</div>
+
+<footer>
+    <p>Server status: <span class="status-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="green"/></svg></span> Running</p>
+</footer>
+
+</body>
+</html>

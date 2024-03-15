@@ -1,0 +1,136 @@
+/* Material Design Theme */
+:root {
+  --primary-color: #2196F3; /* Blue */
+  --secondary-color: #FFC107; /* Amber */
+  --background-color: #FFFFFF; /* White */
+  --surface-color: #F5F5F5; /* Light Grey */
+  --text-color: #212121; /* Dark Grey */
+}
+
+body {
+  font-family: 'Roboto', sans-serif; /* Default Material Design font */
+  background-color: var(--background-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 0;
+}
+
+header {
+  background-color: var(--primary-color);
+  color: #fff;
+  padding: 20px;
+  text-align: center;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2em; /* Adjust font size to fit Material Design standards */
+}
+
+section {
+  padding: 20px;
+}
+
+footer {
+  background-color: var(--surface-color);
+  color: var(--text-color);
+  text-align: center;
+  padding: 10px;
+}
+
+.status-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+
+.container {
+  width: 80%;
+  margin: 0 auto;
+  padding: 20px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+table th,
+table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid #ddd; /* Add a subtle bottom border to each row */
+}
+
+table th {
+  background-color: #f2f2f2; /* Light background color for table headers */
+}
+
+table tbody tr:hover {
+  background-color: #f9f9f9; /* Light background color on hover */
+}
+
+
+/* Signals Section */
+#signals-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#signals-table th, #signals-table td {
+  border: 1px solid #ddd;
+  padding: 8px;
+}
+
+#signal-filter {
+  margin-bottom: 10px;
+  padding: 5px;
+  width: 100%;
+}
+
+/* Portfolio Section */
+.portfolio-tables table {
+  margin-bottom: 20px;
+}
+
+.portfolio-tables caption {
+  text-align: left;
+  font-weight: bold;
+  margin-bottom: 10px;
+  font-size: 1.25em;
+}
+
+#long-positions, #short-positions {
+  width: 100%;
+  margin-bottom: 40px;
+}
+
+#long-positions caption, #short-positions caption {
+  text-align: left;
+  font-weight: bold;
+  margin-bottom: 20px;
+  font-size: 1.25em;
+}
+
+#long-positions th, #short-positions th {
+  background-color: var(--surface-color);
+  color: var(--text-color);
+}
+
+#long-positions th, #long-positions td,
+#short-positions th, #short-positions td {
+  padding: 8px;
+  border: 1px solid #ddd;
+  text-align: center;
+}
+
+.coin-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 5px;
+}

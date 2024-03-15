@@ -1,0 +1,111 @@
+/* JetBrains-inspired Dark Theme */
+:root {
+  --primary-color: #61AFEF; /* Blue */
+  --secondary-color: #98C379; /* Green */
+  --background-color: #282C34; /* Dark Grey */
+  --surface-color: #3E4451; /* Darker Grey */
+  --text-color: #ABB2BF; /* Light Grey */
+}
+
+body {
+  font-family: 'Roboto', sans-serif; /* Default Material Design font */
+  background-color: var(--background-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 0;
+}
+
+header {
+  background-color: var(--primary-color);
+  color: #fff;
+  padding: 20px;
+  text-align: center;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2em; /* Adjust font size to fit Material Design standards */
+}
+
+section {
+  padding: 20px;
+}
+
+footer {
+  background-color: var(--surface-color);
+  color: var(--text-color);
+  text-align: center;
+  padding: 10px;
+}
+
+.status-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+
+.container {
+  width: 80%;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Signals Section */
+#signals-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+#signals-table th, #signals-table td {
+  border: 1px solid #444; /* Darker border color */
+  padding: 8px;
+}
+
+#signal-filter {
+  margin-bottom: 10px;
+  padding: 5px;
+  width: 100%;
+}
+
+/* Portfolio Section */
+.portfolio-tables {
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+  align-items: center;
+}
+
+#long-positions, #short-positions {
+  width: 100%;
+  margin-bottom: 40px;
+}
+
+#long-positions caption, #short-positions caption {
+  text-align: left;
+  font-weight: bold;
+  margin-bottom: 20px;
+  font-size: 1.25em;
+}
+
+#long-positions th, #short-positions th {
+  background-color: var(--surface-color);
+  color: var(--text-color);
+}
+
+#long-positions th, #long-positions td,
+#short-positions th, #short-positions td {
+  padding: 8px;
+  border: 1px solid #444; /* Darker border color */
+  text-align: center;
+}
+
+.coin-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 5px;
+}
