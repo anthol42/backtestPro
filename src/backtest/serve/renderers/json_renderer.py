@@ -3,7 +3,7 @@ from pathlib import PurePath
 from ..renderer import Renderer
 from ..state_signals import StateSignals
 from typing import Union
-
+import os
 
 class JSONRenderer(Renderer):
     """
@@ -21,8 +21,8 @@ class JSONRenderer(Renderer):
 
     def render(self, state: StateSignals, base_path: PurePath):
         out = {
-            "timestamp": state.timestamp,
-            "signals":{
+            "timestamp": state.timestamp.isoformat(),
+            "signals": {
                 "buy_long": {k: v.export() for k, v in state.buy_long_signals.items()},
                 "sell_long": {k: v.export() for k, v in state.sell_long_signals.items()},
                 "buy_short": {k: v.export() for k, v in state.buy_short_signals.items()},
@@ -30,7 +30,7 @@ class JSONRenderer(Renderer):
             }
         }
         if self.store_portfolio:
-            out["portfolio"] = state.portfolio.export()
+            out["portfolio"] = state.portfolio.get_state()
 
         if self.store_broker:
             out["broker"] = state.broker.get_state()
@@ -38,5 +38,8 @@ class JSONRenderer(Renderer):
         if self.store_account:
             out["account"] = state.account.get_state()
 
+        if not os.path.exists(base_path / self.sub_dir):
+            os.makedirs(base_path / self.sub_dir)
         with open(base_path / self.sub_dir / "signals.json", "w") as f:
             json.dump(out, f)
+

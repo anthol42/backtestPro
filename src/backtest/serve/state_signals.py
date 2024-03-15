@@ -69,22 +69,22 @@ class StateSignals:
             s = "No signals were emitted"
         else:
             for ticker, order in self._signals.items():
-                if len(ticker) + len(str(order.trade_type)) > max_len:
-                    max_len = len(ticker) + len(str(order.trade_type))
-                l.append((ticker, str(order.trade_type)))
+                if len(ticker) + len(order.trade_type.value) > max_len:
+                    max_len = len(ticker) + len(order.trade_type.value)
+                l.append((ticker, order.trade_type.value))
 
             if len(self._signals) < 10:
                 for ticker, order in l:
                     curr_len = len(ticker) + len(order)
-                    s += f"{ticker}{' ' * (max_len - curr_len + 1)}: {order}\n"
+                    s += f"{ticker}: {' ' * (max_len - curr_len + 1)}{order}\n"
             else:
                 for ticker, order in l[:5]:
                     curr_len = len(ticker) + len(order)
-                    s += f"{ticker}{' ' * (max_len - curr_len + 1)}: {order}\n"
+                    s += f"{ticker}: {' ' * (max_len - curr_len + 1)}{order}\n"
                 s += "    ...\n"
                 for ticker, order in l[-5:]:
                     curr_len = len(ticker) + len(order)
-                    s += f"{ticker}{' ' * (max_len - curr_len + 1)}: {order}\n"
+                    s += f"{ticker}: {' ' * (max_len - curr_len + 1)}{order}\n"
 
         # Put the output in a bounding box
         lines = s.split("\n")
