@@ -49,21 +49,23 @@ class RecordingBroker(Broker):
 
 
 class Job(Backtest):
-    def __init__(self, strategy: Strategy, data: DataPipe, lookback: timedelta, result_path: str, *,
-                 index_pipe: Optional[DataPipe] = None,
+    def __init__(self, strategy: Strategy, data: DataPipe, lookback: timedelta, *, result_path: Optional[str] = None,
+                 params: Optional[Dict[str, Any]] = None, index_pipe: Optional[DataPipe] = None,
                  working_directory: PurePath = PurePath("./prod_data"),
-                 initial_cash: float = 100000,
                  indicators: Union[IndicatorSet, List[IndicatorSet], Dict[int, IndicatorSet]] = IndicatorSet(),
                  trigger_cb: Optional[Callable[[StateSignals, PurePath], None]] = None,
                  renderer: Union[RendererList, Renderer] = None, cash_controller: CashControllerBase = CashControllerBase(),
                  time_res_extender: Optional[TimeResExtender] = None):
+        if result_path is None and params is None:
+            raise ValueError("You must provide either a result_path or a params dictionary")
+        if result_path is not None:
+            results = BackTestResult.load(result_path)
+            params = results.metadata.backtest_parameters
         self.data_pipe = data
         self.lookback = lookback
         self._trigger_cb = trigger_cb
         self._renderer = renderer
-        results = BackTestResult.load(result_path)
-        params = results.metadata.backtest_parameters
-        super().__init__([], strategy, main_timestep=params['main_timestep'], initial_cash=initial_cash,
+        super().__init__([], strategy, main_timestep=params['main_timestep'], initial_cash=params['initial_cash'],
                          commission=params['commission'], relative_commission=params['relative_commission'],
                          margin_interest=params['margin_interest'], min_initial_margin=params['min_initial_margin'],
                          min_maintenance_margin=params['min_maintenance_margin'],
@@ -90,21 +92,18 @@ class Job(Backtest):
         # TODO: Handle the every parameter if not None
         self.pipeline()
 
-    def setup(self):
+    def setup(self) -> Optional[datetime]:
         """
         This method will setup the backtest.  It will load from cache, if it exists, the backtest state.
-        :return: None
         """
         # Initialize the dynamically extended time resolution and get the available time resolutions
-        _, _, timestep_list = self._initialize_bcktst()
-        # In case the class is derived and the method standardize_timesteps is overridden
-        timesteps_list = self.stadardize_timesteps(timestep_list)
-        assert len(timesteps_list) > 0, "There is no data to backtest."
+        self._initialize_bcktst()
 
         # Initialize the cache, even though it won't be used, it is necessary to avoid errors
         self.cache_data = [{ticker: None for ticker in self._data[time_res]}
                            for time_res in range(len(self.available_time_res))]
 
+        prev_last_data_dt = None
         # Now that the setup is done, we try to load the state from the cache.
         if os.path.exists(self.working_directory / PurePath("cache/job_cache.json")):
             with open(self.working_directory / PurePath("cache/job_cache.json"), "r") as f:
@@ -112,24 +111,38 @@ class Job(Backtest):
             self.account = Account.load_state(data["account"])
             self.broker = RecordingBroker.load_state(data["broker"], self.account)
             self.last_timestep = datetime.fromisoformat(data["last_timestep"])
+            prev_last_data_dt = datetime.fromisoformat(data["last_data_dt"])
             self.strategy = self.strategy.load(self.working_directory / PurePath("cache/strategy.pkl"))
             self.broker.bind(self.signal)
 
-    def pipeline(self):
+        return prev_last_data_dt
+
+    def pipeline(self, now_override: Optional[datetime] = None):
         """
         This method will run the whole pipeline.
+        :param now_override: A datetime object to override the current time.  (Useful for testing in simulated environments)
         :return: None
         """
         # Step 1: Fetch the data
-        now = datetime.now()
+        now = datetime.now() if now_override is None else now_override
         self._data: List[Dict[str, TSData]] = self.data_pipe.get(now - self.lookback, now)
         if self.index_pipe is not None:
             self._index_data = self.index_pipe.get(now - self.lookback, now)
 
         # Step 2: Setup the object
-        self.setup()
+        previous_last_data_dt = self.setup()
         self.strategy.init(self.account, self.broker, self.available_time_res)
 
+        # Step 4: Prepare the data, no need to filter None charts, as the data is supposed to be up-to-date
+        processed_data: List[List[Record]] = self._prep_data(now)
+        prepared_data = RecordsBucket(processed_data, self.available_time_res, self.main_timestep, self.window)
+        last_data_dt = prepared_data.main[0].chart.index[-1]
+
+        # If this condition is true, it means that the market was closed, the data wasn't updated, so we must not run
+        # anything and return
+        if previous_last_data_dt is not None:
+            if last_data_dt == previous_last_data_dt:
+                return
         # Step 3: Run the cash controller (if in the right conditions)
         if self.last_timestep is not None:
             if now.day != self.last_timestep.day:
@@ -140,10 +153,6 @@ class Job(Backtest):
                 self.cash_controller.deposit(now, CashControllerTimeframe.MONTH)
             if now.year != self.last_timestep.year:
                 self.cash_controller.deposit(now, CashControllerTimeframe.YEAR)
-
-        # Step 4: Prepare the data, no need to filter None charts, as the data is supposed to be up-to-date
-        processed_data: List[List[Record]] = self._prep_data(now)
-        prepared_data = RecordsBucket(processed_data, self.available_time_res, self.main_timestep, self.window)
 
         # Step 5: If the cache is not None, (The strategy ran before), we run the broker to keep track of the current
         # performances
@@ -156,16 +165,16 @@ class Job(Backtest):
                              dividends, div_freq,
                              short_rate)
 
-        self.last_timestep = now
-
         # Step 6: Run the strategy
         self.broker.set_current_timestamp(now)
         self.strategy(prepared_data, now)
 
         # Step 7: Save the state
+        if not os.path.exists(self.working_directory / PurePath("cache")):
+            os.makedirs(self.working_directory / PurePath("cache"))
         with open(self.working_directory / PurePath("cache/job_cache.json"), "w") as f:
-            json.dump({"account": self.account.save_state(), "broker": self.broker.save_state(),
-                       "last_timestep": now.isoformat()}, f)
+            json.dump({"account": self.account.get_state(), "broker": self.broker.get_state(),
+                       "last_timestep": now.isoformat(), "last_data_dt": last_data_dt.isoformat()}, f)
         self.strategy.save(self.working_directory / PurePath("cache/strategy.pkl"))
 
         # Step 8: Package the signals and the current state in a ActionStates object
@@ -178,27 +187,3 @@ class Job(Backtest):
         # Step 10: Call the trigger callback
         if self._trigger_cb is not None:
             self._trigger_cb(state_signals, self.working_directory)
-
-
-    @staticmethod
-    def _prep_brokers_data(prepared_data: List[Record]) \
-            -> Tuple[npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[bool], npt.NDArray[np.float32],
-            List[DividendFrequency], npt.NDArray[np.float32], List[str]]:
-        """
-        Prepare the data to feed the broker when it will do its tick.
-        :param prepared_data: The main timestep data that was fed to the strategy
-        :return: current data, the next tick data, the marginables, the dividends, the dividend frequency, the short rate
-        and the security names
-        """
-        # Get security names
-        security_names = [record.ticker for record in prepared_data]
-
-        # Prepare current data for broker
-        yesterday_data = np.array([record.chart[["Open", "High", "Low", "Close"]].iloc[-2].to_list() for record in prepared_data], dtype=np.float32)
-        current_tick_data = np.array([record.chart[["Open", "High", "Low", "Close"]].iloc[-1].to_list() for record in prepared_data], dtype=np.float32)
-        marginables = np.array([[record.marginable, record.shortable] for record in prepared_data], dtype=bool)
-        dividends = np.array([record.chart["Dividends"].iloc[-2] if record.has_dividends else 0. for record in prepared_data], dtype=np.float32)
-        div_freq = [record.div_freq for record in prepared_data]
-        short_rate = np.array([record.short_rate for record in prepared_data], dtype=np.float32)
-
-        return yesterday_data, current_tick_data, marginables, dividends, div_freq, short_rate, security_names

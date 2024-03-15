@@ -34,7 +34,6 @@ class Renderer(ABC):
 
 
 
-# TODO: Implement a __str__ method similiar to the one in the IndicatorSet class
 class RendererList:
     """
     Class to run multiple renderers at once
@@ -46,3 +45,14 @@ class RendererList:
     def render(self, state: StateSignals, base_path: PurePath):
         for renderer in self.renderers:
             renderer.render(state, base_path)
+
+
+    def __str__(self):
+        s = "RendererList(\n"
+        for r in self.renderers:
+            s += f"    {r}\n"
+        s += ")"
+        return s
+
+    def __repr__(self):
+        return f"RendererList(len={len(self.renderers)})"

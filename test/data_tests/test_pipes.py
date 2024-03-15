@@ -14,13 +14,13 @@ class TestPipes(TestCase):
 
         self.assertEqual("FirstFetch", FirstFetch.name)
         self.assertEqual(["This", "Is", "My", "Fetch"],
-                         FirstFetch.fetch(datetime.now(), datetime.now(), po=None).value)
+                         FirstFetch().fetch(datetime.now(), datetime.now(), po=None).value)
         @Fetch
         def AppendFetch(frm: datetime, to: datetime, *args, po: Optional[PipeOutput], **kwargs):
             return po.value + ["Appended"]
 
         self.assertEqual("AppendFetch", AppendFetch.name)
-        pipe = FirstFetch | AppendFetch
+        pipe = FirstFetch() | AppendFetch()
         self.assertEqual(["This", "Is", "My", "Fetch", "Appended"], pipe.get(datetime.now(), datetime.now()))
 
     def test_process(self):
@@ -30,7 +30,7 @@ class TestPipes(TestCase):
 
         self.assertEqual("MyProcess", MyProcess.name)
         self.assertEqual([4, 8, 12, 16, 20],
-                         MyProcess.process(datetime.now(), datetime.now(), po=PipeOutput([1, 2, 3, 4, 5], None)).value)
+                         MyProcess().process(datetime.now(), datetime.now(), po=PipeOutput([1, 2, 3, 4, 5], None)).value)
         @Process
         def Divide(frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs):
             return [value / 2 for value in po.value]
@@ -39,7 +39,7 @@ class TestPipes(TestCase):
         def MakeN(frm: datetime, to: datetime, *args, po: Optional[PipeOutput], **kwargs):
             return list(range(1, 11))
 
-        pipe = MakeN | MyProcess | Divide
+        pipe = MakeN() | MyProcess() | Divide()
         self.assertEqual([2., 4., 6., 8., 10., 12., 14., 16., 18., 20.], pipe.get(datetime.now(), datetime.now()))
 
     def test_collate(self):
@@ -57,7 +57,7 @@ class TestPipes(TestCase):
             return po1.value + po2.value
 
         self.assertEqual("Concat", Concat.name)
-        pipe = Concat(FetchA, FetchB)
+        pipe = Concat(FetchA(), FetchB())
         self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], pipe.get(datetime.now(), datetime.now()))
 
     def test_cache(self):
@@ -100,7 +100,7 @@ class TestPipes(TestCase):
 
 
         self.assertEqual("MyCache", MyCache.name)
-        pipe = FetchN | MyCache
+        pipe = FetchN() | MyCache()
         out = pipe.get(datetime.now(), datetime.now())
         # Change the value returned by FetchN
         i += 1

@@ -3,6 +3,7 @@ from enum import Enum
 from datetime import datetime, timedelta
 import os
 from .datapipe import DataPipe, RevalidateAction, DataPipeType, PipeOutput, CacheObject
+from copy import deepcopy
 
 
 class Fetch(DataPipe):
@@ -17,8 +18,17 @@ class Fetch(DataPipe):
         """
         super().__init__(DataPipeType.FETCH, name=cb.__name__)
         self._cb = cb
+        self._called = False
+
+    def __call__(self):
+        self._called = True
+        return deepcopy(self)
 
     def fetch(self, start: datetime, end: datetime, *args, po: Optional[PipeOutput],  **kwargs) -> PipeOutput:
+        if not self._called:
+            raise RuntimeError(f"You must call the object when building your pipe.  This pipe '{self.name}' wasn't called.\n"
+                               f"Example: pipe = MyFetch().\n"
+                               f"Not: pipe = MyFetch")
         return PipeOutput(self._cb(start, end, *args, po=po, **kwargs), self)
 
 class Process(DataPipe):
@@ -33,8 +43,17 @@ class Process(DataPipe):
         """
         super().__init__(DataPipeType.PROCESS, name=cb.__name__)
         self._cb = cb
+        self._called = False
+
+    def __call__(self):
+        self._called = True
+        return deepcopy(self)
 
     def process(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> PipeOutput:
+        if not self._called:
+            raise RuntimeError(f"You must call the object when building your pipe.  This pipe '{self.name}' wasn't called.\n"
+                               f"Example: pipe = MyProcess().\n"
+                               f"Not: pipe = MyProcess")
         return PipeOutput(self._cb(frm, to, *args, po=po, **kwargs), self)
 
 
@@ -52,8 +71,9 @@ class Collate(DataPipe):
         self._cb = cb
 
     def __call__(self, po1: DataPipe, po2: DataPipe) -> DataPipe:
-        self._pipes = [po1, po2]
-        return self
+        new = deepcopy(self)
+        new._pipes = [po1, po2]
+        return new
 
     def collate(self, frm: datetime, to: datetime, *args, po1: PipeOutput[Any], po2: PipeOutput, **kwargs) -> PipeOutput:
         return PipeOutput(self._cb(frm, to, *args, po1=po1, po2=po2, **kwargs), self)
@@ -118,13 +138,11 @@ class Cache(DataPipe):
         self._n_requests = 0
 
     def __call__(self, caching_cb: Callable[[datetime, datetime, Tuple[Any, ...], PipeOutput[Any], dict[str, Any]], PipeOutput] = None) -> DataPipe:
+        new = deepcopy(self)
         if caching_cb is not None:
-            self._caching_cb = caching_cb
-            self.name = caching_cb.__name__
-        else:
-            self._caching_cb = None
-            self.name = "Cache"
-        return self
+            new._caching_cb = caching_cb
+            new.name = caching_cb.__name__
+        return new
 
     def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput[Any], **kwargs) -> None:
         if self._caching_cb is None:

@@ -21,7 +21,7 @@ class TestJSONCache(TestCase):
         if os.path.exists(".cache"):
             shutil.rmtree(".cache")
         # Build pipe
-        pipe = FetchData | JSONCache(timeout=timedelta(seconds=5))
+        pipe = FetchData() | JSONCache(timeout=timedelta(seconds=5))
         # First run doesn't fetch cache
         out = pipe.get(datetime(2021, 1, 1), datetime(2021, 1, 5))
         self.assertEqual(expected, out)

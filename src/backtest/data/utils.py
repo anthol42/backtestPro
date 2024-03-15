@@ -171,11 +171,11 @@ def FilterNoneCharts(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str
 
 @Process
 def ToTSData(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, pd.DataFrame]],
-             **kwargs) -> Dict[str, TSData]:
+             **kwargs) -> List[Dict[str, TSData]]:
     """
     This pipe will convert the charts into a time series object (TSData).
     IN: dict[str, pd.DataFrame] where the values are the charts and the keys are the tickers
-    OUT: dict[str, TSData] where the values are the TSData and the keys are the tickers
+    OUT: list[dict[str, TSData]] where the values are the TSData and the keys are the tickers (len of list = 1)
     :param frm: From datetime
     :param to:  to datetime
     :param args: Args passed to the pipe
@@ -183,7 +183,7 @@ def ToTSData(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, pd.Dat
     :param kwargs: The keyword arguments passed to the pipe
     :return: pd.DataFrame
     """
-    return {ticker: TSData(chart, name=f"Chart-{ticker}") for ticker, chart in po.value.items()}
+    return [{ticker: TSData(chart, name=f"Chart-{ticker}") for ticker, chart in po.value.items()}]
 
 
 @Process

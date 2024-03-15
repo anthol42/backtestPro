@@ -47,8 +47,10 @@ class TSData:
         """
         if type(data.index) != pd.DatetimeIndex and type(data.index[0]) != pd.Timestamp:
             data.index = pd.DatetimeIndex(["-".join(str(x).split("-")[:-1]) for x in data.index])
-        else:    # Remove tz from index
+        elif data.index[0].tzinfo is not None:  # Remove tz from index if there are any
             data.index = pd.Index([pd.Timestamp("-".join(str(ts).split("-")[:-1])) for ts in data.index])
+        # else:    # Remove tz from index if there are any
+        #     data.index = pd.Index([pd.Timestamp("-".join(str(ts).split("-")[:-1])) for ts in data.index])
         self.data = data
         self.time_res: timedelta = data.index.diff().median() if time_res is None else time_res
         self.name = name
@@ -64,7 +66,7 @@ class TSData:
                 self.div_freq = DividendFrequency.NO_DIVIDENDS
             else:
                 idx_div = data.index[(data["Dividends"] > 0)]
-                if len(idx_div) == 0:
+                if len(idx_div) < 2:
                     self.div_freq = DividendFrequency.NO_DIVIDENDS
                 else:
                     self.div_freq = DividendFrequency.from_delta(idx_div.diff().days.to_numpy()[1:].mean())

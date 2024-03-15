@@ -1323,9 +1323,9 @@ class Broker:
         return {
             "portfolio": self.portfolio.get_state(),
             "queued_trade_offers": [offer.export() for offer in self._queued_trade_offers],
-            "current_month": str(self._current_month),
-            "last_day": str(self._last_day),
-            "last_step": str(self._last_step),
+            "current_month": str(self._current_month) if self._current_month is not None else None,
+            "last_day": str(self._last_day) if self._last_day is not None else None,
+            "last_step": str(self._last_step) if self._last_step is not None else None,
             "message": self.message.export(),
             "debt_record": deepcopy(self._debt_record),
             "historical_states": [state.export() for state in self.historical_states],
@@ -1340,7 +1340,7 @@ class Broker:
             "n": self.n,
             "cache": self._cache,
             "exposure_time": self.exposure_time,
-            "current_timestamp": str(self._current_timestamp),
+            "current_timestamp": str(self._current_timestamp) if self._current_timestamp is not None else None,
         }
 
     @classmethod
@@ -1352,14 +1352,14 @@ class Broker:
         :return: The broker
         """
         broker = cls(account)
-        broker._last_step = data["last_step"]
-        broker._current_timestamp = data["current_timestamp"]
+        broker._last_step = datetime.fromisoformat(data["last_step"]) if data["last_step"] is not None else None
+        broker._current_timestamp = datetime.fromisoformat(data["current_timestamp"]) if data["current_timestamp"] is not None else None
         broker.exposure_time = data["exposure_time"]
         broker._debt_record = deepcopy(data["debt_record"])
         broker.portfolio = Portfolio.load_state(data["portfolio"], broker._debt_record)
         broker._queued_trade_offers = [TradeOrder.load(offer) for offer in data["queued_trade_offers"]]
-        broker._current_month = data["current_month"]
-        broker._last_day = data["last_day"]
+        broker._current_month = int(data["current_month"]) if data["current_month"] is not None else None
+        broker._last_day = datetime.fromisoformat(data["last_day"]).date() if data["last_day"] is not None else None
         broker.message = BrokerState.load(data["message"])
         broker.historical_states = [StepState.load(state) for state in data["historical_states"]]
         broker.liquidation_delay = data["liquidation_delay"]
