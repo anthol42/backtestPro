@@ -1,8 +1,10 @@
 from unittest import TestCase
+
+from src.backtest import RecordsBucket
 from src.backtest.serve.renderers.json_renderer import JSONRenderer
 from src.backtest.data import Fetch, ToTSData
 from src.backtest.serve.state_signals import StateSignals
-from src.backtest.engine import Portfolio, Account, Broker, TradeOrder, TradeType
+from src.backtest.engine import Portfolio, Account, Broker, TradeOrder, TradeType, Strategy
 from datetime import datetime
 import pandas as pd
 from pathlib import PurePath
@@ -20,6 +22,10 @@ orders = {
                             100, TradeType.SellLong, None),
 }
 
+class MyStrat(Strategy):
+    def run(self, data: RecordsBucket, timestep: datetime):
+        pass
+
 
 @Fetch
 def IndexPipe(frm: datetime, to: datetime, *args, **kwargs):
@@ -31,7 +37,7 @@ class TestJSONRenderer(TestCase):
         account = Account(1000)
         broker = Broker(account)
         idx_pipe = IndexPipe() | ToTSData()
-        state = StateSignals(account, broker, orders, datetime(2024, 1, 12), idx_pipe.get(None, None))
+        state = StateSignals(account, broker, orders, MyStrat(), datetime(2024, 1, 12), idx_pipe.get(None, None))
 
         # Now, try storing only the signals
         renderer = JSONRenderer()

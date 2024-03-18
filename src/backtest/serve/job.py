@@ -189,7 +189,7 @@ class Job(Backtest):
         self.strategy.save(self.working_directory / PurePath("cache/strategy.pkl"))
 
         # Step 8: Package the signals and the current state in a ActionStates object
-        state_signals = StateSignals(self.account, self.broker, self.signal, now, self._index_data)
+        state_signals = StateSignals(self.account, self.broker, self.signal, self.strategy, now, self._index_data)
 
         # Step 9: Render the report using the renderer
         if self._renderer is not None:

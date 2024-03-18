@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Tuple, Set
+from ..renderer import Renderer
 import re
 
 class MarkupObject:
@@ -47,12 +48,12 @@ class MarkupObject:
 
 
 
-# class MarkupRenderer:
-#     """
-#     Class designed to render a python object to a markup language.  This can be xml, html, markdown, etc.
-#     """
-#     def __init__(self, template: Dict[str, str], leading_format: str = "<*>", trailing_format: str = "</*>"):
-#         pass
+class MarkupRenderer(Renderer):
+    """
+    Class designed to render a python object to a markup language.  This can be xml, html, markdown, etc.
+    """
+    def __init__(self):
+        super().__init__()
 
 
 if __name__ == "__main__":

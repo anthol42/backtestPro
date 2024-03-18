@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Financial Report</title>
-    <link rel="stylesheet" href="light.css">
+    <link rel="stylesheet" href="rich.css">
 </head>
 <body>
 <header>
@@ -28,28 +28,7 @@
         </tr>
         </thead>
         <tbody>
-        <tbody>
-        <tr>
-            <td>03-10</td>
-            <td>ABC</td>
-            <td>BuyLong</td>
-            <td>100</td>
-            <td>110</td>
-            <td>50</td>
-            <td>0</td>
-            <td>2024-03-20T12:00:00Z</td>
-        </tr>
-        <tr>
-            <td>03-12</td>
-            <td>XYZ</td>
-            <td>SellShort</td>
-            <td>80</td>
-            <td>90</td>
-            <td>30</td>
-            <td>10</td>
-            <td>2024-03-25T12:00:00Z</td>
-        </tr>
-        <!-- More rows of dummy data -->
+            {{signals}}
         </tbody>
     </table>
 </section>
@@ -72,24 +51,7 @@
             </tr>
             </thead>
             <tbody>
-            <tr>
-                <td>DEF</td>
-                <td>75</td>
-                <td>40</td>
-                <td>5</td>
-                <td>8%</td>
-                <td>200</td>
-                <td>12%</td>
-            </tr>
-            <tr>
-                <td>GHI</td>
-                <td>120</td>
-                <td>20</td>
-                <td>-10</td>
-                <td>-5%</td>
-                <td>-150</td>
-                <td>-8%</td>
-            </tr>
+                {{long_positions}}
             </tbody>
         </table>
         <h3 class="portfolio-label">Short Positions</h3>
@@ -106,25 +68,7 @@
             </tr>
             </thead>
             <tbody>
-            <tr>
-                <td>DEF</td>
-                <td>75</td>
-                <td>40</td>
-                <td>5</td>
-                <td>8%</td>
-                <td>200</td>
-                <td>12%</td>
-            </tr>
-            <tr>
-                <td>GHI</td>
-                <td>120</td>
-                <td>20</td>
-                <td>-10</td>
-                <td>-5%</td>
-                <td>-150</td>
-                <td>-8%</td>
-            </tr>
-            <!-- More rows of dummy data -->
+                {{short_positions}}
             </tbody>
         </table>
     </div>
@@ -139,87 +83,87 @@
         <div class="stats-grid">
         <div class="stat">
             <span class="stat-label">Equity current [$]:</span>
-            <span class="stat-value">152635.64</span>
+            <span class="stat-value">{{current_equity}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Equity peak [$]:</span>
-            <span class="stat-value">154548.18</span>
+            <span class="stat-value">{{equity_peak}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">All Time Returns [%]:</span>
-            <span class="stat-value">51.04</span>
+            <span class="stat-value">{{all_time_returns}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Index Returns [%]:</span>
-            <span class="stat-value">21.55</span>
+            <span class="stat-value">{{index_returns}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Annual returns [%]:</span>
-            <span class="stat-value">278.83</span>
+            <span class="stat-value">{{annual_returns}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Sharp ratio:</span>
-            <span class="stat-value">10.89</span>
+            <span class="stat-value">{{sharp_ratio}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Sortino ratio:</span>
-            <span class="stat-value">26.65</span>
+            <span class="stat-value">{{sortino_ratio}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Max drawdown [%]:</span>
-            <span class="stat-value">8.79</span>
+            <span class="stat-value">{{max_drawdown}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Avg drawdown [%]:</span>
-            <span class="stat-value">6.81</span>
+            <span class="stat-value">{{avg_drawdown}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Calmar ratio:</span>
-            <span class="stat-value">2.76</span>
+            <span class="stat-value">{{calmar_ratio}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Yearly trades:</span>
-            <span class="stat-value">8</span>
+            <span class="stat-value">{{yearly_trades}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Yearly exits:</span>
-            <span class="stat-value">4</span>
+            <span class="stat-value">{{yearly_exits}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Win rate [%]:</span>
-            <span class="stat-value">100.0</span>
+            <span class="stat-value">{{win_rate}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Best trade [%]:</span>
-            <span class="stat-value">77.32</span>
+            <span class="stat-value">{{best_trade}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Worst trade [%]:</span>
-            <span class="stat-value">6.61</span>
+            <span class="stat-value">{{worst_trade}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Avg trade [%]:</span>
-            <span class="stat-value">27.88</span>
+            <span class="stat-value">{{avg_trade}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Max trade duration [days]:</span>
-            <span class="stat-value">64.5</span>
+            <span class="stat-value">{{max_trade_dur}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Avg trade duration [days]:</span>
-            <span class="stat-value">39.63</span>
+            <span class="stat-value">{{avg_trade_dur}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Min trade duration [days]:</span>
-            <span class="stat-value">23.0</span>
+            <span class="stat-value">{{min_trade_dur}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">Profit factor:</span>
-            <span class="stat-value">53392.88</span>
+            <span class="stat-value">{{profit_factor}}</span>
         </div>
         <div class="stat">
             <span class="stat-label">SQN:</span>
-            <span class="stat-value">1.92</span>
+            <span class="stat-value">{{sqn}}</span>
         </div>
     </div>
 
@@ -231,25 +175,25 @@
             <table id="cash-primary-table">
             <tr>
                 <td class="primary-text left">Available Cash:</td>
-                <td class="primary-text right">$100 000.00</td>
+                <td class="primary-text right">${{avail_cash}}</td>
             </tr>
             <tr>
                 <td class="primary-text left">Net Worth:</td>
-                <td class="primary-text right">$152 635.64</td>
+                <td class="primary-text right">${{net_worth}}</td>
             </tr>
         </table>
         <table id="cash-secondary-table">
             <tr>
                 <td class="secondary-text left">Monthly Deposits:</td>
-                <td class="secondary-text right">$10 000.00</td>
+                <td class="secondary-text right">${{deposits}}</td>
             </tr>
             <tr>
                 <td class="secondary-text left">Monthly Withdrawals:</td>
-                <td class="secondary-text right">$0.00</td>
+                <td class="secondary-text right">${{withdrawals}}</td>
             </tr>
             <tr>
                 <td class="secondary-text left">Collateral:</td>
-                <td class="secondary-text right">$0.00</td>
+                <td class="secondary-text right">${{collateral}}</td>
             </tr>
         </table>
         </div>
