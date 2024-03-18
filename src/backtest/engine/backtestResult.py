@@ -220,6 +220,8 @@ class BackTestResult:
         diff.iloc[0] = equity_ohlc["Close"].iloc[0] - equity_ohlc["Open"].iloc[0]
         diff_percentage = (diff / equity_ohlc["Close"].shift(1)) - risk_free_rate / 100
         downside = diff_percentage[diff_percentage < 0].to_numpy()
+        if len(diff_percentage) < 2:
+            return None
         annualized_downside_deviation = np.sqrt(52 * (downside ** 2).sum() / (len(diff_percentage) - 1))
         if annualized_downside_deviation == 0:
             return None

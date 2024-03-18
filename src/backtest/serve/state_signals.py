@@ -1,4 +1,4 @@
-from ..engine import Account, Broker, Portfolio, TradeOrder, TradeType, TSData, Strategy
+from ..engine import Account, Broker, Portfolio, TradeOrder, TradeType, TSData, Strategy, CashControllerBase
 from typing import Any, Optional, List, Dict, Union, Tuple
 from datetime import datetime
 
@@ -8,15 +8,21 @@ class StateSignals:
     and the portfolio.
     """
 
-    def __init__(self, account: Account, broker: Broker, signals: Dict[str, TradeOrder], strategy: Strategy,timestamp: datetime,
-                 index_data: Optional[List[Dict[str, TSData]]] = None):
+    def __init__(self, account: Account, broker: Broker, signals: Dict[str, TradeOrder], strategy: Strategy,
+                 timestamp: datetime, cash_controller: CashControllerBase, initial_cash: float,
+                 index_data: Optional[Dict[str, TSData]] = None, data: Optional[List[Dict[str, TSData]]] = None,
+                 main_idx: Optional[int] = None):
         self.account = account
         self.broker = broker
         self.portfolio = broker.portfolio    # An alias for easier access
         self.strategy = strategy
+        self.cash_controller = cash_controller
+        self.initial_cash = initial_cash
         self._signals = signals
         self.timestamp = timestamp
         self.index_data = index_data
+        self.data = data
+        self.main_idx = main_idx
 
 
     @property
@@ -56,7 +62,7 @@ class StateSignals:
         return self._signals.get(item, default)
 
     def __iter__(self):
-        return iter(self._signals)
+        return iter(self._signals.values())
 
 
     def __repr__(self):

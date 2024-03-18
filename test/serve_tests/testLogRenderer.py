@@ -4,7 +4,7 @@ from src.backtest import RecordsBucket
 from src.backtest.serve.renderers.log_renderer import LogRenderer
 from src.backtest.data import Fetch, ToTSData
 from src.backtest.serve.state_signals import StateSignals
-from src.backtest.engine import Portfolio, Account, Broker, TradeOrder, TradeType, Strategy
+from src.backtest.engine import Portfolio, Account, Broker, TradeOrder, TradeType, Strategy, SimpleCashController
 from datetime import datetime
 import pandas as pd
 from pathlib import PurePath
@@ -35,7 +35,8 @@ class TestLogRenderer(TestCase):
         account = Account(1000)
         broker = Broker(account)
         idx_pipe = IndexPipe() | ToTSData()
-        state = StateSignals(account, broker, orders, MyStrat(), datetime(2024, 1, 12), idx_pipe.get(None, None))
+        state = StateSignals(account, broker, orders, MyStrat(), datetime(2024, 1, 12),
+                             SimpleCashController(), 10, idx_pipe.get(None, None))
 
         # Now, try storing only the signals
         renderer = LogRenderer()

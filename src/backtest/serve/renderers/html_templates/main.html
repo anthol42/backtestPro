@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Financial Report</title>
-    <link rel="stylesheet" href="rich.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <header>
@@ -59,7 +59,7 @@
             <thead>
             <tr>
                 <th>Ticker</th>
-                <th>Average Buy Price</th>
+                <th>Average Sell Price</th>
                 <th># Shares</th>
                 <th>Change ($)</th>
                 <th>Change (%)</th>
@@ -184,12 +184,8 @@
         </table>
         <table id="cash-secondary-table">
             <tr>
-                <td class="secondary-text left">Monthly Deposits:</td>
+                <td class="secondary-text left">Total Deposits or Withdrawals:</td>
                 <td class="secondary-text right">${{deposits}}</td>
-            </tr>
-            <tr>
-                <td class="secondary-text left">Monthly Withdrawals:</td>
-                <td class="secondary-text right">${{withdrawals}}</td>
             </tr>
             <tr>
                 <td class="secondary-text left">Collateral:</td>

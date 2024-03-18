@@ -159,7 +159,9 @@ class Account:
         """
         return self._cash - self._collateral
 
-
+    @property
+    def collateral(self):
+        return self._collateral
     def get_total_cash(self):
         """
         The total amount of cash in the account.  Not deducing collateral.  This include cash that cannot be used to

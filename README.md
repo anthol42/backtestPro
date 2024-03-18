@@ -19,6 +19,11 @@ Features are not implemented yet, but will be one day.
 - [X] Add a method in the strategy that can preprocess the data to add indicators on the fly.
 - [X] Test multiple cases (integrative testing) to see if money and performances are accurately computed
 - [X] Test margin investing, margin call and short selling.
+- [ ] html renderer:
+  - [ ] Calculate current worth and append it to the worth portfolio
+  - [ ] Round numbers.
+  - [ ] Format big numbers with spaces.
+  - [ ] Create a Stats calculator like the backtest results, but with a moving window of 1 year.
 
 
 ## RoadMap
@@ -38,7 +43,7 @@ Features are not implemented yet, but will be one day.
 - [ ] Server Module
   - [X] Modules (Implementation)
   - [ ] Prebuilt renderers
-  - [ ] Unit testing
+  - [X] Unit testing
   - [ ] Documentation
 - [ ] Integration Testing
 - [ ] End-to-end testing

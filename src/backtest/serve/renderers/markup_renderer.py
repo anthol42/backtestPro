@@ -36,7 +36,7 @@ class MarkupObject:
         out = self.template
         for key in self.keys:
             tag = self.format_.replace(".*?", key)
-            out = out.replace(tag, data[key])
+            out = out.replace(tag, str(data[key]))
         return out
 
     def __str__(self):

@@ -86,7 +86,7 @@ class Job(Backtest):
         self.working_directory = working_directory
         self.last_timestep: Optional[datetime] = None
         self.index_pipe = index_pipe
-        self._index_data: Optional[List[Dict[str, TSData]]] = None
+        self._index_data: Optional[List[TSData]] = None
 
     def run(self) -> BackTestResult:
         raise NotImplementedError("This method is not implemented for Job, use Backtest to run run_jib instead.")
@@ -189,7 +189,8 @@ class Job(Backtest):
         self.strategy.save(self.working_directory / PurePath("cache/strategy.pkl"))
 
         # Step 8: Package the signals and the current state in a ActionStates object
-        state_signals = StateSignals(self.account, self.broker, self.signal, self.strategy, now, self._index_data)
+        state_signals = StateSignals(self.account, self.broker, self.signal, self.strategy, now, self.cash_controller,
+                                     self._initial_cash, self._index_data, self._data, self.main_timestep)
 
         # Step 9: Render the report using the renderer
         if self._renderer is not None:
