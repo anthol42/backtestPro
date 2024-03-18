@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Financial Report</title>
-    <link rel="stylesheet" href="rich.css">
+    <link rel="stylesheet" href="light.css">
 </head>
 <body>
 <header>
@@ -13,7 +13,8 @@
 <div class="container">
 <section id="signals">
     <h2>Signals</h2>
-    <table id="signals-table">
+    <div class="divider"></div>
+    <table id="signals-table" class="tables">
         <thead>
         <tr>
             <th>Timestamp</th>
@@ -55,9 +56,10 @@
 
 <section id="portfolio">
     <h2>Portfolio</h2>
+    <div class="divider"></div>
     <div class="portfolio-tables">
-        <table id="long-positions">
-            <caption>Long Positions</caption>
+        <h3 class="portfolio-label">Long positions</h3>
+        <table id="long-positions" class="tables">
             <thead>
             <tr>
                 <th>Ticker</th>
@@ -90,8 +92,8 @@
             </tr>
             </tbody>
         </table>
-        <table id="short-positions">
-            <caption>Short Positions</caption>
+        <h3 class="portfolio-label">Short Positions</h3>
+        <table id="short-positions" class="tables">
             <thead>
             <tr>
                 <th>Ticker</th>
@@ -127,7 +129,132 @@
         </table>
     </div>
 </section>
-</div>
+    <section id="performances">
+    <h2>Performances</h2>
+    <div class="divider"></div>
+        <div id="performance-chart">
+            {{chart}}
+        </div>
+        <h3 id="stats-label">Statistics</h3>
+        <div class="stats-grid">
+        <div class="stat">
+            <span class="stat-label">Equity current [$]:</span>
+            <span class="stat-value">152635.64</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Equity peak [$]:</span>
+            <span class="stat-value">154548.18</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">All Time Returns [%]:</span>
+            <span class="stat-value">51.04</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Index Returns [%]:</span>
+            <span class="stat-value">21.55</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Annual returns [%]:</span>
+            <span class="stat-value">278.83</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Sharp ratio:</span>
+            <span class="stat-value">10.89</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Sortino ratio:</span>
+            <span class="stat-value">26.65</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Max drawdown [%]:</span>
+            <span class="stat-value">8.79</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Avg drawdown [%]:</span>
+            <span class="stat-value">6.81</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Calmar ratio:</span>
+            <span class="stat-value">2.76</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Yearly trades:</span>
+            <span class="stat-value">8</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Yearly exits:</span>
+            <span class="stat-value">4</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Win rate [%]:</span>
+            <span class="stat-value">100.0</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Best trade [%]:</span>
+            <span class="stat-value">77.32</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Worst trade [%]:</span>
+            <span class="stat-value">6.61</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Avg trade [%]:</span>
+            <span class="stat-value">27.88</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Max trade duration [days]:</span>
+            <span class="stat-value">64.5</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Avg trade duration [days]:</span>
+            <span class="stat-value">39.63</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Min trade duration [days]:</span>
+            <span class="stat-value">23.0</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">Profit factor:</span>
+            <span class="stat-value">53392.88</span>
+        </div>
+        <div class="stat">
+            <span class="stat-label">SQN:</span>
+            <span class="stat-value">1.92</span>
+        </div>
+    </div>
+
+    </section>
+    <section id="cash">
+        <h2>Cash</h2>
+        <div class="divider"></div>
+        <div id="cash-stats">
+            <table id="cash-primary-table">
+            <tr>
+                <td class="primary-text left">Available Cash:</td>
+                <td class="primary-text right">$100 000.00</td>
+            </tr>
+            <tr>
+                <td class="primary-text left">Net Worth:</td>
+                <td class="primary-text right">$152 635.64</td>
+            </tr>
+        </table>
+        <table id="cash-secondary-table">
+            <tr>
+                <td class="secondary-text left">Monthly Deposits:</td>
+                <td class="secondary-text right">$10 000.00</td>
+            </tr>
+            <tr>
+                <td class="secondary-text left">Monthly Withdrawals:</td>
+                <td class="secondary-text right">$0.00</td>
+            </tr>
+            <tr>
+                <td class="secondary-text left">Collateral:</td>
+                <td class="secondary-text right">$0.00</td>
+            </tr>
+        </table>
+        </div>
+    </section>
+</div> <!-- End of container -->
 
 <footer>
     <p>Server status: <span class="status-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="green"/></svg></span> Running</p>

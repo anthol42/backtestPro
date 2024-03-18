@@ -1,11 +1,13 @@
-/* Material Design Theme */
 :root {
-  --primary-color: #2196F3; /* Blue */
-  --secondary-color: #FFC107; /* Amber */
-  --background-color: #FFFFFF; /* White */
-  --surface-color: #F5F5F5; /* Light Grey */
-  --text-color: #212121; /* Dark Grey */
+    --primary-color: #2196F3; /* Dodger Blue */
+    --secondary-color: #FFC107; /* Goldenrod */
+    --background-color: #FFFFFF; /* White */
+    --surface-color: #F5F5F5; /* White Smoke */
+    --text-color: #212121; /* Black */
+    --secondary-text-color: #757575; /* Slate Gray */
+    --radius: 5px;
 }
+
 
 body {
   font-family: 'Roboto', sans-serif; /* Default Material Design font */
@@ -24,7 +26,20 @@ header {
 
 h1 {
   margin: 0;
-  font-size: 2em; /* Adjust font size to fit Material Design standards */
+  font-size: 3em; /* Larger font size for emphasis */
+}
+
+h2 {
+  margin: 0;
+  font-size: 2em; /* Larger font size for emphasis */
+}
+
+.portfolio-label {
+    font-size: 1.5em; /* Larger font size for emphasis */
+    margin-top: 20px;
+    margin-bottom: 10px;
+    text-align: left;
+    width: 100%;
 }
 
 section {
@@ -52,85 +67,149 @@ footer {
   margin: 0 auto;
   padding: 20px;
 }
-table {
+
+.tables {
   width: 100%;
   border-collapse: collapse;
-  border-spacing: 0;
+  margin-top: 0px; /* Add margin to match other sections */
+  border-radius: var(--radius); /* Adjust the radius as needed */
+  overflow: hidden; /* Ensure rounded corners are applied */
 }
 
-table th,
-table td {
-  padding: 12px;
-  text-align: left;
-  border-bottom: 1px solid #ddd; /* Add a subtle bottom border to each row */
-}
-
-table th {
-  background-color: #f2f2f2; /* Light background color for table headers */
-}
-
-table tbody tr:hover {
-  background-color: #f9f9f9; /* Light background color on hover */
-}
-
-
-/* Signals Section */
-#signals-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-#signals-table th, #signals-table td {
-  border: 1px solid #ddd;
-  padding: 8px;
-}
-
-#signal-filter {
-  margin-bottom: 10px;
-  padding: 5px;
-  width: 100%;
-}
-
-/* Portfolio Section */
-.portfolio-tables table {
-  margin-bottom: 20px;
-}
-
-.portfolio-tables caption {
-  text-align: left;
-  font-weight: bold;
-  margin-bottom: 10px;
-  font-size: 1.25em;
-}
-
-#long-positions, #short-positions {
-  width: 100%;
-  margin-bottom: 40px;
-}
-
-#long-positions caption, #short-positions caption {
-  text-align: left;
-  font-weight: bold;
-  margin-bottom: 20px;
-  font-size: 1.25em;
-}
-
-#long-positions th, #short-positions th {
-  background-color: var(--surface-color);
-  color: var(--text-color);
-}
-
-#long-positions th, #long-positions td,
-#short-positions th, #short-positions td {
-  padding: 8px;
-  border: 1px solid #ddd;
+.tables td {
+  border: 1px solid var(--surface-color); /* Slightly lighter border color */
+  padding: 14px; /* Larger padding for consistency */
   text-align: center;
 }
 
+.tables th {
+  background-color: var(--surface-color);
+  padding: 14px;
+  color: var(--text-color);
+}
+
+/* Portfolio Section */
+.portfolio-tables {
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+  align-items: center;
+}
+
 .coin-icon {
-  width: 20px;
-  height: 20px;
+  width: 28px; /* Slightly larger icon size for emphasis */
+  height: 28px;
   border-radius: 50%;
   display: inline-block;
-  margin-right: 5px;
+  margin-right: 8px; /* Slightly larger margin for better spacing */
+}
+
+.divider {
+    border-top: 1px solid #ccc;
+    border-radius: 5px;
+    margin-top: 5px;
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+#performance-chart {
+  width: 100%;
+  height: 400px;
+  margin-top: 20px;
+  background-color: var(--surface-color);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#stats-label {
+  font-size: 1.5em; /* Larger font size for emphasis */
+  margin-top: 20px;
+  margin-bottom: 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.statistics {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 10px;
+    margin-top: 30px;
+}
+
+.stats-grid {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.stat {
+    width: calc(50% - 50px); /* Each column takes half of the container width with a 10px gap */
+    border: 1px solid var(--surface-color);
+    padding: 10px;
+    border-radius: var(--radius);
+    box-sizing: border-box; /* Ensure padding and border are included in width calculation */
+}
+.stat:hover {
+    background-color: var(--surface-color);
+}
+
+.stat-label {
+    font-weight: bold;
+}
+
+.stat-value {
+    float: right;
+}
+
+.primary-text{
+    color: var(--text-color);
+    font-weight: bold;
+    font-size: 1.2em;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 10px;
+    padding-bottom: 4px;
+}
+#cash-primary-table{
+    padding-left: 20px;
+    border-collapse: collapse;
+}
+
+#cash-secondary-table{
+    margin-left: 20px;
+    border-collapse: collapse;
+}
+
+.secondary-text{
+    color: var(--secondary-text-color);
+    font-size: 1em;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 10px;
+}
+
+.left{
+   text-align: left;
+}
+.right{
+   text-align: right;
+}
+#cash-stats{
+    display: flex;
+    width: 30%;
+    min-width: 350px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    margin: auto;
+}
+
+#cash-primary-table tr:hover{
+    background-color: var(--surface-color);
+}
+
+#cash-secondary-table tr:hover{
+    background-color: var(--surface-color);
 }
