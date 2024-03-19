@@ -20,9 +20,9 @@ Features are not implemented yet, but will be one day.
 - [X] Test multiple cases (integrative testing) to see if money and performances are accurately computed
 - [X] Test margin investing, margin call and short selling.
 - [ ] html renderer:
-  - [ ] Calculate current worth and append it to the worth portfolio
-  - [ ] Round numbers.
-  - [ ] Format big numbers with spaces.
+  - [X] Calculate current worth and append it to the worth portfolio
+  - [X] Round numbers.
+  - [X] Format big numbers with spaces.
   - [ ] Create a Stats calculator like the backtest results, but with a moving window of 1 year.
 
 

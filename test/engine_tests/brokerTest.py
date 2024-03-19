@@ -306,7 +306,7 @@ class TestBroker(TestCase):
         long_worth = 100*104 - 5000 + 100*250 - 7500    # 22 900
         short_worth = 100*300 + 100*75                  # 37 500
         expected_worth = 100_000 + long_worth - short_worth
-        self.assertEqual(broker._get_worth(security_names, prices), expected_worth)
+        self.assertEqual(broker.get_worth(security_names, prices), expected_worth)
 
     def test_isMarginCall(self):
         broker = Broker(Account(100_000), 6.99, margin_interest=0.02)

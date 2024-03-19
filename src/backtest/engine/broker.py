@@ -348,7 +348,7 @@ class Broker:
             self._update_account_collateral(timestamp, security_names, current_tick_data)
             # 3. Sell
             filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
-            worth = self._get_worth(security_names, current_tick_data)
+            worth = self.get_worth(security_names, current_tick_data)
             # 4. Save
             self.historical_states.append(
                 StepState(timestamp, worth, self._queued_trade_offers, filled_orders, self.message.margin_calls)
@@ -365,7 +365,7 @@ class Broker:
         self._cashin_dividends(timestamp, security_names, dividends, div_freq)
 
         # Evaluate the worth of the portfolio
-        worth = self._get_worth(security_names, current_tick_data)
+        worth = self.get_worth(security_names, current_tick_data)
 
         # Step 2: Charge interests if it's the first day of the month
         # Interest are deducted from account.  If there is not enough money in the account to payout interests,
@@ -414,6 +414,13 @@ class Broker:
         # Update states
         self._last_day = timestamp.date()
         self._last_step = timestamp
+
+    @property
+    def pending_orders(self) -> List[TradeOrder]:
+        """
+        Return a copy of the pending orders
+        """
+        return deepcopy(self._queued_trade_offers)
 
     def _liquidate_expired_mc(self, timestamp: datetime, security_names: List[str], next_tick_data: np.ndarray):
         """
@@ -686,7 +693,7 @@ class Broker:
                 self.remove_margin_call("short margin call")
             return collateral
 
-    def _get_worth(self, security_names: List[str], current_tick_data: np.ndarray) -> float:
+    def get_worth(self, security_names: List[str], current_tick_data: np.ndarray) -> float:
         """
         Get the worth of the portfolio.  (Doesn't include the transaction cost as if we would sell the positions)
         Formula:

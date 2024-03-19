@@ -3,7 +3,7 @@ from datetime import datetime
 from .markup_renderer import MarkupObject, MarkupRenderer
 from ..state_signals import StateSignals
 from ...engine import TradeOrder, Position, TSData, BackTestResult
-from typing import List, Dict
+from typing import List, Dict, Optional
 import numpy as np
 import pandas as pd
 import os
@@ -17,10 +17,20 @@ except ImportError:
 
 TEMPLATE_PATH = PurePath(f"{os.path.dirname(__file__)}/html_templates")
 
-# TODO: Calculate current worth and append it to the worth portfolio
-# TODO: Round numbers.
-# TODO: Format big numbers with spaces.
 # TODO: Create a Stats calculator like the backtest results, but with a moving window of 1 year.
+
+def format_number(number: Optional[float], dec: int = 2) -> str:
+    """
+    Formats a number to a string with a fixed number of decimals.  It also put spaces every 3 digits for big numbers.
+    Example:
+        11235.4242 -> "11 235.42"
+    """
+    if number is None:
+        return "N/A"
+    if number < 1000:
+        return f"{round(number, dec)}"
+    else:
+        return f"{round(number, dec):,}".replace(",", " ")
 
 class HTMLRenderer(MarkupRenderer):
     """
@@ -59,17 +69,21 @@ class HTMLRenderer(MarkupRenderer):
         # Get the portfolio worth from one year ago to now
         cutoff = state.timestamp - pd.Timedelta(days=365)
         portfolio_worth = np.array([s.worth for s in state.broker.historical_states if s.timestamp > cutoff])
+        security_names, data = self.prepare_data(state)
+        current_worth = state.broker.get_worth(security_names, data)
+        portfolio_worth = np.append(portfolio_worth, current_worth)
         idx_name = list(state.index_data.keys())[0]
         index_worth = state.index_data[idx_name].data["Close"].loc[cutoff:state.timestamp].values
         index_timestamps = state.index_data[idx_name].data["Close"].loc[cutoff:state.timestamp].index
         index_name = state.index_data[idx_name].name
         portfolio_timestamps = pd.DatetimeIndex([s.timestamp for s in state.broker.historical_states if s.timestamp > cutoff])
+        portfolio_timestamps = portfolio_timestamps.append(pd.DatetimeIndex([state.timestamp]))
         isDark = self.style == "dark" or self.style == "rich"
         fig = self.chart_builder(portfolio_worth, portfolio_timestamps, index_worth, index_timestamps, isDark, index_name)
         chart = fig.to_html(full_html=False, include_plotlyjs='cdn')
 
         # Step 5: Get the statistics
-        if len(portfolio_worth) != 0:
+        if len(portfolio_worth) > 1:    # TODO: Change to 0 when using the new stats calculator
             res = BackTestResult("", None, portfolio_timestamps[0],portfolio_timestamps[-1], state.initial_cash,
                                  state.cash_controller._total_deposited, index_worth, state.broker, state.account)
 
@@ -90,32 +104,32 @@ class HTMLRenderer(MarkupRenderer):
                 # Chart
                 "chart": chart,
                 # Statistics
-                "all_time_returns": res.returns,
-                "annual_returns": res.annual_returns,
-                "avg_drawdown": res.avg_drawdown,
-                "avg_trade": res.avg_trade,
-                "avg_trade_dur": res.avg_trade_duration,
-                "best_trade": res.best_trade,
-                "calmar_ratio": res.calmar_ratio,
-                "current_equity": net_worth,
-                "equity_peak": res.equity_peak,
-                "index_returns": res.index_returns,
-                "max_drawdown": res.max_drawdown,
-                "max_trade_dur": res.max_trade_duration,
-                "min_trade_dur": res.min_trade_duration,
-                "profit_factor": res.profit_factor,
-                "sharp_ratio": res.sharp_ratio,
-                "sortino_ratio": res.sortino_ratio,
-                "sqn": res.sqn,
-                "win_rate": res.win_rate,
-                "worst_trade": res.worst_trade,
-                "yearly_exits": res.num_exits,
-                "yearly_trades": res.num_trades,
+                "all_time_returns": format_number(res.returns),
+                "annual_returns": format_number(res.annual_returns),
+                "avg_drawdown": format_number(res.avg_drawdown),
+                "avg_trade": format_number(res.avg_trade),
+                "avg_trade_dur": format_number(res.avg_trade_duration),
+                "best_trade": format_number(res.best_trade),
+                "calmar_ratio": format_number(res.calmar_ratio),
+                "current_equity": format_number(net_worth),
+                "equity_peak": format_number(res.equity_peak),
+                "index_returns": format_number(res.index_returns),
+                "max_drawdown": format_number(res.max_drawdown),
+                "max_trade_dur": format_number(res.max_trade_duration),
+                "min_trade_dur": format_number(res.min_trade_duration),
+                "profit_factor": format_number(res.profit_factor),
+                "sharp_ratio": format_number(res.sharp_ratio),
+                "sortino_ratio": format_number(res.sortino_ratio),
+                "sqn": format_number(res.sqn),
+                "win_rate": format_number(res.win_rate),
+                "worst_trade": format_number(res.worst_trade),
+                "yearly_exits": format_number(res.num_exits),
+                "yearly_trades": format_number(res.num_trades),
                 # Account
-                "net_worth": net_worth,
-                "deposits": total_deposits,
-                "collateral": collateral,
-                "avail_cash": available_cash
+                "net_worth": format_number(net_worth),
+                "deposits": format_number(total_deposits),
+                "collateral": format_number(collateral),
+                "avail_cash": format_number(available_cash)
             }
         else:
             markup = MarkupObject(template, "{{.*?}}")
@@ -150,10 +164,10 @@ class HTMLRenderer(MarkupRenderer):
                 "yearly_exits": 0,
                 "yearly_trades": 0,
                 # Account
-                "net_worth": state.account.get_cash(),
-                "deposits": state.cash_controller._total_deposited,
+                "net_worth": format_number(state.account.get_cash()),
+                "deposits": format_number(state.cash_controller._total_deposited),
                 "collateral": 0,
-                "avail_cash": state.account.get_cash()
+                "avail_cash": format_number(state.account.get_cash())
             }
         html_content = markup.render(data)
 
@@ -172,6 +186,21 @@ class HTMLRenderer(MarkupRenderer):
             shutil.copy(TEMPLATE_PATH / "light.css", base_path / "style.css")
 
 
+    @staticmethod
+    def prepare_data(state: StateSignals) -> (List[str], np.ndarray):
+        """
+        Extracts the relevent up-to-date data from the state object and returns it as an array.
+        """
+        data = state.data[state.main_idx]
+        security_names = list(data.keys())
+        out = np.empty((len(security_names), 4), dtype=np.float32)    # Shape(n, 4) for OHLC
+        for i, name in enumerate(security_names):
+            out[i, 0] = data[name].data["Open"].iloc[-1]
+            out[i, 1] = data[name].data["High"].iloc[-1]
+            out[i, 2] = data[name].data["Low"].iloc[-1]
+            out[i, 3] = data[name].data["Close"].iloc[-1]
+
+        return security_names, out
 
 
     @staticmethod
@@ -211,12 +240,12 @@ class HTMLRenderer(MarkupRenderer):
         markup = MarkupObject(template, format_)
         gains = position.amount * ticker_info["current_value"] - position.amount * position.average_price
         data = {"ticker": position.ticker,
-                "average_buy_price": round(position.average_price, 2),
+                "average_buy_price": format_number(position.average_price, 2),
                 "quantity": position.amount,
-                "change_dollars": round(ticker_info["change_dollars"], 2),
-                "change_percent": round(ticker_info["change_percent"], 2),
-                "unrealized_pl_dollars": round(gains, 2),
-                "unrealized_pl_percent": round(100 * gains / (position.amount * position.average_price), 2)
+                "change_dollars": format_number(ticker_info["change_dollars"], 2),
+                "change_percent": format_number(ticker_info["change_percent"], 2),
+                "unrealized_pl_dollars": format_number(gains, 2),
+                "unrealized_pl_percent": format_number(100 * gains / (position.amount * position.average_price), 2)
                 }
         return markup.render(data)
 

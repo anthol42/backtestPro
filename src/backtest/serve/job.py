@@ -17,39 +17,6 @@ try:
 except ImportError:
     SCHEDULE_INSTALLED = False
 
-class RecordingBroker(Broker):
-    """
-    A broker that records the signals given by the strategy.
-    """
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._signal: Dict[str, TradeOrder] = {}
-    def bind(self, signal: Dict[str, TradeOrder]):
-        self._signal = signal
-
-    def buy_long(self, ticker: str, amount: int, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
-                 price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
-        super().buy_long(ticker, amount, amount_borrowed, expiry, price_limit)
-        self._signal[ticker] = BuyLongOrder(self._current_timestamp, ticker, price_limit, amount, amount_borrowed,
-                                            expiry)
-
-    def sell_long(self, ticker: str, amount: int, expiry: Optional[datetime] = None,
-                 price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
-        super().sell_long(ticker, amount, expiry, price_limit)
-        self._signal[ticker] = SellLongOrder(self._current_timestamp, ticker, price_limit, amount, 0,
-                                             expiry)
-    def buy_short(self, ticker: str, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
-                 price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
-        super().buy_short(ticker, amount_borrowed, expiry, price_limit)
-        self._signal[ticker] = BuyShortOrder(self._current_timestamp, ticker, price_limit, 0, amount_borrowed,
-                                                expiry)
-
-    def sell_short(self, ticker: str, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
-                 price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
-        super().sell_short(ticker, amount_borrowed, expiry, price_limit)
-        self._signal[ticker] = SellShortOrder(self._current_timestamp, ticker, price_limit, 0, amount_borrowed,
-                                                expiry)
-
 
 class Job(Backtest):
     def __init__(self, strategy: Strategy, data: DataPipe, lookback: timedelta, *, result_path: Optional[str] = None,
@@ -75,14 +42,12 @@ class Job(Backtest):
                          liquidation_delay=params['liquidation_delay'],
                          min_initial_margin_short=params['min_initial_margin_short'],
                          min_maintenance_margin_short=params['min_maintenance_margin_short'],
-                         broker=RecordingBroker, account=Account, window=params['window'],
+                         broker=Broker, account=Account, window=params['window'],
                          default_marginable=params['default_marginable'], default_shortable=params['default_shortable'],
                          default_short_rate=params['default_short_rate'],
                          risk_free_rate=params['risk_free_rate'], sell_at_the_end=False,
                          cash_controller=cash_controller, verbose=params['verbose'],
                          time_res_extender=time_res_extender, indicators=indicators)
-        self.signal = {}
-        self.broker.bind(self.signal)
         self.working_directory = working_directory
         self.last_timestep: Optional[datetime] = None
         self.index_pipe = index_pipe
@@ -118,12 +83,10 @@ class Job(Backtest):
             with open(self.working_directory / PurePath("cache/job_cache.json"), "r") as f:
                 data = json.load(f)
             self.account = Account.load_state(data["account"])
-            self.broker = RecordingBroker.load_state(data["broker"], self.account)
+            self.broker = Broker.load_state(data["broker"], self.account)
             self.last_timestep = datetime.fromisoformat(data["last_timestep"])
             prev_last_data_dt = datetime.fromisoformat(data["last_data_dt"])
             self.strategy = self.strategy.load(self.working_directory / PurePath("cache/strategy.pkl"))
-            self.signal = {}    # Reset the signals in case the script was kept running
-            self.broker.bind(self.signal)
 
         return prev_last_data_dt
 
@@ -189,7 +152,8 @@ class Job(Backtest):
         self.strategy.save(self.working_directory / PurePath("cache/strategy.pkl"))
 
         # Step 8: Package the signals and the current state in a ActionStates object
-        state_signals = StateSignals(self.account, self.broker, self.signal, self.strategy, now, self.cash_controller,
+        signal = {order.security: order for order in self.broker.pending_orders}
+        state_signals = StateSignals(self.account, self.broker, signal, self.strategy, now, self.cash_controller,
                                      self._initial_cash, self._index_data, self._data, self.main_timestep)
 
         # Step 9: Render the report using the renderer

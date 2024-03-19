@@ -1,5 +1,5 @@
 from unittest import TestCase
-from src.backtest.serve.job import Job, RecordingBroker
+from src.backtest.serve.job import Job
 from src.backtest.engine import Account, TradeOrder, TradeType, TSData, Record, Strategy, RecordsBucket, Metadata, SimpleCashController
 from src.backtest.data import Fetch, ToTSData, Process
 from src.backtest.serve.renderer import Renderer
@@ -13,44 +13,6 @@ from typing import Optional
 
 from src.backtest.serve.state_signals import StateSignals
 
-
-class TestRecordingJob(TestCase):
-    def test_recording(self):
-        """
-        Test if recording signals is working
-        """
-        def myStrat(broker: RecordingBroker):
-            broker.buy_long("AAPL", 100, 100, price_limit=(150, None))
-            broker.sell_long("NVDA", 100, price_limit=(None, 150))
-            broker.buy_short("TSLA", 200)
-            broker.sell_short("AMZN", 200, price_limit=(200, None))
-
-        # Initialization
-        account = Account()
-        broker = RecordingBroker(account)
-
-        signals = {}
-        broker.bind(signals)
-        broker.set_current_timestamp(datetime(2021, 1, 1))
-
-        # Run strategy tha create signals
-        myStrat(broker)
-
-        # Check if signals were recorded
-        self.assertEqual(len(signals), 4)
-        self.assertEqual(signals["AAPL"], TradeOrder(datetime(2021, 1, 1), "AAPL",
-                                                     (150, None), 100, 100,
-                                                     TradeType.BuyLong, None))
-        self.assertEqual(signals["NVDA"], TradeOrder(datetime(2021, 1, 1), "NVDA",
-                                                        (None, 150), 100, 0,
-                                                        TradeType.SellLong, None))
-        self.assertEqual(signals["TSLA"], TradeOrder(datetime(2021, 1, 1), "TSLA",
-                                                        (None, None), 0, 200,
-                                                        TradeType.BuyShort, None))
-
-        self.assertEqual(signals["AMZN"], TradeOrder(datetime(2021, 1, 1), "AMZN",
-                                                        (200, None), 0, 200,
-                                                        TradeType.SellShort, None))
 @Fetch
 def LoadPipe(*args, **kwargs):
     """
