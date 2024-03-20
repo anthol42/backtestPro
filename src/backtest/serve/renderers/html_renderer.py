@@ -2,7 +2,8 @@ from pathlib import PurePath
 from datetime import datetime
 from .markup_renderer import MarkupObject, MarkupRenderer
 from ..state_signals import StateSignals
-from ...engine import TradeOrder, Position, TSData, BackTestResult
+from ..stats_calculator import StatCalculator
+from ...engine import TradeOrder, Position, TSData
 from typing import List, Dict, Optional
 import numpy as np
 import pandas as pd
@@ -16,8 +17,6 @@ except ImportError:
 
 
 TEMPLATE_PATH = PurePath(f"{os.path.dirname(__file__)}/html_templates")
-
-# TODO: Create a Stats calculator like the backtest results, but with a moving window of 1 year.
 
 def format_number(number: Optional[float], dec: int = 2) -> str:
     """
@@ -37,6 +36,8 @@ class HTMLRenderer(MarkupRenderer):
     Class designed to render a python object to a markup language.  This can be xml, html, markdown, etc.
     It expects that the tradeSignals object contains the index data, the tickers data and the main idx of the tickers
     data.
+    Stats are calculated based on a year of data except when specified all-time.  In that case, the stats are calculated
+    from the first data point to the last.
     """
     def __init__(self, style: str = "light"):
         super().__init__()
@@ -84,13 +85,11 @@ class HTMLRenderer(MarkupRenderer):
 
         # Step 5: Get the statistics
         if len(portfolio_worth) > 1:    # TODO: Change to 0 when using the new stats calculator
-            res = BackTestResult("", None, portfolio_timestamps[0],portfolio_timestamps[-1], state.initial_cash,
-                                 state.cash_controller._total_deposited, index_worth, state.broker, state.account)
-
+            res = StatCalculator(state)
             # Step 6: Bank account
             available_cash = state.account.get_cash()
             net_worth = state.broker.historical_states[-1].worth
-            total_deposits = state.cash_controller._total_deposited
+            monthly_deposits = state.cash_controller.monthly_variation(state.timestamp)
             collateral = state.account.collateral
 
             # Step 8: Render the template
@@ -104,7 +103,8 @@ class HTMLRenderer(MarkupRenderer):
                 # Chart
                 "chart": chart,
                 # Statistics
-                "all_time_returns": format_number(res.returns),
+                "all_time_returns": format_number(res.all_time_returns),
+                "year_returns": format_number(res.year_returns),
                 "annual_returns": format_number(res.annual_returns),
                 "avg_drawdown": format_number(res.avg_drawdown),
                 "avg_trade": format_number(res.avg_trade),
@@ -127,7 +127,7 @@ class HTMLRenderer(MarkupRenderer):
                 "yearly_trades": format_number(res.num_trades),
                 # Account
                 "net_worth": format_number(net_worth),
-                "deposits": format_number(total_deposits),
+                "deposits": format_number(monthly_deposits),
                 "collateral": format_number(collateral),
                 "avail_cash": format_number(available_cash)
             }
@@ -143,6 +143,7 @@ class HTMLRenderer(MarkupRenderer):
                 "chart": "NO DATA TO PLOT",
                 # Statistics
                 "all_time_returns": 0,
+                "year_returns": 0,
                 "annual_returns": 0,
                 "avg_drawdown": 0,
                 "avg_trade": 0,

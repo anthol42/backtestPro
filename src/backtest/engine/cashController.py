@@ -1,10 +1,11 @@
 from .account import Account
+from .transaction import Transaction, TransactionType
 from .broker import Broker
 from abc import ABC
-from datetime import datetime
+from datetime import datetime, timedelta
 from .strategy import Strategy
 from enum import Enum
-from typing import Union, Tuple, Optional
+from typing import Union, Tuple, Optional, List
 
 class CashControllerTimeframe(Enum):
     DAY = "DAY"
@@ -37,6 +38,7 @@ class CashControllerBase(ABC):
         self.account: Optional[Account] = None
         self.strategy: Optional[Strategy] = None
         self._total_deposited = 0    # Record net money added or removed from account
+        self.transactions: List[Transaction] = []    # Record of all transactions
 
     def init(self, account: Account, broker: Broker, strategy: Strategy):
         """
@@ -78,8 +80,10 @@ class CashControllerBase(ABC):
         """
         if amount > 0:
             self.account.deposit(amount, dt, comment=comment)
+            self.transactions.append(Transaction(amount, TransactionType.DEPOSIT, dt, comment=comment))
         elif amount < 0:
             self.account.withdrawal(-amount, dt, comment=comment)
+            self.transactions.append(Transaction(-amount, TransactionType.WITHDRAWAL, dt, comment=comment))
 
     def every_day(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
         """
@@ -104,6 +108,36 @@ class CashControllerBase(ABC):
         This method is called every year during the backtest.
         """
         return 0., None
+
+    @property
+    def total_deposited(self) -> float:
+        return self._total_deposited
+
+
+    def monthly_variation(self, timestamp: datetime):
+        threshold = timestamp - timedelta(days=30)
+        return self._calc_variation(threshold, timestamp)
+
+    def quarterly_variation(self, timestamp: datetime):
+        threshold = timestamp - timedelta(days=90)
+        return self._calc_variation(threshold, timestamp)
+
+    def half_yearly_variation(self, timestamp: datetime):
+        threshold = timestamp - timedelta(days=180)
+        return self._calc_variation(threshold, timestamp)
+
+    def yearly_variation(self, timestamp: datetime):
+        threshold = timestamp - timedelta(days=365)
+        return self._calc_variation(threshold, timestamp)
+
+    def _calc_variation(self, t1, t2):
+        """
+        Calculate the variation of the account between t1 and t2
+        :param t1: The initial calculation date
+        :param t2: The last calculation date
+        :return: The absolute variation of cash for the period
+        """
+        return sum([x.amount if x.t == TransactionType.DEPOSIT else -x.amount for x in self.transactions if x.dt > t1 and x.dt <= t2])
 
 
 class SimpleCashController(CashControllerBase):

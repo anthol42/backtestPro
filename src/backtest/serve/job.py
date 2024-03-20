@@ -31,6 +31,7 @@ class Job(Backtest):
         if result_path is not None:
             results = BackTestResult.load(result_path)
             params = results.metadata.backtest_parameters
+        self.params = params
         self.data_pipe = data
         self.lookback = lookback
         self._trigger_cb = trigger_cb
@@ -154,7 +155,7 @@ class Job(Backtest):
         # Step 8: Package the signals and the current state in a ActionStates object
         signal = {order.security: order for order in self.broker.pending_orders}
         state_signals = StateSignals(self.account, self.broker, signal, self.strategy, now, self.cash_controller,
-                                     self._initial_cash, self._index_data, self._data, self.main_timestep)
+                                     self._initial_cash, self._index_data, self._data, self.main_timestep, self.params)
 
         # Step 9: Render the report using the renderer
         if self._renderer is not None:

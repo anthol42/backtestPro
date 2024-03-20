@@ -11,7 +11,7 @@ class StateSignals:
     def __init__(self, account: Account, broker: Broker, signals: Dict[str, TradeOrder], strategy: Strategy,
                  timestamp: datetime, cash_controller: CashControllerBase, initial_cash: float,
                  index_data: Optional[Dict[str, TSData]] = None, data: Optional[List[Dict[str, TSData]]] = None,
-                 main_idx: Optional[int] = None):
+                 main_idx: Optional[int] = None, backtest_params: Optional[Dict[str, Any]] = None):
         self.account = account
         self.broker = broker
         self.portfolio = broker.portfolio    # An alias for easier access
@@ -23,6 +23,7 @@ class StateSignals:
         self.index_data = index_data
         self.data = data
         self.main_idx = main_idx
+        self.backtest_params = backtest_params    # The parameters passed to the backtest object.
 
 
     @property

@@ -86,11 +86,15 @@
             <span class="stat-value">{{current_equity}}</span>
         </div>
         <div class="stat">
-            <span class="stat-label">Equity peak [$]:</span>
+            <span class="stat-label">Equity peak [$] (all-time):</span>
             <span class="stat-value">{{equity_peak}}</span>
         </div>
         <div class="stat">
-            <span class="stat-label">All Time Returns [%]:</span>
+            <span class="stat-label">Year returns [%]:</span>
+            <span class="stat-value">{{year_returns}}</span>
+        </div>
+            <div class="stat">
+            <span class="stat-label">Total returns [%] (all-time):</span>
             <span class="stat-value">{{all_time_returns}}</span>
         </div>
         <div class="stat">
@@ -98,27 +102,27 @@
             <span class="stat-value">{{index_returns}}</span>
         </div>
         <div class="stat">
-            <span class="stat-label">Annual returns [%]:</span>
+            <span class="stat-label">Annual returns [%] (all-time):</span>
             <span class="stat-value">{{annual_returns}}</span>
         </div>
         <div class="stat">
-            <span class="stat-label">Sharp ratio:</span>
+            <span class="stat-label">Sharp ratio (all-time):</span>
             <span class="stat-value">{{sharp_ratio}}</span>
         </div>
         <div class="stat">
-            <span class="stat-label">Sortino ratio:</span>
+            <span class="stat-label">Sortino ratio (all-time):</span>
             <span class="stat-value">{{sortino_ratio}}</span>
         </div>
         <div class="stat">
-            <span class="stat-label">Max drawdown [%]:</span>
+            <span class="stat-label">Max drawdown [%] (all-time):</span>
             <span class="stat-value">{{max_drawdown}}</span>
         </div>
         <div class="stat">
-            <span class="stat-label">Avg drawdown [%]:</span>
+            <span class="stat-label">Avg drawdown [%] (all-time):</span>
             <span class="stat-value">{{avg_drawdown}}</span>
         </div>
         <div class="stat">
-            <span class="stat-label">Calmar ratio:</span>
+            <span class="stat-label">Calmar ratio (all-time):</span>
             <span class="stat-value">{{calmar_ratio}}</span>
         </div>
         <div class="stat">
@@ -184,7 +188,7 @@
         </table>
         <table id="cash-secondary-table">
             <tr>
-                <td class="secondary-text left">Total Deposits or Withdrawals:</td>
+                <td class="secondary-text left">Monthly Total Deposits or Withdrawals:</td>
                 <td class="secondary-text right">${{deposits}}</td>
             </tr>
             <tr>

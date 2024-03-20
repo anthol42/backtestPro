@@ -19,11 +19,11 @@ Features are not implemented yet, but will be one day.
 - [X] Add a method in the strategy that can preprocess the data to add indicators on the fly.
 - [X] Test multiple cases (integrative testing) to see if money and performances are accurately computed
 - [X] Test margin investing, margin call and short selling.
-- [ ] html renderer:
+- [X] html renderer:
   - [X] Calculate current worth and append it to the worth portfolio
   - [X] Round numbers.
   - [X] Format big numbers with spaces.
-  - [ ] Create a Stats calculator like the backtest results, but with a moving window of 1 year.
+  - [X] Create a Stats calculator like the backtest results, but with a moving window of 1 year.
 
 
 ## RoadMap

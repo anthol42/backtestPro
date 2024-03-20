@@ -589,16 +589,25 @@ class Portfolio:
         """
         return deepcopy(self._trades)
 
-    def get_trade_count(self, exit_only: bool = True):
+    def get_trade_count(self, exit_only: bool = True, cutoff: Optional[datetime] = None) -> int:
         """
         To get the number of trades made.
         :param exit_only: If True, Only the trade that exit a position are counted
         :return: The number of trades
         """
         if exit_only:
-            return len([trade for trade in self._trades if isinstance(trade, TradeStats)])
+            if cutoff is not None:
+                return len([trade for trade in self._trades
+                            if isinstance(trade, TradeStats) and trade.trade.timestamp > cutoff])
+            else:
+                return len([trade for trade in self._trades if isinstance(trade, TradeStats)])
         else:
-            return len(self._trades)
+            if cutoff is not None:
+                return len([trade for trade in self._trades
+                            if isinstance(trade, TradeStats) and trade.trade.timestamp > cutoff
+                            or isinstance(trade, Trade) and trade.timestamp > cutoff])
+            else:
+                return len(self._trades)
 
     def update_time_stock_idx(self, timestep_elapsed: int = 1):
         """
@@ -610,7 +619,7 @@ class Portfolio:
         for pos in self._long.values():
             pos.update_time_stock_idx(timestep_elapsed)
 
-    def get_trade_stats(self) -> dict:
+    def get_trade_stats(self, cutoff: Optional[datetime] = None) -> dict:
         """
         To get the stats for each trade.  (Make a deep copy)
         :return: The dictionary of trades: {
@@ -625,10 +634,19 @@ class Portfolio:
             "SQN": float,           # System Quality Number
         }
         """
-        rel_profit = [trade.rel_profit for trade in self._trades if isinstance(trade, TradeStats)]
-        abs_profit = np.array([trade.profit for trade in self._trades if isinstance(trade, TradeStats)],
-                              dtype=np.float32)
-        duration_seconds = [trade.duration.total_seconds() for trade in self._trades if isinstance(trade, TradeStats)]
+        if cutoff is not None:
+            rel_profit = [trade.rel_profit for trade in self._trades
+                          if isinstance(trade, TradeStats) and trade.trade.timestamp > cutoff]
+            abs_profit = np.array([trade.profit for trade in self._trades
+                                   if isinstance(trade, TradeStats) and trade.trade.timestamp > cutoff], dtype=np.float32)
+            duration_seconds = [trade.duration.total_seconds() for trade in self._trades if
+                                isinstance(trade, TradeStats) and trade.trade.timestamp > cutoff]
+        else:
+            rel_profit = [trade.rel_profit for trade in self._trades if isinstance(trade, TradeStats)]
+            abs_profit = np.array([trade.profit for trade in self._trades if isinstance(trade, TradeStats)],
+                                  dtype=np.float32)
+            duration_seconds = [trade.duration.total_seconds() for trade in self._trades if
+                                isinstance(trade, TradeStats)]
         # df = pd.DataFrame({"Relative Profit": rel_profit, "Absolute Profit": abs_profit, "Duration": duration})
         best_trade = max(rel_profit) if len(rel_profit) > 0 else None
         worst_trade = min(rel_profit) if len(rel_profit) > 0 else None
@@ -648,7 +666,7 @@ class Portfolio:
         if len(rel_profit) < 2:
             sqn = None
         else:
-            sqn = np.sqrt(self.get_trade_count(exit_only=True)) * (rel_profit.mean() / 100) / (
+            sqn = np.sqrt(self.get_trade_count(exit_only=True, cutoff=cutoff)) * (rel_profit.mean() / 100) / (
                         (rel_profit / 100).std())
         if total_losses == 0:
             profit_factor = total_gains
