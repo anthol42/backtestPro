@@ -119,7 +119,10 @@ class StatCalculator:
         :return: The annual returns of the strategy (esperance) in percentage
         """
         duration_in_years = duration.total_seconds() / (365 * 86_400)
-        return 100 * np.exp(np.log(returns / 100 + 1) / duration_in_years) - 100
+        if duration_in_years == 0:
+            return np.nan
+        else:
+            return 100 * np.exp(np.log(returns / 100 + 1) / duration_in_years) - 100
 
     def get_ohlc(self, period: Period):
         """

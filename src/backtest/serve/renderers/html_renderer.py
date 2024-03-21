@@ -1,7 +1,7 @@
 from pathlib import PurePath
 from datetime import datetime
 from .markup_renderer import MarkupObject, MarkupRenderer
-from ..state_signals import StateSignals
+from ..state_signals import StateSignals, ServerStatus
 from ..stats_calculator import StatCalculator
 from ...engine import TradeOrder, Position, TSData
 from typing import List, Dict, Optional
@@ -83,12 +83,20 @@ class HTMLRenderer(MarkupRenderer):
         fig = self.chart_builder(portfolio_worth, portfolio_timestamps, index_worth, index_timestamps, isDark, index_name)
         chart = fig.to_html(full_html=False, include_plotlyjs='cdn')
 
+        if state.status == ServerStatus.ERROR:
+            color = "red"
+        elif state.status == ServerStatus.WARNING:
+            color = "orange"
+        else:
+            color = "green"
+
+
         # Step 5: Get the statistics
-        if len(portfolio_worth) > 1:    # TODO: Change to 0 when using the new stats calculator
+        if len(portfolio_worth) > 0:    # TODO: Change to 0 when using the new stats calculator
             res = StatCalculator(state)
             # Step 6: Bank account
             available_cash = state.account.get_cash()
-            net_worth = state.broker.historical_states[-1].worth
+            net_worth = portfolio_worth[-1]
             monthly_deposits = state.cash_controller.monthly_variation(state.timestamp)
             collateral = state.account.collateral
 
@@ -129,7 +137,11 @@ class HTMLRenderer(MarkupRenderer):
                 "net_worth": format_number(net_worth),
                 "deposits": format_number(monthly_deposits),
                 "collateral": format_number(collateral),
-                "avail_cash": format_number(available_cash)
+                "avail_cash": format_number(available_cash),
+
+                # status
+                "status": state.status.value,
+                "status_color": color
             }
         else:
             markup = MarkupObject(template, "{{.*?}}")
@@ -168,7 +180,11 @@ class HTMLRenderer(MarkupRenderer):
                 "net_worth": format_number(state.account.get_cash()),
                 "deposits": format_number(state.cash_controller._total_deposited),
                 "collateral": 0,
-                "avail_cash": format_number(state.account.get_cash())
+                "avail_cash": format_number(state.account.get_cash()),
+
+                # status
+                "status": state.status.value,
+                "status_color": color
             }
         html_content = markup.render(data)
 

@@ -9,8 +9,10 @@ from pathlib import PurePath
 import os
 import json
 import time
-from .state_signals import StateSignals
+from .state_signals import StateSignals, ServerStatus
 from .renderer import Renderer, RendererList
+import traceback
+import warnings
 try:
     import schedule
     SCHEDULE_INSTALLED = True
@@ -97,65 +99,85 @@ class Job(Backtest):
         :param now_override: A datetime object to override the current time.  (Useful for testing in simulated environments)
         :return: None
         """
-        # Step 1: Fetch the data
-        now = datetime.now() if now_override is None else now_override
-        self._data: List[Dict[str, TSData]] = self.data_pipe.get(now - self.lookback, now)
-        if self.index_pipe is not None:
-            self._index_data = self.index_pipe.get(now - self.lookback, now)
+        error = False
+        warning = False
+        try:
+            with warnings.catch_warnings(record=True) as w:
+                # Step 1: Fetch the data
+                now = datetime.now() if now_override is None else now_override
+                self._data: List[Dict[str, TSData]] = self.data_pipe.get(now - self.lookback, now)
+                if self.index_pipe is not None:
+                    self._index_data = self.index_pipe.get(now - self.lookback, now)
 
-        # Step 2: Setup the object
-        previous_last_data_dt = self.setup()
-        self.strategy.init(self.account, self.broker, self.available_time_res)
-        self.cash_controller.init(self.account, self.broker, self.strategy)
+                # Step 2: Setup the object
+                previous_last_data_dt = self.setup()
+                self.strategy.init(self.account, self.broker, self.available_time_res)
+                self.cash_controller.init(self.account, self.broker, self.strategy)
 
-        # Step 4: Prepare the data, no need to filter None charts, as the data is supposed to be up-to-date
-        processed_data: List[List[Record]] = self._prep_data(now)
-        prepared_data = RecordsBucket(processed_data, self.available_time_res, self.main_timestep, self.window)
-        last_data_dt = prepared_data.main[0].chart.index[-1]
+                # Step 4: Prepare the data, no need to filter None charts, as the data is supposed to be up-to-date
+                processed_data: List[List[Record]] = self._prep_data(now)
+                prepared_data = RecordsBucket(processed_data, self.available_time_res, self.main_timestep, self.window)
+                last_data_dt = prepared_data.main[0].chart.index[-1]
 
-        # If this condition is true, it means that the market was closed, the data wasn't updated, so we must not run
-        # anything and return
-        if previous_last_data_dt is not None:
-            if last_data_dt == previous_last_data_dt:
-                return
-        # Step 3: Run the cash controller (if in the right conditions)
-        if self.last_timestep is not None:
-            if now.day != self.last_timestep.day:
-                self.cash_controller.deposit(now, CashControllerTimeframe.DAY)
-            if now.date().isocalendar()[1] != self.last_timestep.date().isocalendar()[1]:
-                self.cash_controller.deposit(now, CashControllerTimeframe.WEEK)
-            if now.month != self.last_timestep.month:
-                self.cash_controller.deposit(now, CashControllerTimeframe.MONTH)
-            if now.year != self.last_timestep.year:
-                self.cash_controller.deposit(now, CashControllerTimeframe.YEAR)
+                # If this condition is true, it means that the market was closed, the data wasn't updated, so we must not run
+                # anything and return
+                if previous_last_data_dt is not None:
+                    if last_data_dt == previous_last_data_dt:
+                        return
+                # Step 3: Run the cash controller (if in the right conditions)
+                if self.last_timestep is not None:
+                    if now.day != self.last_timestep.day:
+                        self.cash_controller.deposit(now, CashControllerTimeframe.DAY)
+                    if now.date().isocalendar()[1] != self.last_timestep.date().isocalendar()[1]:
+                        self.cash_controller.deposit(now, CashControllerTimeframe.WEEK)
+                    if now.month != self.last_timestep.month:
+                        self.cash_controller.deposit(now, CashControllerTimeframe.MONTH)
+                    if now.year != self.last_timestep.year:
+                        self.cash_controller.deposit(now, CashControllerTimeframe.YEAR)
 
-        # Step 5: If the cache is not None, (The strategy ran before), we run the broker to keep track of the current
-        # performances
-        if os.path.exists(self.working_directory / PurePath("cache/job_cache.json")):
-            broker_data = self._prep_data(self.last_timestep)
-            broker_data = RecordsBucket(broker_data, self.available_time_res, self.main_timestep, self.window)
-            current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names = (
-                self._prep_brokers_data(broker_data.main.to_list()))
-            self.broker.tick(self.last_timestep, now, security_names, current_data, next_tick_data, marginables,
-                             dividends, div_freq,
-                             short_rate)
+                # Step 5: If the cache is not None, (The strategy ran before), we run the broker to keep track of the current
+                # performances
+                if os.path.exists(self.working_directory / PurePath("cache/job_cache.json")):
+                    broker_data = self._prep_data(self.last_timestep)
+                    broker_data = RecordsBucket(broker_data, self.available_time_res, self.main_timestep, self.window)
+                    current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names = (
+                        self._prep_brokers_data(broker_data.main.to_list()))
+                    self.broker.tick(self.last_timestep, now, security_names, current_data, next_tick_data, marginables,
+                                     dividends, div_freq,
+                                     short_rate)
 
-        # Step 6: Run the strategy
-        self.broker.set_current_timestamp(now)
-        self.strategy(prepared_data, now)
+                # Step 6: Run the strategy
+                self.broker.set_current_timestamp(now)
+                self.strategy(prepared_data, now)
 
-        # Step 7: Save the state
-        if not os.path.exists(self.working_directory / PurePath("cache")):
-            os.makedirs(self.working_directory / PurePath("cache"))
-        with open(self.working_directory / PurePath("cache/job_cache.json"), "w") as f:
-            json.dump({"account": self.account.get_state(), "broker": self.broker.get_state(),
-                       "last_timestep": now.isoformat(), "last_data_dt": last_data_dt.isoformat()}, f)
-        self.strategy.save(self.working_directory / PurePath("cache/strategy.pkl"))
+                # Step 7: Save the state
+                if not os.path.exists(self.working_directory / PurePath("cache")):
+                    os.makedirs(self.working_directory / PurePath("cache"))
+                with open(self.working_directory / PurePath("cache/job_cache.json"), "w") as f:
+                    json.dump({"account": self.account.get_state(), "broker": self.broker.get_state(),
+                               "last_timestep": now.isoformat(), "last_data_dt": last_data_dt.isoformat()}, f)
+                self.strategy.save(self.working_directory / PurePath("cache/strategy.pkl"))
+
+            # Check if warnings were raised
+            if len(w) > 0:
+                warning = True
+                for warn in w:
+                    warnings.warn(warn.message, warn.category)
+        except Exception as e:
+            error = True
+            traceback.print_exc()
 
         # Step 8: Package the signals and the current state in a ActionStates object
+        if error:
+            status = ServerStatus.ERROR
+        elif warning:
+            status = ServerStatus.WARNING
+        else:
+            status = ServerStatus.OK
         signal = {order.security: order for order in self.broker.pending_orders}
         state_signals = StateSignals(self.account, self.broker, signal, self.strategy, now, self.cash_controller,
-                                     self._initial_cash, self._index_data, self._data, self.main_timestep, self.params)
+                                     self._initial_cash, self._index_data, self._data, self.main_timestep,
+                                     self.params, status)
 
         # Step 9: Render the report using the renderer
         if self._renderer is not None:
