@@ -2,6 +2,7 @@ from ..engine import Account, Broker, Portfolio, TradeOrder, TradeType, TSData, 
 from typing import Any, Optional, List, Dict, Union, Tuple
 from datetime import datetime
 from enum import Enum
+from warnings import WarningMessage
 
 class ServerStatus(Enum):
     OK = "Ok"
@@ -21,7 +22,8 @@ class StateSignals:
                  timestamp: datetime, cash_controller: CashControllerBase, initial_cash: float,
                  index_data: Optional[Dict[str, TSData]] = None, data: Optional[List[Dict[str, TSData]]] = None,
                  main_idx: Optional[int] = None, backtest_params: Optional[Dict[str, Any]] = None,
-                 status: ServerStatus = ServerStatus.OK):
+                 status: ServerStatus = ServerStatus.OK, exception: Optional[Exception] = None,
+                 warnings: Optional[List[WarningMessage]] = None):
         self.account = account
         self.broker = broker
         self.portfolio = broker.portfolio    # An alias for easier access
@@ -35,6 +37,8 @@ class StateSignals:
         self.main_idx = main_idx
         self.backtest_params = backtest_params    # The parameters passed to the backtest object.
         self.status = status
+        self.warnings = warnings
+        self.exception = exception
 
 
     @property

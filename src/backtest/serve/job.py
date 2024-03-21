@@ -13,6 +13,7 @@ from .state_signals import StateSignals, ServerStatus
 from .renderer import Renderer, RendererList
 import traceback
 import warnings
+
 try:
     import schedule
     SCHEDULE_INSTALLED = True
@@ -166,18 +167,21 @@ class Job(Backtest):
         except Exception as e:
             error = True
             traceback.print_exc()
+            exception = e
 
         # Step 8: Package the signals and the current state in a ActionStates object
         if error:
             status = ServerStatus.ERROR
         elif warning:
             status = ServerStatus.WARNING
+            exception = None
         else:
             status = ServerStatus.OK
+            exception = None
         signal = {order.security: order for order in self.broker.pending_orders}
         state_signals = StateSignals(self.account, self.broker, signal, self.strategy, now, self.cash_controller,
                                      self._initial_cash, self._index_data, self._data, self.main_timestep,
-                                     self.params, status)
+                                     self.params, status, exception=exception, warnings=w)
 
         # Step 9: Render the report using the renderer
         if self._renderer is not None:
