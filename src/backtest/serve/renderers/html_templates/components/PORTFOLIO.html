@@ -1,0 +1,40 @@
+<section id="portfolio">
+    <h2>Portfolio</h2>
+    <div class="divider"></div>
+    <div class="portfolio-tables">
+        <h3 class="portfolio-label">Long positions</h3>
+        <table id="long-positions" class="tables">
+            <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Average Buy Price</th>
+                <th># Shares</th>
+                <th>Change ($)</th>
+                <th>Change (%)</th>
+                <th>Uncapitalized Profits ($)</th>
+                <th>Uncapitalized Profits (%)</th>
+            </tr>
+            </thead>
+            <tbody>
+                {{long}}
+            </tbody>
+        </table>
+        <h3 class="portfolio-label">Short Positions</h3>
+        <table id="short-positions" class="tables">
+            <thead>
+            <tr>
+                <th>Ticker</th>
+                <th>Average Sell Price</th>
+                <th># Shares</th>
+                <th>Change ($)</th>
+                <th>Change (%)</th>
+                <th>Uncapitalized Profits ($)</th>
+                <th>Uncapitalized Profits (%)</th>
+            </tr>
+            </thead>
+            <tbody>
+                {{short}}
+            </tbody>
+        </table>
+    </div>
+</section>

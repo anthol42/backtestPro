@@ -3,205 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Financial Report</title>
-    <link rel="stylesheet" href="style.css">
+    <title>{{title}}</title>
+    <style>
+        {{style}}
+    </style>
+    <script>
+        {{script}}
+    </script>
 </head>
 <body>
 <header>
-    <h1>Financial Report</h1>
+    <h1>{{title}}</h1>
 </header>
 <div class="container">
-<section id="signals">
-    <h2>Signals</h2>
-    <div class="divider"></div>
-    <table id="signals-table" class="tables">
-        <thead>
-        <tr>
-            <th>Timestamp</th>
-            <th>Ticker</th>
-            <th>Signal Type</th>
-            <th>Price Lower Limit</th>
-            <th>Price Upper Limit</th>
-            <th># Shares</th>
-            <th># Shares Borrowed</th>
-            <th>Expiry</th>
-        </tr>
-        </thead>
-        <tbody>
-            {{signals}}
-        </tbody>
-    </table>
-</section>
-
-<section id="portfolio">
-    <h2>Portfolio</h2>
-    <div class="divider"></div>
-    <div class="portfolio-tables">
-        <h3 class="portfolio-label">Long positions</h3>
-        <table id="long-positions" class="tables">
-            <thead>
-            <tr>
-                <th>Ticker</th>
-                <th>Average Buy Price</th>
-                <th># Shares</th>
-                <th>Change ($)</th>
-                <th>Change (%)</th>
-                <th>Uncapitalized Profits ($)</th>
-                <th>Uncapitalized Profits (%)</th>
-            </tr>
-            </thead>
-            <tbody>
-                {{long_positions}}
-            </tbody>
-        </table>
-        <h3 class="portfolio-label">Short Positions</h3>
-        <table id="short-positions" class="tables">
-            <thead>
-            <tr>
-                <th>Ticker</th>
-                <th>Average Sell Price</th>
-                <th># Shares</th>
-                <th>Change ($)</th>
-                <th>Change (%)</th>
-                <th>Uncapitalized Profits ($)</th>
-                <th>Uncapitalized Profits (%)</th>
-            </tr>
-            </thead>
-            <tbody>
-                {{short_positions}}
-            </tbody>
-        </table>
-    </div>
-</section>
-    <section id="performances">
-    <h2>Performances</h2>
-    <div class="divider"></div>
-        <div id="performance-chart">
-            {{chart}}
-        </div>
-        <h3 id="stats-label">Statistics</h3>
-        <div class="stats-grid">
-        <div class="stat">
-            <span class="stat-label">Equity current [$]:</span>
-            <span class="stat-value">{{current_equity}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Equity peak [$] (all-time):</span>
-            <span class="stat-value">{{equity_peak}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Year returns [%]:</span>
-            <span class="stat-value">{{year_returns}}</span>
-        </div>
-            <div class="stat">
-            <span class="stat-label">Total returns [%] (all-time):</span>
-            <span class="stat-value">{{all_time_returns}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Index Returns [%]:</span>
-            <span class="stat-value">{{index_returns}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Annual returns [%] (all-time):</span>
-            <span class="stat-value">{{annual_returns}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Sharp ratio (all-time):</span>
-            <span class="stat-value">{{sharp_ratio}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Sortino ratio (all-time):</span>
-            <span class="stat-value">{{sortino_ratio}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Max drawdown [%] (all-time):</span>
-            <span class="stat-value">{{max_drawdown}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Avg drawdown [%] (all-time):</span>
-            <span class="stat-value">{{avg_drawdown}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Calmar ratio (all-time):</span>
-            <span class="stat-value">{{calmar_ratio}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Yearly trades:</span>
-            <span class="stat-value">{{yearly_trades}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Yearly exits:</span>
-            <span class="stat-value">{{yearly_exits}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Win rate [%]:</span>
-            <span class="stat-value">{{win_rate}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Best trade [%]:</span>
-            <span class="stat-value">{{best_trade}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Worst trade [%]:</span>
-            <span class="stat-value">{{worst_trade}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Avg trade [%]:</span>
-            <span class="stat-value">{{avg_trade}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Max trade duration [days]:</span>
-            <span class="stat-value">{{max_trade_dur}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Avg trade duration [days]:</span>
-            <span class="stat-value">{{avg_trade_dur}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Min trade duration [days]:</span>
-            <span class="stat-value">{{min_trade_dur}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">Profit factor:</span>
-            <span class="stat-value">{{profit_factor}}</span>
-        </div>
-        <div class="stat">
-            <span class="stat-label">SQN:</span>
-            <span class="stat-value">{{sqn}}</span>
-        </div>
-    </div>
-
-    </section>
-    <section id="cash">
-        <h2>Cash</h2>
-        <div class="divider"></div>
-        <div id="cash-stats">
-            <table id="cash-primary-table">
-            <tr>
-                <td class="primary-text left">Available Cash:</td>
-                <td class="primary-text right">${{avail_cash}}</td>
-            </tr>
-            <tr>
-                <td class="primary-text left">Net Worth:</td>
-                <td class="primary-text right">${{net_worth}}</td>
-            </tr>
-        </table>
-        <table id="cash-secondary-table">
-            <tr>
-                <td class="secondary-text left">Monthly Total Deposits or Withdrawals:</td>
-                <td class="secondary-text right">${{deposits}}</td>
-            </tr>
-            <tr>
-                <td class="secondary-text left">Collateral:</td>
-                <td class="secondary-text right">${{collateral}}</td>
-            </tr>
-        </table>
-        </div>
-    </section>
-</div> <!-- End of container -->
+    {{SIGNALS}}
+    {{SCROLL_SIGNALS}}
+    {{PORTFOLIO}}
+    {{PERFORMANCES}}
+    {{CASH}}
+</div>
 
 <footer>
-    <p>Server status: <span class="status-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" fill="{{status_color}}"/></svg></span> {{status}}</p>
+    <p>Server status: <span class="status-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle
+            cx="5" cy="5" r="4" fill="{{status_color}}"/></svg></span> {{status}}
+    </p>
 </footer>
 
 </body>

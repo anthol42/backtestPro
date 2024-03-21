@@ -24,13 +24,13 @@ Features are not implemented yet, but will be one day.
   - [X] Round numbers.
   - [X] Format big numbers with spaces.
   - [X] Create a Stats calculator like the backtest results, but with a moving window of 1 year.
-- [ ] Job
-  - [ ] Handle warnings and errors
+- [X] Job
+  - [X] Handle warnings and errors
 - [ ] Markup renderers
-  - [ ] Make it generic and do:
-    - [ ] HTML
-    - [ ] PDF
-    - [ ] Email
+  - [X] Make it generic and do:
+  - [X] HTML
+  - [ ] PDF
+  - [ ] Email
 
 ## RoadMap
 - [X] Backtest Engine
