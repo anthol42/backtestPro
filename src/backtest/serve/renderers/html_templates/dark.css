@@ -1,8 +1,9 @@
 :root {
   --primary-color: /* Cornflower Blue */ #7acdfc;
-  --secondary-color: /* Canary Yellow */ #f1fa8c;
+  --secondary-color: /* Canary Yellow */ #BD93F9;
   --background-color: /* Gunmetal */ #282a36;
   --surface-color: /* Dim Gray */ #44475a;
+  --secondary-surface-color: #777777;
   --text-color: /* Ghost White */ #f8f8f2;
   --secondary-text-color: /* Light Slate Gray */ #6272a4;
   --radius: 5px;
@@ -211,4 +212,83 @@ footer {
 
 #cash-secondary-table tr:hover{
     background-color: var(--surface-color);
+}
+
+
+/* Scroll signals section */
+.signal-card {
+    background-color: var(--surface-color); /* Updated to use provided variable */
+    border-radius: var(--radius); /* Updated to use provided variable */
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1); /* More pronounced elevation effect */
+    padding: 24px;
+    margin-bottom: 24px;
+    transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1); /* Smooth cubic-bezier transition effect on hover */
+}
+
+
+.signal-card:hover {
+    transform: translateY(-3px);
+}
+
+.signal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.signal-title {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: var(--text-color); /* Updated to use provided variable */
+    margin: 0;
+    text-transform: uppercase;
+}
+
+.signal-badge {
+    background-color: var(--secondary-color); /* Updated to use provided variable */
+    color: var(--text-color); /* Updated to use provided variable */
+    font-size: 0.9em;
+    font-weight: bold;
+    padding: 8px 16px;
+    border-radius: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Subtle shadow effect */
+    transition: background-color 0.3s ease; /* Smooth background color transition effect */
+}
+
+.signal-badge:hover {
+    background-color: darken(var(--primary-color)); /* Darker shade on hover */
+}
+
+.divider-card {
+    border: none;
+    border-bottom: 2px solid var(--secondary-surface-color); /* Divider line color */
+    margin-bottom: 16px; /* Spacing below divider */
+    width: 75%;
+    align-self: left;
+    max-width: 60vw;
+}
+
+.signal-details {
+    margin-top: 16px;
+}
+
+.signal-details table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.signal-details table td {
+    padding: 8px 0;
+    font-size: 1.2em;
+    color: var(--secondary-text-color); /* Updated to use provided variable */
+}
+
+.signal-details table tr:hover {
+    background-color: var(--background-color);
+}
+
+.signal-details table strong {
+padding-left: 10px;
+    color: var(--text-color); /* Updated to use provided variable */
 }
