@@ -140,6 +140,7 @@ class DataPipe(ABC):
     Do not forget to call the super().__init__ method in the __init__ method of your custom pipe and pass the
     appropriate DataPipeType.  You can also pass a name to the pipe to make the pipeline more readable.
     """
+    LAST_ID = 0
     def __init__(self, T: DataPipeType, name: Optional[str] = None):
         """
         :param T: The pipe type (Fetch, Process, Cache, Collate)
@@ -150,6 +151,7 @@ class DataPipe(ABC):
         self._cache: Optional[CacheObject] = None
         self.name = name if name is not None else self.__class__.__name__
         self._pipe_id: int = 0    # Ids are given at built time and are deterministic given the structure of the pipe.
+        self._has_run = False
 
 
     def get(self, frm: datetime, to: datetime, *args, **kwargs) -> Any:
@@ -163,6 +165,12 @@ class DataPipe(ABC):
         :param kwargs: any keyword args that needs to be passed to the subsequent pipes
         :return: The output of the pipeline
         """
+        # Step 0: Evaluate if we have the good id
+        if not self._has_run:
+            if DataPipe.LAST_ID != 0:
+                self._increment_id(DataPipe.LAST_ID + 1)
+            DataPipe.LAST_ID = self._pipe_id
+
         # Step1: Load cache from disk
         flatten: List[DataPipe] = []    # Will become an array of references to all the pipes in the pipeline (Might not be in order)
         self._flatten(flatten)
@@ -175,7 +183,6 @@ class DataPipe(ABC):
         # We run again the pipeline without using cache data.
         if out.revalidate == RevalidateAction.FULL_REVALIDATE:
             out = self._run(frm, to, *args, po=None, force_reload=True, **kwargs)
-
         # Unwrap the output (We do not want to return a PipeOutput object)
         return out.value
 
@@ -193,6 +200,7 @@ class DataPipe(ABC):
         :param kwargs: The keyword args that needs to be passed to the subsequent pipes
         :return: The output of the pipeline
         """
+        self._has_run = True  # The pipe_id is now frozen.
         # Early exit if the pipe return a FULL_REVALIDATE action because we will need to revalidate everything
         if po is not None and po.revalidate == RevalidateAction.FULL_REVALIDATE:
             return po
@@ -251,7 +259,6 @@ class DataPipe(ABC):
         :param other: The other pipe (Right hand side of the pipe operator)
         :return: A new pipe that is the result of the concatenation of the two pipes.  (Multiple pipes makes a pipeline)
         """
-        # new = deepcopy(other)
         new = other
         new._pipes = self
         new._pipe_id = self._pipe_id + 1
@@ -279,18 +286,39 @@ class DataPipe(ABC):
         new._pipe_id = pipe1._pipe_id + pipe2._pipe_id + 2
         pipe2._increment_id(pipe1._pipe_id + 1)    # Increment the pipe_id of the second branch and all its children
         return new
-    def _increment_id(self, new_pipe_id: int):
+
+    def set_id(self, pipe_id: int):
+        """
+        With this method, it is possible to manually set the pipe_id of the pipe.  It is recommended to call this method
+        only on the top-level pipes, and before running the pipeline with get.  If the pipe is not the top-level pipe,
+        its pipe_id may change, and you might run in unexpected behaviors.  By running this method only before running
+        the get method, this ensures that the pipe will have the same pipe_id if the pipeline structure is the same.
+        This is due to the fact that pipe_ids are dynamically assigned at build time.  However, when the pipe is called,
+        the pipe becomes forged and no changes are allowed.  This ensures that the pipe ids stays the same.
+        Note: The passed pipe_id will be assigned to the lowes-level pipe.  The current pipe will have the highest
+        pipe_id
+        :param pipe_id: The pipe_id to assign to the pipe.
+        :return: None
+        """
+        if self._has_run:
+            raise RuntimeError("You cannot set the pipe_id of a pipe that has already been run.  Once a pipe is run, "
+                               "its ids are frozen.")
+        self._pipe_id = self._increment_id(pipe_id) - 1
+
+    def _increment_id(self, new_pipe_id: int) -> int:
         """
         This method is used to increment the pipe_id of the pipe and all its children.  It is used to avoid having two
         pipes with the same pipe_id in the pipeline.  It is called when building a collate pipe.
         :param new_pipe_id: The start id to increment from
-        :return: None
+        :return: the maximum pipe id used
         """
         flatten = []    # Will become an array of references to all the pipes in the pipeline (Might not be in order)
         self._flatten(flatten)
         for pipe in flatten:
-            pipe._pipe_id = new_pipe_id
-            new_pipe_id += 1
+            if not pipe._has_run:
+                pipe._pipe_id = new_pipe_id
+                new_pipe_id += 1
+        return new_pipe_id
 
     def _flatten(self, flatten_pipe: List['DataPipe']):
         """

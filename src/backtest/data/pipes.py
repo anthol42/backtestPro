@@ -73,6 +73,8 @@ class Collate(DataPipe):
     def __call__(self, po1: DataPipe, po2: DataPipe) -> DataPipe:
         new = deepcopy(self)
         new._pipes = [po1, po2]
+        # Increment the pipe_id of the second branch and all its children
+        new._pipe_id = po2._increment_id(po1._pipe_id + 1)
         return new
 
     def collate(self, frm: datetime, to: datetime, *args, po1: PipeOutput[Any], po2: PipeOutput, **kwargs) -> PipeOutput:

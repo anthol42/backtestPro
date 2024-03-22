@@ -2,6 +2,7 @@ from typing import Optional
 from unittest import TestCase
 from datetime import datetime
 from src.backtest.data.datapipe import DataPipe, DataPipeType, PipeOutput, CacheObject, RevalidateAction
+from src.backtest.data.pipes import Fetch, Process, Collate
 
 class TestDatapipe(TestCase):
     def test_piping(self):
@@ -197,6 +198,40 @@ class TestDatapipe(TestCase):
 
         self.assertEqual(13, len(ids))
 
+    def test_ids(self):
+        """
+        Multiple pipes
+        """
+
+        @Fetch
+        def LoadInt(frm: datetime, to: datetime, *args, **kwargs) -> list[int]:
+            return [1, 2, 3, 4, 5]
+
+        @Process
+        def AddOne(frm: datetime, to: datetime, *args, po: PipeOutput[list[int]], **kwargs) -> list[int]:
+            return [x + 1 for x in po.value]
+
+        @Process
+        def Double(frm: datetime, to: datetime, *args, po: PipeOutput[list[int]], **kwargs) -> list[int]:
+            return [x * 2 for x in po.value]
+
+        @Collate
+        def Sum(frm: datetime, to: datetime, *args, po1: PipeOutput[list[int]], po2: PipeOutput[list[int]], **kwargs) -> list[int]:
+            return [v1 + v2 for v1, v2 in zip(po1.value, po2.value)]
+
+        branchA = LoadInt() | AddOne()
+        branchB = LoadInt() | Double()
+        pipe1 = Sum(branchA, branchB)
+        _ = pipe1.get(datetime.now(), datetime.now())
+        branchC = LoadInt() | AddOne()
+        branchD = LoadInt() | Double()
+        pipe2 = Sum(branchC, branchD)
+        _ = pipe2.get(datetime.now(), datetime.now())
+        pipe3 = Sum(branchC, branchB)
+        _ = pipe3.get(datetime.now(), datetime.now())
+        self.assertEqual([0, 1, 2, 3, 4], [p.pipe_id for p in pipe1])
+        self.assertEqual([5, 6, 7, 8, 9], [p.pipe_id for p in pipe2])
+        self.assertEqual([5, 6, 2, 3, 10], [p.pipe_id for p in pipe3])
     def test_len(self):
         class Pipe(DataPipe):
             def __init__(self, T: DataPipeType, name: str = "", rev: bool = False):
