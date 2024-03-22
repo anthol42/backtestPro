@@ -1,6 +1,7 @@
 from .markup_renderer import MarkupObject, MarkupRenderer, format_number
 from pathlib import PurePath
 from typing import List, Dict, Any, Optional
+from ...engine import Position
 import os
 from ..state_signals import StateSignals, ServerStatus
 from ..stats_calculator import StatCalculator
@@ -13,7 +14,9 @@ try:
 except ImportError:
     WEASYPRINT_INSTALLED = False
 import os
+
 TEMPLATE_PATH = PurePath(f"{os.path.dirname(__file__)}/pdf_templates")
+ROW_PER_PAGE = 20
 
 class PDFPage(MarkupObject):
     def __init__(self, *args, **kwargs):
@@ -103,19 +106,41 @@ class PDFRenderer(MarkupRenderer):
         page.append(signals)
 
         # Step 2: Render The portfolio
-        long_portfolio = "\n".join(
+        page = pdf.new_page(header=True)
+        page.append(self.components["PORTFOLIO_HEADER"]())    # This opens the section, but we need to close it.
+        long = [
             self.render_portfolio(position, self.get_ticker_info(position.ticker, state.data, state.main_idx))
-                                   for _, position in state.portfolio.getLong().items() if position.amount > 0
-        )
+                                   for _, position in state.portfolio.getLong().items() if position.amount > 0]
+        long_tables = [long[i:i + ROW_PER_PAGE] for i in range(0, len(long), ROW_PER_PAGE)]
+        page.append(self.components["PORTFOLIO"](table_name="Long Portfolio"))
+        if len(long_tables) == 0:
+            # Empty table
+            page.append(self.components["PORTFOLIO_TABLE"](rows=""))
+        else:
+            for i, rows in enumerate(long_tables):
+                table = self.components["PORTFOLIO_TABLE"](rows="\n".join(rows))
+                page.append(table)
+                page = pdf.new_page()
 
         # Step 3: Render the short portfolio
-        short_portfolio = "\n".join(
+        short = [
             self.render_portfolio(position, self.get_ticker_info(position.ticker, state.data, state.main_idx))
-                                     for _, position in state.portfolio.getShort().items() if position.amount > 0
-        )
-        portfolio = self.components["PORTFOLIO"](long=long_portfolio, short=short_portfolio)
-        page = pdf.new_page(header=True)
-        page.append(portfolio)
+                                     for _, position in state.portfolio.getShort().items() if position.amount > 0]
+        short_tables = [short[i:i + ROW_PER_PAGE] for i in range(0, len(short), ROW_PER_PAGE)]
+        page.append(self.components["PORTFOLIO"](table_name="Short Portfolio", name="short"))
+        if len(short_tables) == 0:
+            # Empty table
+            page.append(self.components["PORTFOLIO_TABLE"](rows=""))
+        else:
+            for i, rows in enumerate(short_tables):
+                table = self.components["PORTFOLIO_TABLE"](rows="\n".join(rows))
+                page.append(table)
+                if i == len(short_tables) - 1:
+                    break    # We do not add a new page for the last one
+                else:
+                    page = pdf.new_page()
+
+        page.append(MarkupObject("    </section>"))  # Close the section
 
         # Step 4: Render the chart performances
         # Get the portfolio worth from one year ago to now
@@ -198,8 +223,6 @@ class PDFRenderer(MarkupRenderer):
 
         # Render the whole
         html_text = pdf.render()
-        with open("tmp.html", "w") as f:
-            f.write(html_text)
         html = HTML(string=html_text)
 
 

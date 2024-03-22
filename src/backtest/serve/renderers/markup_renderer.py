@@ -12,6 +12,7 @@ import pandas as pd
 import os
 import shutil
 import glob
+from copy import deepcopy
 
 try:
     import plotly.graph_objects as go
@@ -64,7 +65,7 @@ class MarkupObject:
         Save the data internally without rendering the object.  Kind of a pre-render.
         :param data: The data to render the template
         :param kwargs: It is also possible to pass the data as kwargs
-        :return: self
+        :return: copy of self updated with the new data
         """
         if data is None:
             data = kwargs
@@ -72,7 +73,7 @@ class MarkupObject:
             if key not in data:
                 raise RuntimeError(f"Key {key} is defined in the template, but not specified in the data")
         self.data = data
-        return self
+        return deepcopy(self)
 
     def render(self, data: Optional[Dict[str, str]] = None, **kwargs) -> str:
         if data is None:
@@ -273,14 +274,19 @@ class MarkupRenderer(Renderer):
                     "<td>{{change_percent}}</td><td>{{unrealized_pl_dollars}}</td><td>{{unrealized_pl_percent}}</td></tr>")
         format_ = "{{.*?}}"
         markup = MarkupObject(template, format_)
-        gains = position.amount * ticker_info["current_value"] - position.amount * position.average_price
+        if position.long:
+            gains = position.amount * ticker_info["current_value"] - position.amount * position.average_price
+            gains_percent = 100 * gains / (position.amount * position.average_price)
+        else:
+            gains = position.amount * position.average_price - position.amount * ticker_info["current_value"]
+            gains_percent = 100 * gains / (position.amount * ticker_info["current_value"])
         data = {"ticker": position.ticker,
                 "average_buy_price": format_number(position.average_price, 2),
                 "quantity": position.amount,
                 "change_dollars": format_number(ticker_info["change_dollars"], 2),
                 "change_percent": format_number(ticker_info["change_percent"], 2),
                 "unrealized_pl_dollars": format_number(gains, 2),
-                "unrealized_pl_percent": format_number(100 * gains / (position.amount * position.average_price), 2)
+                "unrealized_pl_percent": format_number(gains_percent, 2)
                 }
         return markup.render(data)
 
