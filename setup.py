@@ -50,7 +50,9 @@ setup(
         'optional': [
             "TA-Lib>=0.4.0",
             "plotly>=5.20.0",
-            "schedule>=1.2.0"
+            "schedule>=1.2.0",
+            "kaleido>=0.2.1",
+            "weasyprint>=61.2",
         ],
     },
     # packages=find_packages(),

@@ -17,7 +17,7 @@ Features are not implemented yet, but will be one day.
 ## TODO
 - [X] Record the number of active pipes ('get' got called) and give different ids accordingly
 - [X] Datapipe automatically detect if the pipe changed (Reset cache)
-- [ ] Clean serve module
+- [X] Clean serve module
 - [ ] serve module documentation
 
 ## RoadMap
