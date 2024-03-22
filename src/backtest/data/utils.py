@@ -23,7 +23,8 @@ class JSONCacheObject(CacheObject):
                 "write_time": self.write_time,
                 "next_revalidate": self.next_revalidate,
                 "max_request": self.max_request,
-                "current_n_request": self.current_n_requests
+                "current_n_request": self.current_n_requests,
+                "hash": self.pipe_hash
             }
             json.dump(out, file, cls=je.JSONEncoder)
 
@@ -31,7 +32,7 @@ class JSONCacheObject(CacheObject):
     def load(cls, pipe_id: int) -> 'JSONCacheObject':
         with open(f".cache/{pipe_id}.json", "r") as file:
             data = json.load(file, cls=je.JSONDecoder)
-            new_cache = cls(data["value"], data["pipe_id"], data["next_revalidate"],
+            new_cache = cls(data["value"], data["pipe_id"], data["hash"], data["next_revalidate"],
                        data["max_request"], data["current_n_request"])
             new_cache.write_time = data["write_time"]
         return new_cache
@@ -88,7 +89,8 @@ class JSONCache(Cache):
         :param kwargs: Any keyword arguments passed to the pipeline
         :return: None
         """
-        self._cache = JSONCacheObject(po.value, self._pipe_id, self._revalidate, self._max_request, self._n_requests)
+        self._cache = JSONCacheObject(po.value, self._pipe_id, self.hash(), self._revalidate, self._max_request,
+                                      self._n_requests)
         if self.store:
             je.add_types(**self._custom_types)
             self._cache.store()

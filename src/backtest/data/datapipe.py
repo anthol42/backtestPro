@@ -4,22 +4,59 @@ from enum import Enum
 from datetime import datetime
 import os
 import pickle
+import hashlib
+import types
+import inspect
+import shutil
+
+
+def clear_cache():
+    if os.path.exists(".cache"):
+        shutil.rmtree(".cache")
+
+    DataPipe.LAST_ID = 0
+
+def toHash(obj) -> str:
+    """
+    Hash an object.  The hash is consistent across runs and is deterministic given the object.
+    Note:
+        This function doesn't support all types of objects.
+        This function is recursive and will hash the object recursively.
+    :param obj: The object to has
+    :return: The object hash
+    """
+    if isinstance(obj, dict):
+        return toHash(str({k: toHash(v) for k, v in obj.items()}))
+    elif isinstance(obj, str):
+        hash_object = hashlib.sha256()
+        hash_object.update(obj.encode())
+        return hash_object.hexdigest()
+    elif isinstance(obj, types.FunctionType):
+        return toHash(str({"name": obj.__name__, "type": "Function",  "code": inspect.getsource(obj)}))
+    elif hasattr(obj, "__dict__"):
+        return toHash(obj.__dict__)
+    elif hasattr(obj, "__iter__"):
+        return toHash(str([toHash(o) for o in obj]))
+    else:
+        return toHash(str(obj))
 
 class CacheObject:
     """
     This class holds a the output of a pipe and some metadata to be able to revalidate the cache.
     """
-    def __init__(self, value: Any, pipe_id: int, next_revalidate: Optional[datetime] = None,
+    def __init__(self, value: Any, pipe_id: int, pipe_hash: str, next_revalidate: Optional[datetime] = None,
                  max_request: Optional[int] = None, current_n_requests: int = 0):
         """
         :param value: The output of the pipe
         :param pipe_id: The pipe_id of the pipe that generated the cache
+        :param pipe_hash: Used to check if the pipe structure has changed
         :param next_revalidate: The next time the cache should be revalidated
         :param max_request: The maximum number of requests that can be made before revalidating the cache
         :param current_n_requests: The current number of requests made to the cache
         """
         self.value = value
         self.pipe_id = pipe_id
+        self.pipe_hash = pipe_hash
         self.write_time = datetime.now()
         self.next_revalidate = next_revalidate
         self.max_request = max_request
@@ -272,6 +309,26 @@ class DataPipe(ABC):
         :return: A new pipe that is the result of the concatenation of the two pipes.  (Multiple pipes makes a pipeline)
         """
         return self._build(other)
+
+    def hash(self) -> str:
+        """
+        Make a hash that is consistent across runs and is deterministic given the object.
+        :return: The hash.
+        """
+        d = self.__dict__.copy()
+        d.pop("_cache", None)    # Will change even if the structure didn't.
+        d.pop("_pipes", None)    # Handled separately
+        d.pop("_has_run", None)    # Will change even if the structure didn't.
+        d.pop("_pipe_id", None)    # This is subject to change even though the structure didn't.
+        if self._pipes is not None:
+            if isinstance(self._pipes, list):
+                pipe_hash = [p.hash() for pipeline in self._pipes for p in pipeline]
+            else:
+                pipe_hash = [p.hash() for p in self._pipes]
+        else:
+            pipe_hash = []
+        hashs = str([toHash(o) for o in d.values()] + pipe_hash)
+        return toHash(hashs)
 
     @classmethod
     def Collate(cls, pipe1: 'DataPipe', pipe2: 'DataPipe') -> 'DataPipe':

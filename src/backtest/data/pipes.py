@@ -148,7 +148,8 @@ class Cache(DataPipe):
 
     def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput[Any], **kwargs) -> None:
         if self._caching_cb is None:
-            self._cache = CacheObject(po.value, self._pipe_id, self._revalidate, self._max_request, self._n_requests)
+            self._cache = CacheObject(po.value, self._pipe_id, self.hash(), self._revalidate, self._max_request,
+                                      self._n_requests)
             if self.store:
                 self._cache.store()
         else:
@@ -173,6 +174,9 @@ class Cache(DataPipe):
                 self._n_requests = self._cache.current_n_requests
 
     def revalidate(self, frm: datetime, to: datetime, *args, po: PipeOutput[Any], **kwargs) -> RevalidateAction:
+        if self._cache is not None and self._cache.pipe_hash != self.hash():
+            print("Pipe has changed.  Performing full revalidation.")
+            return RevalidateAction.FULL_REVALIDATE
         if self._revalidate_cb is not None:
             return self._revalidate_cb(frm, to, *args, po=po, **kwargs)
         else:    # Default implementation of the revalidate action

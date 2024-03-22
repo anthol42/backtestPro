@@ -2,7 +2,8 @@ from typing import Optional
 from unittest import TestCase
 from datetime import datetime
 from src.backtest.data.datapipe import DataPipe, DataPipeType, PipeOutput, CacheObject, RevalidateAction
-from src.backtest.data.pipes import Fetch, Process, Collate
+from src.backtest.data.pipes import Fetch, Process, Collate, Cache
+from src.backtest.data.utils import JSONCache
 
 class TestDatapipe(TestCase):
     def test_piping(self):
@@ -31,7 +32,7 @@ class TestDatapipe(TestCase):
                 return PipeOutput([v1 + v2 for v1, v2 in zip(po1.value, po2.value)], self)
             def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> None:
                 call_order.append(self.name)
-                self._cache = CacheObject(po, self._pipe_id)
+                self._cache = CacheObject(po, self._pipe_id, self.hash())
 
             def load(self) -> Optional[CacheObject]:
                 return self._cache
@@ -82,7 +83,7 @@ class TestDatapipe(TestCase):
                 return PipeOutput([v1 + v2 for v1, v2 in zip(po1.value, po2.value)], self)
             def cache(self, frm: datetime, to: datetime, *args, po: PipeOutput, **kwargs) -> None:
                 call_order.append(self.name)
-                self._cache = CacheObject(po.value, self._pipe_id)
+                self._cache = CacheObject(po.value, self._pipe_id, self.hash())
 
             def load(self) -> Optional[CacheObject]:
                 return self._cache
@@ -218,7 +219,7 @@ class TestDatapipe(TestCase):
         @Collate
         def Sum(frm: datetime, to: datetime, *args, po1: PipeOutput[list[int]], po2: PipeOutput[list[int]], **kwargs) -> list[int]:
             return [v1 + v2 for v1, v2 in zip(po1.value, po2.value)]
-
+        DataPipe.LAST_ID = 0   # Reset the ID counter
         branchA = LoadInt() | AddOne()
         branchB = LoadInt() | Double()
         pipe1 = Sum(branchA, branchB)
@@ -232,6 +233,48 @@ class TestDatapipe(TestCase):
         self.assertEqual([0, 1, 2, 3, 4], [p.pipe_id for p in pipe1])
         self.assertEqual([5, 6, 7, 8, 9], [p.pipe_id for p in pipe2])
         self.assertEqual([5, 6, 2, 3, 10], [p.pipe_id for p in pipe3])
+
+    def test_hash(self):
+        """
+        Test top-level hash with caching
+        """
+        data = [1, 2, 3, 4, 5]
+
+        @Fetch
+        def LoadInt(frm: datetime, to: datetime, *args, **kwargs) -> list[int]:
+            return data
+
+        @Process
+        def AddOne(frm: datetime, to: datetime, *args, po: PipeOutput[list[int]], **kwargs) -> list[int]:
+            return [x + 1 for x in po.value]
+
+        @Process
+        def Double(frm: datetime, to: datetime, *args, po: PipeOutput[list[int]], **kwargs) -> list[int]:
+            return [x * 2 for x in po.value]
+
+        @Collate
+        def Sum(frm: datetime, to: datetime, *args, po1: PipeOutput[list[int]], po2: PipeOutput[list[int]], **kwargs) -> \
+        list[int]:
+            return [v1 + v2 for v1, v2 in zip(po1.value, po2.value)]
+
+        branchA = LoadInt() | AddOne() | Cache()
+        branchB = LoadInt() | Double() | JSONCache()
+        pipe1 = Sum(branchA, branchB)
+        res1 = pipe1.get(datetime.now(), datetime.now())
+        data = [2, 2, 3, 4, 5]
+        res2 = pipe1.get(datetime.now(), datetime.now())
+        DataPipe.LAST_ID = 0  # Simulate a new run
+        branchA = LoadInt() | Double() | Cache()
+        branchB = LoadInt() | Double() | JSONCache()
+        pipe1 = Sum(branchA, branchB)
+        res3 = pipe1.get(datetime.now(), datetime.now())
+        data = [1, 2, 3, 4, 5]
+        res4 = pipe1.get(datetime.now(), datetime.now())
+        self.assertEqual([4, 7, 10, 13, 16], res1)
+        self.assertEqual([4, 7, 10, 13, 16], res2)
+        self.assertEqual([8, 8, 12, 16, 20], res3)
+        self.assertEqual([8, 8, 12, 16, 20], res4)
+
     def test_len(self):
         class Pipe(DataPipe):
             def __init__(self, T: DataPipeType, name: str = "", rev: bool = False):
