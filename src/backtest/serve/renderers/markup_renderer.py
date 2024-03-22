@@ -44,6 +44,7 @@ class MarkupObject:
         self.template = template
         self.format_ = format_
         self.keys = self.extract_keys(template, self.format_)
+        self.data: Optional[Dict[str, str]] = None
 
 
     @staticmethod
@@ -58,10 +59,26 @@ class MarkupObject:
 
         return keys
 
-    def render(self, data: Dict[str, str]) -> str:
+    def __call__(self, data: Optional[Dict[str, str]] = None, **kwargs: str) -> 'MarkupObject':
         """
-        Renders the template with the data
+        Save the data internally without rendering the object.  Kind of a pre-render.
+        :param data: The data to render the template
+        :param kwargs: It is also possible to pass the data as kwargs
+        :return: self
         """
+        if data is None:
+            data = kwargs
+        for key in self.keys:
+            if key not in data:
+                raise RuntimeError(f"Key {key} is defined in the template, but not specified in the data")
+        self.data = data
+        return self
+
+    def render(self, data: Optional[Dict[str, str]] = None, **kwargs) -> str:
+        if data is None:
+            data = kwargs
+        if len(data) == 0 and self.data is not None:
+            data = self.data
         out = self.template
         for key in self.keys:
             tag = self.format_.replace(".*?", key)
@@ -135,14 +152,14 @@ class MarkupRenderer(Renderer):
 
 
 
-    def prerender(self, component: str, **kwargs):
+    def prerender(self, component: str, **kwargs) -> str:
         """
         Render the component with the given data.  It stores internally the rendered component.
         By default, if a component depends on another component that hasn't been rendered, it is assumed that the
         component was optional and it will be rendered as an empty string (ignored).
         :param component: The component name
         :param kwargs: The data to render the component
-        :return: None
+        :return: The rendered component (text)
         """
         if component not in self.components:
             raise ValueError(f"Component {component} does not exists.  Available components are {list(self.components.keys())}")
@@ -156,6 +173,7 @@ class MarkupRenderer(Renderer):
                 else:
                     raise RuntimeError(f"Key {key} is defined in the component, but not specified in the data nor in the components.")
         self.rendered_components[component] = self.components[component].render(kwargs)
+        return self.rendered_components[component]
 
 
     def render_template(self, **kwargs) -> str:

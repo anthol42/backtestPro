@@ -15,7 +15,6 @@ TEMPLATE_PATH = PurePath(f"{os.path.dirname(__file__)}/html_templates")
 
 class HTMLRenderer(MarkupRenderer):
     """
-    Class designed to render a python object to a markup language.  This can be xml, html, markdown, etc.
     It expects that the tradeSignals object contains the index data, the tickers data and the main idx of the tickers
     data.
     Stats are calculated based on a year of data except when specified all-time.  In that case, the stats are calculated

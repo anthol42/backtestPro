@@ -8,3 +8,4 @@ tqdm
 setuptools
 schedule
 plotly
+kaleido

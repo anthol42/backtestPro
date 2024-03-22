@@ -1,0 +1,289 @@
+@page {
+  size: letter;
+  margin: 0cm; /* Set margin on each page */
+}
+:root {
+  --primary-color: /* Cornflower Blue */ #7acdfc;
+  --secondary-color: /* Canary Yellow */ #BD93F9;
+  --background-color: /* Gunmetal */ #282a36;
+  --surface-color: /* Dim Gray */ #44475a;
+  --secondary-surface-color: #777777;
+  --text-color: /* Ghost White */ #f8f8f2;
+  --secondary-text-color: /* Light Slate Gray */ #6272a4;
+  --radius: 5px;
+}
+
+html {
+font-size: 11px; /* Set the base font size to 16px */
+
+}
+
+body {
+  font-family: 'Roboto', sans-serif; /* Default Material Design font */
+  background-color: var(--background-color);
+  color: var(--text-color);
+  margin: 0;
+  padding: 0;
+}
+
+header {
+  background-color: var(--primary-color);
+  color: #fff;
+  padding: 20px;
+  text-align: center;
+}
+
+h1 {
+  margin: 0;
+  font-size: 3em; /* Larger font size for emphasis */
+}
+
+h2 {
+  margin: 0;
+  font-size: 2em; /* Larger font size for emphasis */
+}
+
+.portfolio-label {
+    font-size: 1.5em; /* Larger font size for emphasis */
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+
+section {
+  padding: 20px;
+}
+
+footer {
+  background-color: var(--surface-color);
+  color: var(--text-color);
+  text-align: center;
+  padding: 10px;
+  position: absolute;
+  width: 100%;
+  bottom: 0;
+}
+
+.status-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 5px;
+}
+
+.container {
+  width: 80%;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.tables {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0px; /* Add margin to match other sections */
+  border-radius: 20px; /* Adjust the radius as needed */
+  overflow: hidden; /* Ensure rounded corners are applied */
+  font-size: 1em; /* Larger font size for emphasis */
+}
+
+.tables td {
+  border: 1px solid var(--surface-color); /* Slightly lighter border color */
+  padding: 1em; /* Larger padding for consistency */
+  text-align: center;
+}
+
+.tables th {
+  background-color: var(--surface-color);
+  padding: 1em;
+  color: var(--text-color);
+}
+
+/* Portfolio Section */
+.portfolio-tables {
+  display: flex;
+  flex-direction: column;
+  margin-top: 20px;
+  align-items: center;
+}
+
+.coin-icon {
+  width: 28px; /* Slightly larger icon size for emphasis */
+  height: 28px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 8px; /* Slightly larger margin for better spacing */
+}
+
+.divider {
+    border-top: 1px solid #ccc;
+    border-radius: 5px;
+    margin-top: 5px;
+    margin-bottom: 20px;
+    width: 100%;
+}
+
+#performance-chart {
+  width: 100%;
+  margin-top: 20px;
+  background-color: var(--surface-color);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#stats-label {
+  font-size: 1.5em; /* Larger font size for emphasis */
+  margin-top: 20px;
+  margin-bottom: 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.statistics {
+    background-color: #f9f9f9;
+    padding: 20px;
+    border-radius: 10px;
+    margin-top: 30px;
+}
+
+#statistics-table {
+    width: 100%;
+    padding: 0px;
+}
+
+.stat {
+    border: 1px solid var(--surface-color);
+    padding: 10px;
+    border-radius: var(--radius);
+}
+
+.stat-label {
+    font-weight: bold;
+}
+
+.stat-value {
+    float: right;
+}
+
+.primary-text{
+    color: var(--text-color);
+    font-weight: bold;
+    font-size: 1.2em;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 10px;
+    padding-bottom: 4px;
+}
+#cash-primary-table{
+    width: 100%;
+    padding-left: 20px;
+    border-collapse: collapse;
+}
+
+#cash-secondary-table{
+    width: 90%;
+    margin-left: 10%;
+    border-collapse: collapse;
+}
+
+.secondary-text{
+    color: var(--secondary-text-color);
+    font-size: 1em;
+    padding-left: 10px;
+    padding-right: 10px;
+    padding-top: 10px;
+}
+
+.left{
+   text-align: left;
+}
+.right{
+   text-align: right;
+}
+#cash-stats{
+    width: 50%;
+}
+.center{
+    width: 100%;
+    text-align: center;
+    display: flex;
+    justify-content: center; /* Horizontally center content */
+}
+
+/* Scroll signals section */
+.signal-card {
+    background-color: var(--surface-color); /* Updated to use provided variable */
+    border-radius: var(--radius); /* Updated to use provided variable */
+    padding: 24px;
+    margin-bottom: 24px;
+    transition: transform 0.3s cubic-bezier(0.165, 0.84, 0.44, 1); /* Smooth cubic-bezier transition effect on hover */
+}
+
+
+.signal-card:hover {
+    transform: translateY(-3px);
+}
+
+.signal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.signal-title {
+    font-size: 1.8em;
+    font-weight: bold;
+    color: var(--text-color); /* Updated to use provided variable */
+    margin: 0;
+    text-transform: uppercase;
+}
+
+.signal-badge {
+    background-color: var(--secondary-color); /* Updated to use provided variable */
+    color: var(--text-color); /* Updated to use provided variable */
+    font-size: 0.9em;
+    font-weight: bold;
+    padding: 8px 16px;
+    border-radius: 20px;
+    transition: background-color 0.3s ease; /* Smooth background color transition effect */
+}
+
+.signal-badge:hover {
+    background-color: darken(var(--primary-color)); /* Darker shade on hover */
+}
+
+.divider-card {
+    border: none;
+    border-bottom: 2px solid var(--secondary-surface-color); /* Divider line color */
+    margin-bottom: 16px; /* Spacing below divider */
+    width: 75%;
+    align-self: flex-start;
+    max-width: 60%;
+}
+
+.signal-details {
+    margin-top: 16px;
+}
+
+.signal-details table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.signal-details table td {
+    padding: 8px 0;
+    font-size: 1.2em;
+    color: var(--secondary-text-color); /* Updated to use provided variable */
+}
+
+.signal-details table tr:hover {
+    background-color: var(--background-color);
+}
+
+.signal-details table strong {
+padding-left: 10px;
+    color: var(--text-color); /* Updated to use provided variable */
+}
