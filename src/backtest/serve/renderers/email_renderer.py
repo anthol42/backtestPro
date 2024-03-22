@@ -67,7 +67,7 @@ class EmailRenderer(MarkupRenderer):
 
         # Render the whole
         html_content = self.render_template(status_color=color, status=state.status.name, title="Financial Report",
-                                            style=css, script="")
+                                            style=css, script="", containerS="", containerE="")
 
         # Save the file
         if not os.path.exists(base_path):

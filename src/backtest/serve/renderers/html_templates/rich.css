@@ -215,6 +215,13 @@ footer {
 
 
 /* Scroll signals section */
+#signals-scroll {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-left: 0px;
+    padding-right: 0px
+}
 .signal-card {
     background-color: var(--surface-color); /* Updated to use provided variable */
     border-radius: var(--radius); /* Updated to use provided variable */
@@ -227,6 +234,23 @@ footer {
 
 .signal-card:hover {
     transform: translateY(-3px);
+}
+
+.dynamic-width {
+    width: 70%;
+}
+@media (min-width: 961px) {
+    .dynamic-width {
+        width: 50%;
+    }
+}
+@media (max-width: 400px) {
+    .dynamic-width {
+        width: 98%;
+    }
+    .signal-card {
+        padding: 4px;
+    }
 }
 
 .signal-header {

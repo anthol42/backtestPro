@@ -15,22 +15,10 @@ Features are not implemented yet, but will be one day.
 - Customizable
 
 ## TODO
-- [X] Add a way to dynamically preprocess data to extend the number of time resolutions
-- [X] Add a method in the strategy that can preprocess the data to add indicators on the fly.
-- [X] Test multiple cases (integrative testing) to see if money and performances are accurately computed
-- [X] Test margin investing, margin call and short selling.
-- [X] html renderer:
-  - [X] Calculate current worth and append it to the worth portfolio
-  - [X] Round numbers.
-  - [X] Format big numbers with spaces.
-  - [X] Create a Stats calculator like the backtest results, but with a moving window of 1 year.
-- [X] Job
-  - [X] Handle warnings and errors
-- [ ] Markup renderers
-  - [X] Make it generic and do:
-  - [X] HTML
-  - [ ] PDF
-  - [ ] Email
+- [ ] Record the number of active pipes ('get' got called) and give different ids accordingly
+- [ ] Datapipe automatically detect if the pipe changed (Reset cache)
+- [ ] Clean serve module
+- [ ] serve module documentation
 
 ## RoadMap
 - [X] Backtest Engine
@@ -48,7 +36,7 @@ Features are not implemented yet, but will be one day.
   - [X] Documentation
 - [ ] Server Module
   - [X] Modules (Implementation)
-  - [ ] Prebuilt renderers
+  - [X] Prebuilt renderers
   - [X] Unit testing
   - [ ] Documentation
 - [ ] Integration Testing
