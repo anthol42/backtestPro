@@ -1,10 +1,10 @@
 from datetime import datetime, timedelta
-from ..engine import Broker, Account, Strategy, Backtest, BackTestResult, CashControllerBase, TimeResExtender, TradeOrder
-from ..engine import BuyLongOrder, SellLongOrder, BuyShortOrder, SellShortOrder, Record, TSData, CashControllerTimeframe
-from ..engine import RecordsBucket, DividendFrequency
+from ..engine import Broker, Account, Strategy, Backtest, BackTestResult, CashControllerBase, TimeResExtender
+from ..engine import Record, TSData, CashControllerTimeframe
+from ..engine import RecordsBucket
 from ..data import DataPipe
 from ..indicators import IndicatorSet
-from typing import Any, Optional, List, Dict, Union, Tuple, Callable
+from typing import Any, Optional, List, Dict, Union, Callable
 from pathlib import PurePath
 import os
 import json
@@ -22,6 +22,58 @@ except ImportError:
 
 
 class Job(Backtest):
+    """
+    This class is designed to run a strategy in inference mode.  It is derived from the backtest class to keep as
+    much similarity as possible.  The main difference is that the Job class will not run the strategy in a loop, but
+    will run it once and return the signals.  It is designed to be used in a server environment where the strategy
+    will be run on a schedule.  (Cron schedule or with the schedule module)
+
+    Overall mechanism:
+    The Job class receives as parameter a datapipe.  When the job class is run, it starts by fetching the data from the
+    datapipe.  It then prepares the data as it is prepared in the backtest class.  It then runs the strategy on the
+    data and records the signals emitted by the strategy.  It builds a StateSignals object with the signals and the
+    state of the system (i.e. the account, the broker, the cash controller, etc.).  It then calls the renderer.  The
+    renderer converts the StateSignals object into a file (or a set of files) that can be used to visualize the signals
+    or be imported into an application.  Finally, the Job class calls a trigger callback that can be used to trigger
+    other actions such as sending a notification, buying or selling assets based on an api, etc.
+
+    How to use:
+    The Job class is designed to be run once a backtest has been completed (To see the performance expected by the
+    strategy).  Also, there are two ways to run the Job class.  The first way is to call run the run_job method once
+    in a while (Could be scheduled with a Cron job).  The second way, is to pass a schedule.Job object to the run_job
+    method and the script will run the job at the specified interval.  In that case, the script never finishes.
+
+    Example:
+        The first example is designed to be run by a Cron job.  The script will brun and exit.
+        >>> # imports ...
+        >>> data_pipe = ...  # A data pipe that fetches the data
+        >>> strategy = ...  # A strategy object
+        >>> # In case a backtest has been run prior to this, we pass the path to the backtest results.  This way, the
+        >>> # Job class will load the initial parameters from the backtest results.
+        >>> job = Job(strategy, data_pipe, timedelta(days=1), result_path="path/to/backtest/result", renderer=...,
+        ...          trigger_cb=...)
+        >>> # In case a backtest hasn't been run, we pass the parameters directly to the Job class.
+        >>> # The parameters are the parameters passed to the backtest class.  Almost every parameters must be passed,
+        >>> # because it doesn't have defaults.
+        >>> job = Job(strategy, data_pipe, timedelta(days=1), params={"initial_cash": 10000, "commission": 0.01, ...},
+        ...          renderer=..., trigger_cb=...)
+        >>> job.run_job()
+
+        The second example is designed to be run in a loop.  The script will run the job every day at 5pm.
+        >>> # imports ...
+        >>> data_pipe = ...  # A data pipe that fetches the data
+        >>> strategy = ...  # A strategy object
+        >>> # In case a backtest has been run prior to this, we pass the path to
+        >>> # the backtest results.  This way, the Job class will load the initial parameters from the backtest results.
+        >>> job = Job(strategy, data_pipe, timedelta(days=1), result_path="path/to/backtest/result", renderer=...,
+        ...          trigger_cb=...)
+        >>> # In case a backtest hasn't been run, we pass the parameters directly to the Job class.
+        >>> # The parameters are the parameters passed to the backtest class.  Almost every parameters must be passed,
+        >>> # because it doesn't have defaults.
+        >>> job = Job(strategy, data_pipe, timedelta(days=1), params={"initial_cash": 10000, "commission": 0.01, ...},
+        ...          renderer=..., trigger_cb=...)
+        >>> job.run_job(schedule.every().day.at("17:00"))
+    """
     def __init__(self, strategy: Strategy, data: DataPipe, lookback: timedelta, *, result_path: Optional[str] = None,
                  params: Optional[Dict[str, Any]] = None, index_pipe: Optional[DataPipe] = None,
                  working_directory: PurePath = PurePath("./prod_data"),
@@ -29,6 +81,53 @@ class Job(Backtest):
                  trigger_cb: Optional[Callable[[StateSignals, PurePath], None]] = None,
                  renderer: Union[RendererList, Renderer] = None, cash_controller: CashControllerBase = CashControllerBase(),
                  time_res_extender: Optional[TimeResExtender] = None):
+        """
+        :param strategy: The strategy to use and extract signals from.
+        :param data: The data pipeline used to fetch the data for the strategy.  It must return a list of dict of TSData
+        where position in the list are different time resolutions (like in the backtest) and the keys in the dict are
+        the tickers.
+        :param lookback: The lookback period to fetch the data.  For example, let's say the lookback is 1y, the data
+        fetched will be from (now - 1y) to now at every run.
+        :param result_path: The path to the backtest results.  If this is provided, the Job class will load the
+        parameters from the backtest results.  If this is not provided, the Job class will load the parameters from the
+        params dictionary.
+        :param params: The parameters to use for the backtest.  If the result_path is provided, this parameter is
+        ignored.  The parameters are the same as the parameters passed to the backtest class.  Almost every parameters
+        must be passed, because it doesn't have defaults.  The parameters required are:
+            - main_timestep: The main timestep to use for the backtest.
+            - initial_cash: The initial cash to start the backtest.
+            - commission: The commission to apply to the trades.
+            - relative_commission: The relative commission to apply to the trades.
+            - margin_interest: The margin interest to apply to the trades.
+            - min_initial_margin: The minimum initial margin to apply to the trades.
+            - min_maintenance_margin: The minimum maintenance margin to apply to the trades.
+            - liquidation_delay: The liquidation delay to apply to the trades.
+            - min_initial_margin_short: The minimum initial margin for short trades.
+            - min_maintenance_margin_short: The minimum maintenance margin for short trades.
+            - window: The window to use for the backtest.
+            - default_marginable: The default marginable status used in the backtest.
+            - default_shortable: The default shortable status used in the backtest.
+            - default_short_rate: The default short rate used in the backtest.
+            - risk_free_rate: The risk-free rate used in the backtest.
+            - verbose: The verbosity level of the backtest.
+        :param index_pipe: A datapipe designed to fetch the index data.  This is useful to compare the strategy
+        performance with the index performance.  It must return a list of TSData objects.  Although it is recommended to
+        use only one reference index because the renderers are designed to render only one index, it is possible to
+        return more than one.  It is required that the time resolution of the index is the same as the main time
+        resolution.
+        :param working_directory: The working directory to use to export files.  This will be considered as the root by
+        the renderers.  For example, the prebuilt renderers will export their reports in the reports directory of the
+        working directory.
+        :param indicators: The same indicators used for the backtest.
+        :param trigger_cb: The trigger callback to call after the renderer has rendered the StateSignals.
+        This callback is designed to trigger other actions like sending a notification, buying or selling assets based
+        on an api, etc.
+        :param renderer: A renderer object designed to convert the StateSignals object to an output file.  The renderer
+        can be a single renderer or a list of renderers (RendererList).  The renderers are run in the same order as they
+        are in the list.
+        :param cash_controller: The cash controller used during the backtest.
+        :param time_res_extender: The time resolution extender used during the backtest.
+        """
         if result_path is None and params is None:
             raise ValueError("You must provide either a result_path or a params dictionary")
         if result_path is not None:
@@ -61,6 +160,12 @@ class Job(Backtest):
         raise NotImplementedError("This method is not implemented for Job, use Backtest to run run_jib instead.")
 
     def run_job(self, every: Optional['schedule.Job'] = None):
+        """
+        This method will run the job.  If the every parameter is None, the job will run once and render the signals.
+        If the every parameter is not None, the job will run at the specified interval and never return (never exit).
+        :param every: The interval to run the job.
+        :return: None
+        """
         if SCHEDULE_INSTALLED and every is not None:
             every.do(self.pipeline)
             while True:
@@ -73,6 +178,12 @@ class Job(Backtest):
     def setup(self) -> Optional[datetime]:
         """
         This method will setup the backtest.  It will load from cache, if it exists, the backtest state.
+        Loading from cache the backtest state simulate a warm restart, (like the script has never stopped).
+        If the script is runned in a cron job, so it exits after each run, and restarts at the next run, it wouldn't be
+        able to remember the state of the job and would think it is always the first run.  This is why the cache is
+        used.  It is used to remember the state of the job between runs.  It is useful to remember the state to calulate
+        the current statistics of the strategy.  It will later be possible to compare the current performance with the
+        backtest performances.
         """
         # Initialize the dynamically extended time resolution and get the available time resolutions
         self._initialize_bcktst()
@@ -97,6 +208,17 @@ class Job(Backtest):
     def pipeline(self, now_override: Optional[datetime] = None):
         """
         This method will run the whole pipeline.
+        The steps of the pipeline are:
+            1. Fetch the data
+            2. Setup the Job.  (Initialize the different variables)
+            3. Prepare the data
+            4. Run the cash controller
+            5. Run the broker  (It will always be run on the previous timestep, i.e. lagging by one timestep)
+            6. Run the strategy
+            7. Save the state of the job for later warm restarts.
+            8. Package the signals and the state in a StateSignals object
+            9. Render the signals using the renderer
+            10. Call the trigger callback
         :param now_override: A datetime object to override the current time.  (Useful for testing in simulated environments)
         :return: None
         """
@@ -115,7 +237,7 @@ class Job(Backtest):
                 self.strategy.init(self.account, self.broker, self.available_time_res)
                 self.cash_controller.init(self.account, self.broker, self.strategy)
 
-                # Step 4: Prepare the data, no need to filter None charts, as the data is supposed to be up-to-date
+                # Step 3: Prepare the data, no need to filter None charts, as the data is supposed to be up-to-date
                 processed_data: List[List[Record]] = self._prep_data(now)
                 prepared_data = RecordsBucket(processed_data, self.available_time_res, self.main_timestep, self.window)
                 last_data_dt = prepared_data.main[0].chart.index[-1]
@@ -125,7 +247,7 @@ class Job(Backtest):
                 if previous_last_data_dt is not None:
                     if last_data_dt == previous_last_data_dt:
                         return
-                # Step 3: Run the cash controller (if in the right conditions)
+                # Step 4: Run the cash controller (if in the right conditions)
                 if self.last_timestep is not None:
                     if now.day != self.last_timestep.day:
                         self.cash_controller.deposit(now, CashControllerTimeframe.DAY)
@@ -169,7 +291,7 @@ class Job(Backtest):
             traceback.print_exc()
             exception = e
 
-        # Step 8: Package the signals and the current state in a ActionStates object
+        # Step 8: Package the signals and the current state in a StateSignals object
         if error:
             status = ServerStatus.ERROR
         elif warning:
@@ -183,7 +305,7 @@ class Job(Backtest):
                                      self._initial_cash, self._index_data, self._data, self.main_timestep,
                                      self.params, status, exception=exception, warnings=w)
 
-        # Step 9: Render the report using the renderer
+        # Step 9: Render the signals using the renderer
         if self._renderer is not None:
             self._renderer.render(state_signals, base_path=self.working_directory / PurePath("reports"))
 

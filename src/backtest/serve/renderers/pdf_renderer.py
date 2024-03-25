@@ -9,8 +9,6 @@ try:
     from weasyprint import HTML, CSS
     WEASYPRINT_INSTALLED = True
     import logging
-    logger = logging.getLogger('weasyprint')
-    logger.addHandler(logging.FileHandler('./.cache/weasyprint.log'))
 except ImportError:
     WEASYPRINT_INSTALLED = False
 import os

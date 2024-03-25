@@ -350,8 +350,10 @@ class DataPipe(ABC):
         only on the top-level pipes, and before running the pipeline with get.  If the pipe is not the top-level pipe,
         its pipe_id may change, and you might run in unexpected behaviors.  By running this method only before running
         the get method, this ensures that the pipe will have the same pipe_id if the pipeline structure is the same.
-        This is due to the fact that pipe_ids are dynamically assigned at build time.  However, when the pipe is called,
+        This is due to the fact that pipe_ids are dynamically assigned at build time.  However, when the pipe is run,
         the pipe becomes forged and no changes are allowed.  This ensures that the pipe ids stays the same.
+        When this method is called, it acts as if the pipe was run, and the pipe_ids are frozen.  This means that the
+        ids aren't verified.  Make sure that the pipe_id given are unique to avoid conflicts.
         Note: The passed pipe_id will be assigned to the lowes-level pipe.  The current pipe will have the highest
         pipe_id
         :param pipe_id: The pipe_id to assign to the pipe.
@@ -361,6 +363,7 @@ class DataPipe(ABC):
             raise RuntimeError("You cannot set the pipe_id of a pipe that has already been run.  Once a pipe is run, "
                                "its ids are frozen.")
         self._pipe_id = self._increment_id(pipe_id) - 1
+        self._has_run = True
 
     def _increment_id(self, new_pipe_id: int) -> int:
         """
