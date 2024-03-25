@@ -5,6 +5,9 @@ from enum import Enum
 from warnings import WarningMessage
 
 class ServerStatus(Enum):
+    """
+    Used to indicate the status of the server after the strategy has been executed.
+    """
     OK = "Ok"
     WARNING = "Warning"
     ERROR = "Error"
@@ -15,7 +18,8 @@ class ServerStatus(Enum):
 class StateSignals:
     """
     Class that stores the signals given y the strategy for the current timestep and state of the account, the broker
-    and the portfolio.
+    and the portfolio.  Its more of a dataclass that stores the signals and the state of the account,
+    broker and portfolio.  It also has few method for easy access to the signals.
     """
 
     def __init__(self, account: Account, broker: Broker, signals: Dict[str, TradeOrder], strategy: Strategy,
@@ -24,6 +28,22 @@ class StateSignals:
                  main_idx: Optional[int] = None, backtest_params: Optional[Dict[str, Any]] = None,
                  status: ServerStatus = ServerStatus.OK, exception: Optional[Exception] = None,
                  warnings: Optional[List[WarningMessage]] = None):
+        """
+        :param account: The account object
+        :param broker: The broker object
+        :param signals: The signals emitted by the strategy
+        :param strategy: The strategy object
+        :param timestamp: The current timestamp (i.e. the time at which the strategy was executed)
+        :param cash_controller: The cash controller object
+        :param initial_cash: The initial cash in the account (Useful to calculate the returns in a renderer)
+        :param index_data: The index data for the current timestamp.  Same time-resolution as the main time resolution.
+        :param data: The data for the current timestamp.
+        :param main_idx: The index of the main time resolution in the data list.
+        :param backtest_params: The backtest parameters passed as a dictionary.
+        :param status: The server status after the strategy has been executed.
+        :param exception: An exception object if an exception was raised during the strategy execution.
+        :param warnings: Any warning objects that were raised during the strategy execution.
+        """
         self.account = account
         self.broker = broker
         self.portfolio = broker.portfolio    # An alias for easier access
@@ -70,14 +90,29 @@ class StateSignals:
         return {k: v for k, v in self._signals.items() if v.trade_type == TradeType.SellShort}
 
     def __getitem__(self, item: str) -> TradeOrder:
+        """
+        Returns the signal for the given ticker
+        :param item: The ticker to search for
+        :return: The TradeOrder object
+        :raises KeyError: If no signals were emitted for the given ticker
+        """
         if item not in self._signals:
             raise KeyError(f"No signals were emitted for ticker {item}")
         return self._signals[item]
 
-    def get(self, item: str, default: Optional[Any] = None) -> Optional[TradeOrder]:
+    def get(self, item: str, default: Optional[Any] = None) -> Union[TradeOrder, Any]:
+        """
+        Returns the signal for the given ticker
+        :param item: The ticker to search for
+        :param default: The default value to return if no signals were emitted for the given ticker
+        :return: The TradeOrder object or the default value
+        """
         return self._signals.get(item, default)
 
     def __iter__(self):
+        """
+        Iterates over the signals
+        """
         return iter(self._signals.values())
 
 

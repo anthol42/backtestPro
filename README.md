@@ -18,7 +18,9 @@ Features are not implemented yet, but will be one day.
 - [X] Record the number of active pipes ('get' got called) and give different ids accordingly
 - [X] Datapipe automatically detect if the pipe changed (Reset cache)
 - [X] Clean serve module
-- [ ] serve module documentation
+- [X] serve module documentation
+- [ ] Make readme more user friendly
+- [ ] Licence 
 
 ## RoadMap
 - [X] Backtest Engine
@@ -34,15 +36,16 @@ Features are not implemented yet, but will be one day.
   - [X] Modules (Implementation)
   - [X] Unit testing
   - [X] Documentation
-- [ ] Server Module
+- [X] Server Module
   - [X] Modules (Implementation)
   - [X] Prebuilt renderers
   - [X] Unit testing
-  - [ ] Documentation
-- [ ] Integration Testing
-- [ ] End-to-end testing
-- [ ] Final documentation + Examples
+  - [X] Documentation
+- [ ] Final documentation
 - [ ] Render documentation
+- [ ] Make notebooks for examples (tutorial)
+- [ ] Render the notebooks in the documentation
+- [ ] Make a github pages for the documentation
 - [ ] Alpha Release (In a pip module)
 ---
 Iterative:
@@ -59,8 +62,6 @@ Iterative:
 - Implement the security measures for a safe baktesting from seeking alpha:
   - URL: https://seekingalpha.com/performance/quant
   - Check Accordion: What are common issues with back testing and performance results?
-
-## [TODO](src/backtest/README.md)
 
 
 

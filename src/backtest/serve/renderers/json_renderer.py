@@ -13,6 +13,12 @@ class JSONRenderer(Renderer):
 
     def __init__(self, sub_dir: Union[PurePath, str] = "signals", store_portfolio: bool = False, store_broker: bool = False,
                  store_account: bool = False):
+        """
+        :param sub_dir: The sub directory where the json file will be stored.
+        :param store_portfolio: Whether to store the portfolio state in the json.
+        :param store_broker: Whether to store the broker state in the json.
+        :param store_account: Whether to store the account state in the json.
+        """
         super().__init__()
         self.store_portfolio = store_portfolio
         self.store_broker = store_broker

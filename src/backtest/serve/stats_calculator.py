@@ -18,7 +18,10 @@ class Period(Enum):
 
 class StatCalculator:
     """
-    Real time version of the BacktestResults object.  In calculates the stats based on a one year moving window.
+    Class analog to the BacktestResults class.  However, this class is used to calculate the stats in real time.  It
+    calculates the statistics based on a one-year moving window when possible.  For some indicators, it is not possible
+    because it would cause a difference in calculation of that metric between the inference and the backtest.  Those
+    metrics are marked as All-time in the comments.
     """
     def __init__(self, state: StateSignals):
         if state.backtest_params is not None and "risk_free_rate" in state.backtest_params:

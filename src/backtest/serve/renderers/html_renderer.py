@@ -19,6 +19,11 @@ class HTMLRenderer(MarkupRenderer):
     data.
     Stats are calculated based on a year of data except when specified all-time.  In that case, the stats are calculated
     from the first data point to the last.
+
+    The three styles are:
+    - light: A light theme
+    - dark: A dark theme (Darcula style)
+    - rich: Another dark theme with another color palette
     """
     def __init__(self, style: str = "light"):
         super().__init__()

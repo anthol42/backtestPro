@@ -17,6 +17,11 @@ TEMPLATE_PATH = PurePath(f"{os.path.dirname(__file__)}/pdf_templates")
 ROW_PER_PAGE = 20
 
 class PDFPage(MarkupObject):
+    """
+    Class representing a page in a PDF document.  It can contain multiple children objects.
+    It is possible to append a component to the page with the append method.  Once the page is built, it can be rendered
+    to a string with the render method.
+    """
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.children: List[MarkupObject] = []
@@ -36,6 +41,11 @@ class PDFPage(MarkupObject):
 
 
 class PDFDoc(MarkupObject):
+    """
+    Class representing a PDF document.  It can contain multiple pages, a header and footer.
+    It is possible to add a new page with the new_page method.  The document can be rendered to a string with the render
+    method.
+    """
     def __init__(self, header: Optional[MarkupObject], footer: Optional[MarkupObject], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.pages = []
@@ -72,7 +82,18 @@ class PDFDoc(MarkupObject):
 
 
 class PDFRenderer(MarkupRenderer):
+    """
+    Renders a report with the same information as the HTML renderer, but in a PDF format.
+    The three styles are:
+    - light: A light theme
+    - dark: A dark theme (Darcula style)
+    - rich: Another dark theme with another color palette
+    """
     def __init__(self, report_title: str = "Financial Report", style: str = "light"):
+        """
+        :param report_title: The title of the report
+        :param style: The theme of the report.  Can be "light", "dark" or "rich"
+        """
         super().__init__(TEMPLATE_PATH)
         styles = ["light", "dark", "rich"]
         if style not in styles:

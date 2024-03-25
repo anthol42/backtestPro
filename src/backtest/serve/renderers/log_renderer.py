@@ -8,7 +8,16 @@ import os
 
 class LogRenderer(Renderer):
     """
-    Append signal to a log file.
+    Append signals to a log file. (csv format)
+    The columns are:
+    - timestamp
+    - security
+    - signal_type
+    - price_lower_limit
+    - price_upper_limit
+    - n_shares
+    - n_shares_borrowed
+    - expiry
     """
     def __init__(self, sub_dir: Union[PurePath, str] = "signals"):
         super().__init__()

@@ -25,7 +25,13 @@ def format_lim(a: Optional[float]) -> str:
 
 class EmailRenderer(MarkupRenderer):
     """
-    Render the trading signals to a report that can be read from a mobile device or desktop.
+    It renders only the trading signals in a html file.  As opposed to the HTMLRenderer which renders the performances,
+    the portfolio and other useful stats, this renderer is more lightweight and is designed to be sent by email.
+    This being said, it is designed to be viewed on mobile devices.  It also looks good on desktop though.
+    The three styles are:
+    - light: A light theme
+    - dark: A dark theme (Darcula style)
+    - rich: Another dark theme with another color palette
     """
     def __init__(self, style: str = "light"):
         super().__init__()

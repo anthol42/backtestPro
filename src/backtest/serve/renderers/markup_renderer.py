@@ -1,16 +1,13 @@
-from typing import Any, Dict, List, Optional, Tuple, Set
+from typing import Tuple, Set
 from ..renderer import Renderer
 import re
 from pathlib import PurePath
-from datetime import datetime
-from ..state_signals import StateSignals, ServerStatus
-from ..stats_calculator import StatCalculator
+from ..state_signals import StateSignals
 from ...engine import TradeOrder, Position, TSData
 from typing import List, Dict, Optional
 import numpy as np
 import pandas as pd
 import os
-import shutil
 import glob
 from copy import deepcopy
 
@@ -18,6 +15,7 @@ try:
     import plotly.graph_objects as go
     PLOTLY_INSTALLED = True
 except ImportError:
+    go = None
     PLOTLY_INSTALLED = False
 
 
@@ -37,10 +35,9 @@ def format_number(number: Optional[float], dec: int = 2) -> str:
 class MarkupObject:
     def __init__(self, template: str, format_: str = "{{.*?}}"):
         """
-
-        :param template:
-        :param format: This is a regex expression that should contain only one '.*?'.  It corresponds to the key
-        :param trailing_format: his is a regex expression that should contain only one '.*?'.  It corresponds to the key
+        :param template: The template file as a string.  Can be a full markup file or a component.
+        :param format_: This is a regex expression that should contain only one '.*?'.  It corresponds to the key that
+        will be replaced by the data when the render method is called.
         """
         self.template = template
         self.format_ = format_
@@ -52,6 +49,9 @@ class MarkupObject:
     def extract_keys(template: str, format_: str) -> Set[str]:
         """
         Extracts the keys from the template
+        :param template:  string
+        :param format_: The format string that contains the key
+        :return A set of keys
         """
         # Leading
         matchs = re.findall(format_, template)
@@ -76,6 +76,14 @@ class MarkupObject:
         return deepcopy(self)
 
     def render(self, data: Optional[Dict[str, str]] = None, **kwargs) -> str:
+        """
+        Render the template with the given data.  If no data is provided, it will use the kwargs.
+        If no kwargs are provided, it will use the data that was saved with the __call__ method.
+        :param data: The data to use to render the template
+        :param kwargs: It is also possible to pass the data as kwargs
+        :return: The rendered template as a string
+        :raise RuntimeError: If a key is defined in the template, but not in the data
+        """
         if data is None:
             data = kwargs
         if len(data) == 0 and self.data is not None:
@@ -99,10 +107,29 @@ class MarkupObject:
 
 class MarkupRenderer(Renderer):
     """
-    Class designed to facilitate the creation of custom reports renderer.  It includes a set of method that helps
-    extract the relevant data from the state object and render in a hierarchical manner.
+    Class designed to facilitate the creation of custom reports builder based on html.
+    It includes a set of method that helps extract the relevant data from the state object and render components in a
+    hierarchical manner.
+    Note: This class is not as flexible and easy to use as I would like it to be so it may change in the near future.
+
+    The class is designed to be derived from.  The user should implement the render method to render the final report.
+
+    Currently, this class can only build single file html reports(, or pdf with a pdf renderer.)
+
+    How to use:
+    1. Create a new class that inherits from this class.
+    2. Implement the render method.
+
+    Example:
+    Check the html renderer or the email renderer for examples.
     """
     def __init__(self, template_path: PurePath = PurePath(f"{os.path.dirname(__file__)}/html_templates")):
+        """
+        :param template_path: The path to the template directory.  The directory should contain a file named main.html
+        It should also contain a directory named components that contains all the components that will be used in the
+        main template.  The css files used as themes should be in the main directory or in a styles subdirectory.  The
+        names of the files are used as the theme names.  Same thing for the scripts.
+        """
         super().__init__()
         self.template_path = template_path
 
@@ -157,7 +184,7 @@ class MarkupRenderer(Renderer):
         """
         Render the component with the given data.  It stores internally the rendered component.
         By default, if a component depends on another component that hasn't been rendered, it is assumed that the
-        component was optional and it will be rendered as an empty string (ignored).
+        component was optional, and it will be rendered as an empty string (ignored).
         :param component: The component name
         :param kwargs: The data to render the component
         :return: The rendered component (text)
@@ -226,6 +253,8 @@ class MarkupRenderer(Renderer):
         """
         Extracts the relevant up-to-date data (current timestep) from the state object and returns it as an array with
         the corresponding security names.
+        :return: The security names and the data as a numpy array.  The data is in the shape (n, 4) where n is the
+        number of securities and the 4 columns are the OHLC data.
         """
         data = state.data[state.main_idx]
         security_names = list(data.keys())
@@ -242,12 +271,15 @@ class MarkupRenderer(Renderer):
     @staticmethod
     def get_ticker_info(ticker: str, data: List[Dict[str, TSData]], main_idx: int) -> Dict[str, float]:
         """
+        Extracts performance data for a given ticker.  It calculates the change in dollars, the change in percent and
+        the current value.
         :return The change in dollars, the change in percent and its current value
         """
         if data is None:
             raise ValueError("No data was provided.  The html renderer needs the data to render the portfolio.")
         if main_idx is None:
-            raise ValueError("No main index was provided.  The html renderer needs the main index to render the portfolio.")
+            raise ValueError("No main index was provided.  The html renderer needs the main index to render the "
+                             "portfolio.")
 
         # Get ticker data
         ticker_data = data[main_idx][ticker].data
@@ -267,7 +299,11 @@ class MarkupRenderer(Renderer):
     @staticmethod
     def render_portfolio(position: Position, ticker_info: Dict[str, float]) -> str:
         """
-        Renders each position as a html row [str]
+        Renders a position as a html row [str].  The columns are: Ticker, Average_buy_price, Quantity, Change ($),
+        Change (%), Unrealized P&L ($), Unrealized P&L (%)
+        :param position: The position object
+        :param ticker_info: The performance data for the ticker
+        :return: The rendered row as a string
         """
         # Columns: Ticker, Average_buy_price, Quantity, Change ($), Change (%), Unrealized P&L ($), Unrealized P&L (%)
         template = ("<tr><td>{{ticker}}</td><td>{{average_buy_price}}</td><td>{{quantity}}</td><td>{{change_dollars}}</td>"
@@ -293,7 +329,11 @@ class MarkupRenderer(Renderer):
     @staticmethod
     def render_signal(signal: TradeOrder):
         """
-        Renders each signal as a html row [str]
+        Renders a signal as a html row [str]
+        The columns are: Timestamp, Ticker, Signal type, Price limit low, Price limit high, Quantity, Quantity borrowed,
+        Expiry.
+        :param signal: The signal object
+        :return: The rendered row as a string
         """
         template = ("<tr><td>{{timestamp}}</td><td>{{ticker}}</td><td>{{signal_type}}</td><td>{{price_limitl}}</td>"
                     "<td>{{price_limith}}</td><td>{{quantity}}</td><td>{{qty_borrowed}}</td><td>{{expiry}}</td></tr>")
@@ -312,7 +352,18 @@ class MarkupRenderer(Renderer):
 
     @staticmethod
     def chart_builder(portfolio_worth: np.ndarray, porfolio_timestamps: pd.DatetimeIndex, index_worth: np.ndarray,
-                      index_timestamps: pd.DatetimeIndex, dark_theme: bool = False, index_name: str = "Index"):
+                      index_timestamps: pd.DatetimeIndex, dark_theme: bool = False,
+                      index_name: str = "Index") -> go.Figure:
+        """
+        Build a performance chart comparing the strategy performance with the index performance.
+        :param portfolio_worth: An array of the portfolio worth
+        :param porfolio_timestamps: The corresponding timestamps
+        :param index_worth: An array of the index worth
+        :param index_timestamps: The corresponding timestamps
+        :param dark_theme: Whether to use a theme meant for dark backgrounds or not
+        :param index_name: The name of the index.  Used as a label in the chart.
+        :return: The chart object.  (plotly figure)
+        """
         if not PLOTLY_INSTALLED:
             raise ImportError("Plotly is not installed.  Please install it to use the HTML renderer.")
 
