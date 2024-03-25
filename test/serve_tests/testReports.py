@@ -40,8 +40,8 @@ days = pd.to_datetime(days)
 
 @Fetch
 def SimulatedFetch(frm: datetime, to: datetime, *args, **kwargs):
-    chart1 = pd.read_csv("test/engine_tests/test_data/AAPL_6mo_1d.csv", index_col="Date")
-    chart2 = pd.read_csv("test/engine_tests/test_data/NVDA_6mo_1d.csv", index_col="Date")
+    chart1 = pd.read_csv("../engine_tests/test_data/AAPL_6mo_1d.csv", index_col="Date")
+    chart2 = pd.read_csv("../engine_tests/test_data/NVDA_6mo_1d.csv", index_col="Date")
     chart1.index = pd.DatetimeIndex(["-".join(str(x).split("-")[:-1]) for x in chart1.index])
     chart2.index = pd.DatetimeIndex(["-".join(str(x).split("-")[:-1]) for x in chart2.index])
     chart1 = chart1.loc[frm:to]
@@ -51,7 +51,7 @@ def SimulatedFetch(frm: datetime, to: datetime, *args, **kwargs):
 
 @Fetch
 def IndexPipe(frm: datetime, to: datetime, *args, **kwargs):
-    chart1 = pd.read_csv("test/engine_tests/test_data/SPY_6mo_1d.csv", index_col="Date")
+    chart1 = pd.read_csv("../engine_tests/test_data/SPY_6mo_1d.csv", index_col="Date")
     chart1.index = pd.DatetimeIndex(["-".join(str(x).split("-")[:-1]) for x in chart1.index])
     chart1 = chart1.loc[frm:to]
     return {"SPY": chart1}

@@ -82,7 +82,6 @@ pip install .
 *Not there yet, comming as soon as possible:)*
 
 ## Contributing
-**TODO**
 
 ## RoadMap
 - [X] Backtest Engine

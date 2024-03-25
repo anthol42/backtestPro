@@ -1,5 +1,6 @@
 from unittest import TestCase
-from src.backtest.data.pipes import Fetch, Process, Collate, Cache, PipeOutput, RevalidateAction, CacheObject
+from src.backtest.data.pipes import Fetch, Process, Collate, Cache, PipeOutput, RevalidateAction, CacheObject, DataPipe
+from src.backtest.data import clear_cache
 from datetime import datetime, timedelta
 import time
 from typing import Optional
@@ -61,6 +62,7 @@ class TestPipes(TestCase):
         self.assertEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], pipe.get(datetime.now(), datetime.now()))
 
     def test_cache(self):
+        clear_cache()
         if os.path.exists(f".cache/{1}.pkl"):
             os.remove(f".cache/{1}.pkl")
         if os.path.exists(f".cache/{1}.json"):
@@ -78,20 +80,22 @@ class TestPipes(TestCase):
             if os.path.exists(f".cache/{pipe_id}.json"):
                 with open(f".cache/{pipe_id}.json", "r") as f:
                     data = json.load(f)
-                    return CacheObject(data["data"], pipe_id, datetime.fromisoformat(data["revalidate"]),
+                    return CacheObject(data["data"], pipe_id, data["hash"],
+                                       datetime.fromisoformat(data["revalidate"]),
                                        data["max_requests"], data["current_n_requests"])
             else:
                 return None
         @Cache(loading_cb=JSON_load, store=True, timeout=timedelta(seconds=1))
-        def MyCache(frm: datetime, to: datetime, *args, po: PipeOutput, pipe_id: int, revalidate: datetime,
+        def MyCache(frm: datetime, to: datetime, *args, po: PipeOutput, pipe_id: int, self: DataPipe, revalidate: Optional[datetime],
                              timeout: timedelta, max_requests: int, n_requests: int, **kwargs):
             value = {
                 "data": po.value,
                 "stored_dt": datetime.now().isoformat(),
-                "revalidate": revalidate.isoformat(),
+                "revalidate": revalidate.isoformat() if revalidate is not None else None,
                 "current_n_requests": n_requests,
                 "timeout": timeout.total_seconds(),
-                "max_requests": max_requests
+                "max_requests": max_requests,
+                "hash": self.hash(),
             }
             if not os.path.exists(".cache"):
                 os.mkdir(".cache")

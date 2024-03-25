@@ -128,7 +128,7 @@ class Cache(DataPipe):
 
     """
     def __init__(self,
-                 caching_cb: Callable[[datetime, datetime, ..., PipeOutput[Any], int, ...], None] = None, *,
+                 caching_cb: Callable[[datetime, datetime, ..., PipeOutput[Any], int, DataPipe, ...], None] = None, *,
                  loading_cb: Callable[[int], CacheObject] = None,
                  revalidate: Optional[datetime] = None,
                  timeout: Optional[timedelta] = None,
@@ -169,7 +169,7 @@ class Cache(DataPipe):
             if self.store:
                 self._cache.store()
         else:
-            self._caching_cb(frm, to, *args, po=po, pipe_id=self.pipe_id, revalidate=self._revalidate,
+            self._caching_cb(frm, to, *args, po=po, pipe_id=self.pipe_id, self=self, revalidate=self._revalidate,
                              timeout=self._timeout, max_requests=self._max_request, n_requests=self._n_requests,
                              **kwargs)
 
