@@ -369,7 +369,7 @@ class MarkupRenderer(Renderer):
     @staticmethod
     def chart_builder(portfolio_worth: np.ndarray, porfolio_timestamps: pd.DatetimeIndex, index_worth: np.ndarray,
                       index_timestamps: pd.DatetimeIndex, dark_theme: bool = False,
-                      index_name: str = "Index") -> go.Figure:
+                      index_name: str = "Index") -> 'go.Figure':
         """
         Build a performance chart comparing the strategy performance with the index performance.
         :param portfolio_worth: An array of the portfolio worth

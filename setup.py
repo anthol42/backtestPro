@@ -12,6 +12,10 @@ setup(
     version=version,
     author="Anthony Lavertu",
     author_email="alavertu2@gmail.com",
+    include_package_data=True,
+    package_data={
+        '': ['*.txt', '*.css', '*.html', "LICENSE"],
+    },
     description="A feature-rich event driven backtesting framework",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -56,6 +60,10 @@ setup(
             "python-crontab>=3.0.0"
         ],
     },
+    entry_points={
+        "console_scripts": [
+            "backtest = backtest.main:main",
+        ],
+    },
     # packages=find_packages(),
-    include_package_data=True,
 )

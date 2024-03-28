@@ -32,7 +32,7 @@ class Template(CliApp):
         if not os.path.exists(absolute_path.parent):
             Error(f"Path '{absolute_path.parent}' does not exist.", ErrorType.InvalidArgumentError)
 
-        shutil.copytree(PurePath(__file__).parent / "template", absolute_path)
+        shutil.copytree(PurePath(__file__).parent / "template", absolute_path, dirs_exist_ok=True)
         if "g" in flags:
             self.init_git(absolute_path)
         print(f"Project created at {absolute_path}")

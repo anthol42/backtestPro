@@ -18,7 +18,7 @@ import json
 from pathlib import PurePath
 from ..renderer import Renderer
 from ..state_signals import StateSignals
-from src.backtest.engine import TradeOrder
+from ...engine import TradeOrder
 from typing import Union, List
 import os
 

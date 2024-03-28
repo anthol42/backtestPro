@@ -17,6 +17,7 @@ Copyright (C) 2024 Anthony Lavertu
 This file implements the show app
 """
 from .cliapp import CliApp, Error, ErrorType
+from pathlib import PurePath
 
 class Show(CliApp):
     def __init__(self):
@@ -58,7 +59,7 @@ an absolute waiver of all civil liability in connection with the
 Program, unless a warranty or assumption of liability accompanies a
 copy of the Program in return for a fee.""")
         elif command == "c":
-            with open("LICENSE", "r") as f:
+            with open(PurePath(__file__).parent.parent / "LICENSE", "r") as f:
                 print(f.read())
         else:
             Error(f"Flag '{command}' unknown.  Available flags are: ['c', 'w']", ErrorType.InvalidArgumentError)

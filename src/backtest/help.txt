@@ -3,7 +3,7 @@ This program comes with ABSOLUTELY NO WARRANTY; for details type `show w'.
 This is free software, and you are welcome to redistribute it
 under certain conditions; type `show c' for details.
 
-syntax: backtest-pro [subcommand] [options]
+syntax: backtest [subcommand] [options]
 
 where [subcommand] is one of:
     - version: Display the version of the program
@@ -12,4 +12,4 @@ where [subcommand] is one of:
     - cron: Schedule a cron job.
     - show: Show license and warranty information.
 
-You can also type backtest-pro [subcommand] help for more information on a specific subcommand.
+You can also type backtest [subcommand] help for more information on a specific subcommand.

@@ -16,11 +16,11 @@ Copyright (C) 2024 Anthony Lavertu
 
 This file is the entry point to the cli interface.  It will route to the appropriate subcommand. (CliApp)
 """
-from cli import CliApp, Error, ErrorType, Show, Template, Cron
+from .cli import CliApp, Error, ErrorType, Show, Template, Cron
 from typing import List, Dict, Tuple, Union
 import sys
 from pathlib import PurePath
-from __version__ import __version__
+from .__version__ import __version__
 class App:
     def __init__(self, apps: Dict[str, CliApp]):
         self.apps = apps
@@ -128,14 +128,16 @@ class App:
         return args, flags, kwargs
 
 
-
-
-if __name__ == "__main__":
+def main():
     apps = {
         "show": Show(),
         "init": Template(),
         "cron": Cron()
     }
     App(apps).run()
+
+
+if __name__ == "__main__":
+    main()
 
 
