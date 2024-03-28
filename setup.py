@@ -1,4 +1,25 @@
+"""
+To automatically increment the version number and package, run:
+    python setup.py sdist version++
+
+To push to pip test:
+    twine upload --repository testpypi dist/*
+"""
 from setuptools import setup, find_packages
+import sys
+
+def increment_version(old: str):
+    s = [int(i) for i in old.split(".")]
+    s[-1] += 1
+    return ".".join(str(i) for i in s)
+
+if "version++" in sys.argv:
+    sys.argv.remove("version++")
+    with open("src/backtest/__version__.py", "r") as f:
+        version = f.read().split("=")[1].strip().strip("\"")
+
+    with open("src/backtest/__version__.py", "w") as f:
+        f.write(f"__version__ = \"{increment_version(version)}\"")
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
@@ -19,9 +40,9 @@ setup(
     description="A feature-rich event driven backtesting framework",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/carcajou666/backtestPro",
+    url="https://github.com/anthol42/backtestPro",
     project_urls={
-        "Issues": "https://github.com/carcajou666/backtestPro/issues",
+        "Issues": "https://github.com/anthol42/backtestPro/issues",
     },
     classifiers=[
         "Programming Language :: Python :: 3",
