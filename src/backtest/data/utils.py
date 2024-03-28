@@ -25,8 +25,7 @@ import os
 import yfinance as yf
 from tqdm import tqdm
 from ..engine import TSData
-import numpy as np
-import numpy.typing as npt
+import time
 
 class JSONCacheObject(CacheObject):
     def store(self):
@@ -147,14 +146,18 @@ class FetchCharts(DataPipe):
                                 list passed during initialization.
     OUT: dict[str, Optional[pd.DataFrame]] where the values are the charts and the keys are the tickers
     """
-    def __init__(self, tickers: Iterable[str] = None, interval: str = "1d", progress: bool = False):
+    def __init__(self, tickers = None, interval: str = "1d", progress: bool = False, throttle: float = 0.,
+                 *args, **kwargs):
         super().__init__(T=DataPipeType.FETCH)
         self.name = "FetchCharts"
         self.tickers = tickers
         self.interval = interval
         self.progress = progress
+        self.throttle = throttle
+        self.args = args
+        self.kwargs = kwargs
 
-    def fetch(self, frm: datetime, to: datetime, *args, po: PipeOutput[Optional[List[str]]], **kwargs) -> PipeOutput:
+    def fetch(self, frm: datetime, to: datetime, *args, po, **kwargs) -> PipeOutput:
         if po is not None and po.value is not None:
             tickers = po.value
         else:
@@ -162,12 +165,18 @@ class FetchCharts(DataPipe):
         charts: Dict[str, Optional[pd.DataFrame]] = {}
         if self.progress:
             for ticker in tqdm(tickers, desc="Fetching Charts"):
-                charts[ticker] = yf.Ticker(ticker).history(start=frm, end=to, interval=self.interval)
+                charts[ticker] = yf.Ticker(ticker).history(start=frm, end=to, interval=self.interval,
+                                                           *self.args, **self.kwargs)
                 if charts[ticker].empty:
                     charts[ticker] = None
+                time.sleep(self.throttle)
         else:
             for ticker in tickers:
-                charts[ticker] = yf.Ticker(ticker).history(start=frm, end=to, interval=self.interval)
+                charts[ticker] = yf.Ticker(ticker).history(start=frm, end=to, interval=self.interval,
+                                                           *self.args, **self.kwargs)
+                if charts[ticker].empty:
+                    charts[ticker] = None
+                time.sleep(self.throttle)
         return PipeOutput(charts, self)
 
 @Process
