@@ -16,7 +16,7 @@ Copyright (C) 2024 Anthony Lavertu
 
 This file is the entry point to the cli interface.  It will route to the appropriate subcommand. (CliApp)
 """
-from cli import CliApp, Error, ErrorType, Show, Template
+from cli import CliApp, Error, ErrorType, Show, Template, Cron
 from typing import List, Dict, Tuple, Union
 import sys
 from pathlib import PurePath
@@ -134,6 +134,7 @@ if __name__ == "__main__":
     apps = {
         "show": Show(),
         "init": Template(),
+        "cron": Cron()
     }
     App(apps).run()
 

@@ -53,6 +53,7 @@ setup(
             "schedule>=1.2.0",
             "kaleido>=0.2.1",
             "weasyprint>=61.2",
+            "python-crontab>=3.0.0"
         ],
     },
     # packages=find_packages(),

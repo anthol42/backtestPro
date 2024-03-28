@@ -9,3 +9,4 @@ setuptools
 schedule
 plotly
 kaleido
+python-crontab
