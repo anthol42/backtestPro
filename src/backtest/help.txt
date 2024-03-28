@@ -3,6 +3,13 @@ This program comes with ABSOLUTELY NO WARRANTY; for details type `show w'.
 This is free software, and you are welcome to redistribute it
 under certain conditions; type `show c' for details.
 
-backtest-pro - Help
+syntax: backtest-pro [subcommand] [options]
 
-Write help here
+where [subcommand] is one of:
+    - version: Display the version of the program
+    - help: Display this help message
+    - init: Create a new backtest-pro project based on the recommended structure.
+    - cron: Schedule a cron job.
+    - show: Show license and warranty information.
+
+You can also type backtest-pro [subcommand] help for more information on a specific subcommand.

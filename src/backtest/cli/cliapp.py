@@ -54,7 +54,10 @@ class CliApp(ABC):
 
     def exec(self, flags: List[str], *args, **kwargs) -> None:
         # Early exit if the user only wanted help
-        if len(args) > 0 and (args[0].strip("-") == "help" or args[0].strip("-") == "h"):
+        if len(args) > 0 and (args[0] == "help" or args[0] == "h"):
+            print(self.help())
+            return
+        elif "help" in flags or "h" in flags:
             print(self.help())
             return
         self.check(flags, args, kwargs)
