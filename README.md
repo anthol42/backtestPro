@@ -88,6 +88,9 @@ If you want to contribute, please read the [CONTRIBUTING.md](CONTRIBUTING.md) fi
 
 Do not forget to add tests for your code and to run all the tests before submitting a pull request.
 
+As contributors and maintainers to this project, you are expected to abide by pandas' code of conduct. More information 
+can be found at: [Contributor Code of Conduct](CODE_OF_CONDUCT.md)
+
 ## RoadMap
 - [X] Backtest Engine
   - [X] Modules (Implementation)
