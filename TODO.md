@@ -1,6 +1,6 @@
 # TODO
 - [X] Implement the cli module
-- [ ] Finish the README.md with the contribution section, the roadmap section and the useful resources section
+- [X] Finish the README.md with the contribution section, the roadmap section and the useful resources section
 - [ ] Try building the documentation with sphinx + theme
 - [ ] Fix documentation bugs
 - [ ] Notebooks tutorials

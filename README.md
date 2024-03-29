@@ -20,6 +20,8 @@ open an issue on the github page.  The api might also change without notice.
 - [License](#license)
 - [Documentation](#documentation)
 - [Contributing](#contributing)
+- [Beware](#beware)
+- [RoadMap](#roadmap)
 
 ## Features
 Here are just a few of the features that **backtest-pro** offers:
@@ -91,53 +93,29 @@ Do not forget to add tests for your code and to run all the tests before submitt
 As contributors and maintainers to this project, you are expected to abide by pandas' code of conduct. More information 
 can be found at: [Contributor Code of Conduct](CODE_OF_CONDUCT.md)
 
+## Beware
+There are a few things to keep in mind when backtesting strategy to avoid unrepresentative results:
+- **Survivorship bias**: Make sure to include all the assets that were available at the time of the backtest, 
+including delisted assets.
+- **Look-ahead bias**: Make sure that your data pipeline does not include data that would not have been available at 
+the time of the backtest.  This could be, for example, normalizing the data with the mean of the whole series or 
+dataset.  It could also be to fetch fundamental data, but not using an appropriate padding, which would cause the 
+fundamental data to be shifted from the price data.  If the data is fetch and preprared correctly, the backtestPro 
+framework will make sure the strategy won't use future data.
+- **Split Bias**: Make sure to include the stock splits in the data.  The backtestPro framework will take care of the
+stock splits.
+- **Dividend Bias**: Make sure to include the dividends in the data.  The backtestPro framework will take care of the
+dividends.
+- **Trading fees**: Make sure to include the trading fees in the backtest.  The backtestPro framework will take care of
+the trading fees if configured correctly (passing the trading fees to the backtest object during initialization).
+
+*Reference: https://seekingalpha.com/performance/quant (Accordion: What are common issues with back testing and performance results?)*
+
 ## RoadMap
-- [X] Backtest Engine
-  - [X] Modules (Implementation)
-  - [X] Unit testing
-  - [X] Integration Testing
-  - [X] Documentation
-- [X] DataPipeline
-  - [X] Modules (Implementation)
-  - [X] Unit testing
-  - [X] Documentation
-- [X] Indicators
-  - [X] Modules (Implementation)
-  - [X] Unit testing
-  - [X] Documentation
-- [X] Server Module
-  - [X] Modules (Implementation)
-  - [X] Prebuilt renderers
-  - [X] Unit testing
-  - [X] Documentation
-- [ ] Final documentation
-- [ ] Render documentation
-- [ ] Make notebooks for examples (tutorial)
-- [ ] Render the notebooks in the documentation
-- [ ] Make a github pages for the documentation
-- [ ] Alpha Release (In a pip module)
----
-Iterative:
-- [ ] Bug Fixes
-- [ ] Add user requested features
---- 
+- [ ] Alpha Release
+  - [X] Code implementation
+  - [ ] Documentation
+  - [ ] Notebooks tutorials
+  - [ ] Make documentation public
 - [ ] Beta Release
----
-Iterative:
-- [ ] Bug Fixes
----
 - [ ] Stable Release
-
-
-## Future imrpovements:
-- Implement the security measures for a safe baktesting from seeking alpha:
-  - URL: https://seekingalpha.com/performance/quant
-  - Check Accordion: What are common issues with back testing and performance results?
-
-
-
-## Useful ressources for the future
-Convert html to pdf: [WeasyPrint](https://weasyprint.org)  
-Compile C++ wheels for multiple platform using GitHub Actions:  https://cibuildwheel.pypa.io/en/stable/
-Package binaries tutorial: https://pybind11.readthedocs.io/en/stable/compiling.html#generating-binding-code-automatically
-Automatically compile c++ code (on the fly, but not for packaging): [cppimport](https://github.com/tbenthompson/cppimport)
