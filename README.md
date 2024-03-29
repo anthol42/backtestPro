@@ -114,7 +114,7 @@ the trading fees if configured correctly (passing the trading fees to the backte
 ## RoadMap
 - [ ] Alpha Release
   - [X] Code implementation
-  - [ ] Documentation
+  - [ ] Documentation (In progress: using pdoc3, [search bar](https://github.com/pdoc3/pdoc/issues/184))
   - [ ] Notebooks tutorials
   - [ ] Make documentation public
 - [ ] Beta Release

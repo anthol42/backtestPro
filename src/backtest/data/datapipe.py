@@ -102,15 +102,23 @@ class CacheObject:
 
 class DataPipeType(Enum):
     """
-    The four types of pipes that can be used in the pipeline.
-    Fetch: Fetch data from an external source (Web, DB, file, api, etc.)
-    Process: Process and transform the data (Filter, transform, etc.)
-    Cache: Cache the output of the pipeline (To avoid to do the previous steps at each runs)
-    Collate: Collate the output of two pipes (This is a special case, it is used to merge two pipelines)
+    [Enum] - An enumeration representing the four types of pipes that can be used in the pipeline.
+
+    - FETCH: Fetch data from an external source (Web, DB, file, API, etc.).
+    - PROCESS: Process and transform the data (Filter, transform, etc.).
+    - CACHE: Cache the output of the pipeline to avoid repeating previous steps on each run.
+    - COLLATE: Collate the output of two pipes (This is a special case, used to merge two pipelines).
     """
+    # Fetch data from an external source (Web, DB, file, API, etc.).
     FETCH = "FETCH"
+
+    # Process and transform the data (Filter, transform, etc.).
     PROCESS = "PROCESS"
+
+    # Cache the output of the pipeline to avoid repeating previous steps on each run.
     CACHE = "CACHE"
+
+    # Collate the output of two pipes (This is a special case, used to merge two pipelines).
     COLLATE = "COLLATE"
 
 
@@ -175,9 +183,10 @@ class PipeOutput(Generic[T_]):
 class RevalidateAction(Enum):
     """
     The three possible revalidation action that a pipe can return.
-    REVALIDATE: Revalidate the cache from the current position to the end of the pipeline
-    FULL_REVALIDATE: Revalidate the cache from the beginning to the end of the pipeline
-    NOOP: Do not revalidate the cache (The pipe will load from cache if it exists)
+
+    - REVALIDATE: Revalidate the cache from the current position to the end of the pipeline
+    - FULL_REVALIDATE: Revalidate the cache from the beginning to the end of the pipeline
+    - NOOP: Do not revalidate the cache (The pipe will load from cache if it exists)
     """
     REVALIDATE = "REVALIDATE"
     FULL_REVALIDATE = "FULL_REVALIDATE"
@@ -211,9 +220,9 @@ class DataPipe(ABC):
         """
         Run the pipeline from the beginning to the end and return the output of the pipeline.
         :param frm: From datetime, this is passed to all pipes and is used to fetch the data from this date to the 'to'
-                date.
+        date.
         :param to: The end datetime, this is passed to all pipes and is used to fetch the data from the 'frm' date to
-                this date.
+        this date.
         :param args: any args that needs to be passed to the subsequent pipes
         :param kwargs: any keyword args that needs to be passed to the subsequent pipes
         :return: The output of the pipeline
