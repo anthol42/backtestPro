@@ -11,13 +11,17 @@ from src.backtest.engine import DividendFrequency
 from src.backtest.engine import Backtest
 from copy import deepcopy
 from src.backtest.indicators import IndicatorSet, TA
-
+import os
+from pathlib import PurePath
 
 class MyStrat(Strategy):
     def run(self, data: List[List[Record]], timestep: datetime):
         pass
 
 class TestBacktest(TestCase):
+
+    def setUp(self):
+        os.chdir(PurePath(__file__).parent)
     def test_reverse_split_norm(self):
         DATA = pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date")
         data = [

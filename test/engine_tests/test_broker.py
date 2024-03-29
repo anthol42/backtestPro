@@ -1929,5 +1929,6 @@ class TestBroker(TestCase):
             return broker
         broker = setup_broker()
         state = broker.get_state()
-        self.assertEqual(Broker.load_state(state, broker.account).get_state(), state)
+        Broker.load_state(state, broker.account).test_eq(broker)
+        self.assertEqual(Broker.load_state(state, broker.account), broker)
 

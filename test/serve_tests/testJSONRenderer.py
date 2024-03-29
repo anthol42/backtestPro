@@ -9,6 +9,7 @@ from datetime import datetime
 import pandas as pd
 from pathlib import PurePath
 import json
+import os
 
 
 orders = {
@@ -34,6 +35,7 @@ def IndexPipe(frm: datetime, to: datetime, *args, **kwargs):
     return {"SPY": chart1}
 class TestJSONRenderer(TestCase):
     def test_render(self):
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
         account = Account(1000)
         broker = Broker(account)
         idx_pipe = IndexPipe() | ToTSData()

@@ -13,6 +13,7 @@ from pathlib import PurePath
 import os
 import shutil
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 class MyStrat(Strategy):
     def run(self, data: RecordsBucket, timestep: datetime):

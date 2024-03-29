@@ -8,6 +8,8 @@ from datetime import datetime, timedelta
 from typing import Tuple, Optional, List, Union
 from unittest import TestCase
 from integration_src.strategy import ComplexGoodStrategy, WeekCashController, ComplexBadStrategy, BadCashController
+import os
+from pathlib import PurePath
 
 
 class MyStrategy(Strategy):
@@ -55,7 +57,8 @@ class TestIntegration(TestCase):
         """
         This if everything runs smoothly without crash.
         """
-        # # Create the metadata
+        os.chdir(PurePath(__file__).parent)
+        # Create the metadata
         metadata = Metadata(description="Integration Test")
         data = [
             {
@@ -75,6 +78,7 @@ class TestIntegration(TestCase):
         """
         This test will verify if the results are accurate
         """
+        os.chdir(PurePath(__file__).parent)
         data = [
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"), name="AAPL-dh"),
@@ -97,6 +101,7 @@ class TestIntegration(TestCase):
         """
         Test margin call, liquidation and bankruptcy
         """
+        os.chdir(PurePath(__file__).parent)
         data = [
             {
                 "AAPL": TSData(pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date"), name="AAPL-dh"),

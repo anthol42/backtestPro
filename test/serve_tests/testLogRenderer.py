@@ -1,3 +1,4 @@
+import os
 from unittest import TestCase
 
 from src.backtest import RecordsBucket
@@ -32,6 +33,7 @@ def IndexPipe(frm: datetime, to: datetime, *args, **kwargs):
 
 class TestLogRenderer(TestCase):
     def test_render(self):
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
         account = Account(1000)
         broker = Broker(account)
         idx_pipe = IndexPipe() | ToTSData()

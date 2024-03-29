@@ -171,7 +171,7 @@ class TestJSONDecoder(TestCase):
 
         # Test complex types
         # Need to set the auto-detected types
-        je.set_detected_types({
+        je.add_detected_types({
             "set": set,
             "frozenset": frozenset,
         })

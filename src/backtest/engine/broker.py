@@ -1353,6 +1353,7 @@ class Broker:
             "portfolio": self.portfolio.get_state(),
             "queued_trade_offers": [offer.export() for offer in self._queued_trade_offers],
             "current_month": str(self._current_month) if self._current_month is not None else None,
+            "month_interests": self._month_interests,
             "last_day": str(self._last_day) if self._last_day is not None else None,
             "last_step": str(self._last_step) if self._last_step is not None else None,
             "message": self.message.export(),
@@ -1383,6 +1384,7 @@ class Broker:
         broker = cls(account)
         broker._last_step = datetime.fromisoformat(data["last_step"]) if data["last_step"] is not None else None
         broker._current_timestamp = datetime.fromisoformat(data["current_timestamp"]) if data["current_timestamp"] is not None else None
+        broker._month_interests = data["month_interests"]
         broker.exposure_time = data["exposure_time"]
         broker._debt_record = deepcopy(data["debt_record"])
         broker.portfolio = Portfolio.load_state(data["portfolio"], broker._debt_record)
@@ -1428,3 +1430,51 @@ class Broker:
                 self._current_timestamp == other._current_timestamp and
                 self.exposure_time == other.exposure_time and
                 self._cache == other._cache)
+
+    def test_eq(self, other):
+        if not isinstance(other, Broker):
+            raise TypeError(f"Invalid type for comparison.  Expected: Broker but got: {type(other)}")
+        if not (self._comm == other._comm):
+            raise ValueError(f"Invalid value for comm.  Expected: {self._comm} but got: {other._comm}")
+        elif not (self._relative == other._relative):
+            raise ValueError(f"Invalid value for relative.  Expected: {self._relative} but got: {other._relative}")
+        elif not (self._current_month == other._current_month):
+            raise ValueError(f"Invalid value for current_month.  Expected: {self._current_month} but got: {other._current_month}")
+        elif not (self.min_maintenance_margin == other.min_maintenance_margin):
+            raise ValueError(f"Invalid value for min_maintenance_margin.  Expected: {self.min_maintenance_margin} but got: {other.min_maintenance_margin}")
+        elif not (self.min_initial_margin == other.min_initial_margin):
+            raise ValueError(f"Invalid value for min_initial_margin.  Expected: {self.min_initial_margin} but got: {other.min_initial_margin}")
+        elif not (self.min_maintenance_margin_short == other.min_maintenance_margin_short):
+            raise ValueError(f"Invalid value for min_maintenance_margin_short.  Expected: {self.min_maintenance_margin_short} but got: {other.min_maintenance_margin_short}")
+        elif not (self.min_initial_margin_short == other.min_initial_margin_short):
+            raise ValueError(f"Invalid value for min_initial_margin_short.  Expected: {self.min_initial_margin_short} but got: {other.min_initial_margin_short}")
+        elif not (self.margin_interest == other.margin_interest):
+            raise ValueError(f"Invalid value for margin_interest.  Expected: {self.margin_interest} but got: {other.margin_interest}")
+        elif not (self.liquidation_delay == other.liquidation_delay):
+            raise ValueError(f"Invalid value for liquidation_delay.  Expected: {self.liquidation_delay} but got: {other.liquidation_delay}")
+        elif not (self._debt_record == other._debt_record):
+            raise ValueError(f"Invalid value for debt_record.  Expected: {self._debt_record} but got: {other._debt_record}")
+        elif not (self.message == other.message):
+            raise ValueError(f"Invalid value for message.  Expected: {self.message} but got: {other.message}")
+        elif not (self._queued_trade_offers == other._queued_trade_offers):
+            raise ValueError(f"Invalid value for queued_trade_offers.  Expected: {self._queued_trade_offers} but got: {other._queued_trade_offers}")
+        elif not (self.portfolio == other.portfolio):
+            raise ValueError(f"Invalid value for portfolio.  Expected: {self.portfolio} but got: {other.portfolio}")
+        elif not (self.account == other.account):
+            raise ValueError(f"Invalid value for account.  Expected: {self.account} but got: {other.account}")
+        elif not (self.n == other.n):
+            raise ValueError(f"Invalid value for n.  Expected: {self.n} but got: {other.n}")
+        elif not (self._month_interests == other._month_interests):
+            raise ValueError(f"Invalid value for month_interests.  Expected: {self._month_interests} but got: {other._month_interests}")
+        elif not (self._last_step == other._last_step):
+            raise ValueError(f"Invalid value for last_step.  Expected: {self._last_step} but got: {other._last_step}")
+        elif not (self._last_day == other._last_day):
+            raise ValueError(f"Invalid value for last_day.  Expected: {self._last_day} but got: {other._last_day}")
+        elif not (self.historical_states == other.historical_states):
+            raise ValueError(f"Invalid value for historical_states.  Expected: {self.historical_states} but got: {other.historical_states}")
+        elif not (self._current_timestamp == other._current_timestamp):
+            raise ValueError(f"Invalid value for current_timestamp.  Expected: {self._current_timestamp} but got: {other._current_timestamp}")
+        elif not (self.exposure_time == other.exposure_time):
+            raise ValueError(f"Invalid value for exposure_time.  Expected: {self.exposure_time} but got: {other.exposure_time}")
+        elif not (self._cache == other._cache):
+            raise ValueError(f"Invalid value for cache.  Expected: {self._cache} but got: {other._cache}")

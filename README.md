@@ -55,6 +55,7 @@ There a few dependencies that are not installed by default.  They are:
 - WeasyPrint: A library that is used to convert html to pdf.  It is used to render the reports in pdf format.
 - kaleido: An optional library of Plotly that is used to render the charts in the reports.
 - schedule: A library that is used to schedule the run of the strategy in production.
+- python-crontab: A library that is used to schedule the run of the strategy in production.
 
 To install the dependencies, you can use the following command:
 ```commandline
@@ -82,6 +83,10 @@ pip install .
 *Not there yet, comming as soon as possible:)*
 
 ## Contributing
+All contributions are welcome.  It can be a bug report, a bug fix, a new feature, a documentation improvement, etc.  
+If you want to contribute, please read the [CONTRIBUTING.md](CONTRIBUTING.md) file.
+
+Do not forget to add tests for your code and to run all the tests before submitting a pull request.
 
 ## RoadMap
 - [X] Backtest Engine

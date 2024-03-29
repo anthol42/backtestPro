@@ -122,7 +122,7 @@ class JSONCache(Cache):
         if os.path.exists(f".cache/{self._pipe_id}.json"):
             je.add_types(**self._custom_types)
             with open(".cache/detected_types.pkl", "rb") as file:
-                je.set_detected_types(pickle.load(file))
+                je.add_detected_types(pickle.load(file))
             out = JSONCacheObject.load(self._pipe_id)
             je.remove_types(*self._custom_types.keys())
             return out

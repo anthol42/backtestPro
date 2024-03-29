@@ -25,6 +25,7 @@ def LoadPipe(*args, **kwargs):
 
 class MyStrat(Strategy):
     def run(self, data: RecordsBucket, timestep: datetime):
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
         # NVDA
         if timestep == datetime(2024, 1, 26):
             self.broker.buy_long("NVDA", 100)  # Buy all on the 29th of January at $612.32
@@ -41,6 +42,7 @@ def param2Dict(**kwargs):
     return kwargs
 class TestJob(TestCase):
     def test_prep_brokers_data(self):
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
         # 1 create data pipe
         pipe = LoadPipe() | ToTSData()
         data = pipe.get(None, None)
@@ -86,6 +88,7 @@ class TestJob(TestCase):
         """
         Test the pipeline in a simulated environment
         """
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
         # Days on which we are going to do the test
         days = ['2024-01-22', '2024-01-23', '2024-01-24', '2024-01-25',
                '2024-01-26', '2024-01-29', '2024-01-30', '2024-01-31',

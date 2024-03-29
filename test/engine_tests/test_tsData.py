@@ -2,6 +2,8 @@ from unittest import TestCase
 from src.backtest.engine import TSData, DividendFrequency
 import pandas as pd
 from datetime import timedelta
+from pathlib import PurePath
+import os
 
 class TestDividendFrequency(TestCase):
     def test_from_delta(self):
@@ -23,9 +25,12 @@ class TestDividendFrequency(TestCase):
 
 
 class TestTSData(TestCase):
-    # Load test data
-    data1d = pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date", parse_dates=True)
-    data5d = pd.read_csv("test_data/AAPL_1y_5d.csv", index_col="Date", parse_dates=True)
+
+    def setUp(self):
+        os.chdir(PurePath(__file__).parent)
+        # Load test data
+        self.data1d = pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date", parse_dates=True)
+        self.data5d = pd.read_csv("test_data/AAPL_1y_5d.csv", index_col="Date", parse_dates=True)
 
     def test_init(self):
         # Test init with 1d data

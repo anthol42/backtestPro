@@ -4,6 +4,8 @@ from datetime import timedelta
 from copy import deepcopy
 from src.backtest.engine import Strategy
 import subprocess
+from pathlib import PurePath
+import os
 
 try:
     GIT_AUTHOR = subprocess.check_output(["git", "config", "user.name"]).decode("utf-8").strip()
@@ -26,6 +28,9 @@ class TestMetadata(TestCase):
     Since the metadata class takes a lot of information from the environement, to ensure reproducable results of the
     test, we will only test if method works and do not throw.
     """
+
+    def setUp(self):
+        os.chdir(PurePath(__file__).parent)
 
     def test___init__(self):
         """

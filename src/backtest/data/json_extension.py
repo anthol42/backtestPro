@@ -49,12 +49,20 @@ def get_detected_types() -> dict[str, type]:
     """
     return DETECTED_TYPES.copy()
 
-def set_detected_types(types: dict[str, type]):
+def add_detected_types(types: dict[str, type]):
     """
     Load the detected types into the JSONDecoder.  Can be useful to restor the state of the module
     :param types: A dictionary of types to add to the JSONDecoder [str: class]
     """
     DETECTED_TYPES.update(types)
+
+def set_detected_types(types: dict[str, type]):
+    """
+    Load the detected types into the JSONDecoder.  Can be useful to restor the state of the module
+    :param types: A dictionary of types to add to the JSONDecoder [str: class]
+    """
+    global DETECTED_TYPES
+    DETECTED_TYPES = types
 
 class JSONEncoder(json.JSONEncoder):
     """
