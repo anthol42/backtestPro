@@ -1,19 +1,17 @@
-"""
-Copyright (C) 2024 Anthony Lavertu
-
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""
+# Copyright (C) 2024 Anthony Lavertu
+#
+#     This program is free software: you can redistribute it and/or modify
+#     it under the terms of the GNU General Public License as published by
+#     the Free Software Foundation, either version 3 of the License, or
+#     (at your option) any later version.
+#
+#     This program is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#     GNU General Public License for more details.
+#
+#     You should have received a copy of the GNU General Public License
+#     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from abc import ABC
 from typing import List, Union, Optional, Any, Iterator, TypeVar, Generic
 from enum import Enum
@@ -132,6 +130,13 @@ class PipeOutput(Generic[T_]):
     """
     def __init__(self, value: T_, output_from: 'DataPipe', revalidate_action: Optional['RevalidateAction'] = None,
                  **kwargs):
+        """
+        Args:
+            value: The value
+            output_from: The output from the pipe
+            revalidate_action: The revalidate action
+            **kwargs:
+        """
         if "value" in kwargs:
             raise ValueError("value is a reserved keyword, you cannot use it as a keyword argument in PipeOutput.__init__")
         if "output_from" in kwargs:
