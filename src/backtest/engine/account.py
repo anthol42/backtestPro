@@ -18,6 +18,13 @@ from typing import List
 from enum import Enum
 
 class CollateralUpdateType(Enum):
+    """
+[Enum] The type of collateral update.  Can be:
+
+- ADD
+- REMOVE
+- UPDATE
+    """
     ADD = "ADD"
     REMOVE = "REMOVE"
     UPDATE = "UPDATE"
