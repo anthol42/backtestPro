@@ -1,7 +1,19 @@
 # TODO
 - [X] Implement the cli module
 - [X] Finish the README.md with the contribution section, the roadmap section and the useful resources section
-- [ ] Try building the documentation with sphinx + theme
+- [ ] Try building the documentation
+  - [X] Format doc for decorator objects
+  - [X] Flatten modules
+  - [ ] Do not display items that do not have a docstring (var, functions, classes, methods, etc.)
+  - [ ] Add navbar
+  - [ ] Make a logo
+  - [ ] Link to other parts of the documentation
+  - [ ] Make the render doc cleaner + automatically create the folders, the assets, etc.
+  - [ ] Markdown renderer to themed html
+  - [ ] Build home page renderer (from markdown)
+  - [ ] Build the Get Started page (from markdown)
+  - [ ] Build the About page (from markdown)
+  - [ ] Build tutorial templates
 - [ ] Fix documentation bugs
 - [ ] Notebooks tutorials
 - [ ] Render the documentation + notebooks + blog section

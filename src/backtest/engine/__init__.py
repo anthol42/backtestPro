@@ -1,3 +1,6 @@
+"""
+This module contains the logic to run the backtest.
+"""
 # Copyright (C) 2024 Anthony Lavertu
 #
 #     This program is free software: you can redistribute it and/or modify

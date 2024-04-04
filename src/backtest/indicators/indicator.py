@@ -90,6 +90,8 @@ class Indicator:
         if self._name is None:
             self._name = cb.__name__
         self._cb = cb
+        self.__doc__ = cb.__doc__
+        self.__wrapped__ = cb    # Essential in order to extract the object when building the documentation.
 
     def set_params(self, **params: Any) -> None:
         """
