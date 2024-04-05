@@ -6,7 +6,7 @@
   - [X] Flatten modules
   - [ ] Do not display items that do not have a docstring (var, functions, classes, methods, etc.)
   - [ ] Add navbar
-  - [ ] Make a logo
+  - [X] Make a logo
   - [ ] Link to other parts of the documentation
   - [ ] Make the render doc cleaner + automatically create the folders, the assets, etc.
   - [ ] Markdown renderer to themed html

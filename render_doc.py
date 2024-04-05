@@ -2,6 +2,8 @@ import pdoc
 import re
 from pdoc.cli import recursive_write_files, _generate_lunr_search
 from typing import Optional
+from pathlib import PurePath
+import inspect
 
 FLATTEN_DOC = True
 """
@@ -41,31 +43,43 @@ def docFilter(doc: pdoc.Doc):
 
 mod = pdoc.Module(pdoc.import_module("src/backtest"), docfilter=docFilter)
 
-def flatten_module(module: pdoc.Module, ref_module: Optional[pdoc.Module] = None, blacklist: Optional[set[str]] = None):
+def rename_module_alias(module: pdoc.Module):
+    members = {name: obj for name, obj in inspect.getmembers(module.obj)}
+    modules = {name: m for name, m in module.doc.items() if isinstance(m, pdoc.Module)}
+    for alias, m in members.items():
+        if inspect.ismodule(m) and alias[0] != "_" and m.__file__ is not None:
+            name = PurePath(m.__file__).name.split(".")[0]
+            if alias != name and name != "__init__":
+                pdoc_module = modules[name]
+                pdoc_module.name = module.name + "." + alias
+def flatten_module(module: pdoc.Module, ref_module: Optional[dict[str, pdoc.Module]] = None,
+                   whitelist: Optional[dict[str, set[str]]] = None, refModuleName: Optional[str] = None):
     """
-    Make all the objects in the submodules part of the main module
+    Make the documentation looks more like the true api by linking objects imported from __init__ file inside index
+    pages.  It also resolves alias modules (Not done by default in pdoc).
+    This method is recursive.
+    :param module: The module to flatten
+    :param ref_module: The reference module where to insert the objects
+    :param whitelist: The whitelist of objects to insert (Imported by the __init__ file)
+    :param refModuleName: The reference module name
+    :return: None
     """
-    if blacklist is None:
-        blacklist = set()
-    # Inserting the objects in the main module
-    if ref_module is not None:
-        objects = {name: item for name, item in module.doc.items() if not isinstance(item, pdoc.Module)}
-        for obj in objects.values():
-            obj.module = ref_module
-            if hasattr(obj, "doc") and len(obj.doc) > 0:
-                for doc in obj.doc.values():
-                    doc.module = ref_module
-        ref_module.module.doc.update(objects)
-    # Flattening sub-modules
-    sub_modules = [name for name, m in module.module.doc.items() if isinstance(m, pdoc.Module)]
+    if whitelist is None:
+        whitelist = {}
     if ref_module is None:
-        ref_module = module
-    for name in sub_modules:
-        if name not in blacklist:
-            flatten_module(module.doc[name], ref_module, blacklist)
+        ref_module = {module.name: module}
+    if PurePath(module.obj.__file__).name == "__init__.py":
+        members = [name for name, obj in inspect.getmembers(module.obj) if name[0] != "_" and not inspect.ismodule(obj)]
+        whitelist[module.name] = set(members)
+        sub_modules = [name for name, m in module.module.doc.items() if isinstance(m, pdoc.Module)]
+        rename_module_alias(module)
+        for name in sub_modules:
+            flatten_module(module.doc[name], ref_module, whitelist, refModuleName=module.name)
 
-    # Removing the sub-modules from the main module
-    module.doc = {name: item for name, item in module.doc.items() if not isinstance(item, pdoc.Module) or name in blacklist}
+    # Inserting the objects in the main module
+    if ref_module.get(refModuleName) is not None:
+        objects = {name: item for name, item in module.doc.items() if not isinstance(item, pdoc.Module) and name in whitelist[refModuleName]}
+        ref_module[refModuleName].doc.update(objects)
     return module
 
 if FLATTEN_DOC:
@@ -76,7 +90,7 @@ if FLATTEN_DOC:
     # Engine
     flatten_module(mod.doc["engine"])
     # Serve
-    flatten_module(mod.doc["serve"], blacklist={"renderers"})
+    flatten_module(mod.doc["serve"])
     flatten_module(mod.doc["serve"].doc["renderers"])
 
 pdoc.link_inheritance()

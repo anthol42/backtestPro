@@ -32,6 +32,7 @@ class Fetch(DataPipe):
         """
         super().__init__(DataPipeType.FETCH, name=cb.__name__)
         self._cb = cb
+        self.__wrapped__ = self._cb
         self._called = False
 
     def __call__(self):
@@ -57,6 +58,7 @@ class Process(DataPipe):
         """
         super().__init__(DataPipeType.PROCESS, name=cb.__name__)
         self._cb = cb
+        self.__wrapped__ = self._cb
         self._called = False
 
     def __call__(self):
@@ -83,6 +85,7 @@ class Collate(DataPipe):
         """
         super().__init__(DataPipeType.COLLATE, name=cb.__name__)
         self._cb = cb
+        self.__wrapped__ = self._cb
 
     def __call__(self, po1: DataPipe, po2: DataPipe) -> DataPipe:
         new = deepcopy(self)
@@ -157,6 +160,7 @@ class Cache(DataPipe):
         new = deepcopy(self)
         if caching_cb is not None:
             new._caching_cb = caching_cb
+            new.__wrapped__ = caching_cb
             new.name = caching_cb.__name__
         return new
 
