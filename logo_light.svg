@@ -1,0 +1,19 @@
+<svg width="810" height="200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Candlesticks -->
+  <!-- Candlestick 1 -->
+  <rect x="55" y="150" width="30" height="10" fill="#4CAF50" />
+  <line x1="70" y1="165" x2="70" y2="145" stroke="#4CAF50" stroke-width="4" />
+  <!-- Candlestick 2 -->
+  <rect x="95" y="110" width="30" height="40" fill="#4CAF50" />
+  <line x1="110" y1="160" x2="110" y2="100" stroke="#4CAF50" stroke-width="4" />
+  <!-- Candlestick 3 -->
+  <rect x="135" y="45" width="30" height="70" fill="#4CAF50" />
+  <line x1="150" y1="130" x2="150" y2="30" stroke="#4CAF50" stroke-width="4" />
+
+    <!-- Circle -->
+  <circle cx="105" cy="100" r="90" stroke="#575757" stroke-width="17" fill="none" />
+
+  <!-- Text -->
+  <text x="225" y="135" font-family="Arial" font-size="100" fill="#575757" font-style="italic" font-weight="bold">BacktestPro</text>
+  <line x1="225" y1="155" x2="807" y2="155" stroke="#575757" stroke-width="15" />
+</svg>
