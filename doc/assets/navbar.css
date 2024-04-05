@@ -1,0 +1,23 @@
+#navbar-end{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+
+.logo__image{
+    height: 45px;
+}
+
+.navbar-container{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+#navbar-end{
+
+    gap: 15px;
+
+}

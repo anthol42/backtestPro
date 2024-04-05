@@ -1,7 +1,7 @@
 <nav class="navbar navbar-light navbar-expand-lg bg-light fixed-top shadow-sm" id="navbar-main">
-    <div class="navbar-container container-xl">
+    <div class="navbar-container" style="padding-left: 20px">
             <a class="navbar-brand logo" href="#">
-                <img alt="Logo image" class="logo__image only-light" src="logo_light.svg">
+                <img alt="Logo image" class="logo__image only-light" src="${absolute_path}/assets/logo_light.svg">
             </a>
             <div class="col-lg-9 navbar">
                 <div class="mr-auto" id="navbar-center">
@@ -27,8 +27,14 @@
                             </li>
 
                             <li class="toctree-l1 nav-item">
+                                <a class="reference internal nav-link" href="#">
+                                    CLI Documentation
+                                </a>
+                            </li>
+
+                            <li class="toctree-l1 nav-item">
                                 <a class="reference internal nav-link active" href="#">
-                                    Documentation
+                                    API Documentation
                                 </a>
                             </li>
 
@@ -53,7 +59,7 @@
                         <ul aria-label="Icon Links" class="navbar-nav" id="navbar-icon-links">
                             <li class="nav-item">
                                 <a class="nav-link" href="https://github.com/anthol42/backtestPro" rel="noopener" target="_blank"
-                                   title="GitHub"><img alt="GitHub" class="icon-link" src="github-mark.svg"
+                                   title="GitHub"><img alt="GitHub" class="icon-link" src="${absolute_path}/assets/github-mark.svg"
                                                        style="height: 1.2em; margin: 0px; padding: 0px;"></a>
                             </li>
                         </ul>

@@ -1,3 +1,7 @@
+import shutil
+import cairosvg
+from PIL import Image
+import io
 import pdoc
 import re
 from pdoc.cli import recursive_write_files, _generate_lunr_search
@@ -24,7 +28,8 @@ pdoc.tpl_lookup.directories.insert(0, './doc/templates')
 template_config = {'lunr_search': {'index_docstrings': True},
                    'list_class_variables_in_index': True,
                    'show_source_code': False,
-                   'show_inherited_members': True}
+                   'show_inherited_members': True,
+                   'absolute_path': '/finBacktest/build/backtest'}
 documented_modules = {
     "data",
     "engine",
@@ -197,3 +202,15 @@ lunr_config = pdoc._get_config(**template_config).get('lunr_search')
 if lunr_config is not None:
     _generate_lunr_search(
         modules, lunr_config.get("index_docstrings", True), template_config)
+
+shutil.copytree("doc/assets", "build/backtest/assets", dirs_exist_ok=True)
+
+def svg_to_ico(svg_file, output_ico, sizes=((64, 64), )):
+    # Convert SVG to PNG
+    png_data = cairosvg.svg2png(url=svg_file, output_width=max(s[0] for s in sizes), output_height=max(s[0] for s in sizes))
+
+    # Convert PNG to ICO
+    with Image.open(io.BytesIO(png_data)) as img:
+        img.save(output_ico, sizes=sizes)
+
+svg_to_ico("doc/assets/logo_small_light.svg", "build/backtest/assets/favicon.ico", sizes=((64, 64), ))

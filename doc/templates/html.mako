@@ -380,6 +380,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
   <meta name="generator" content="pdoc ${pdoc.__version__}" />
+  <link rel="icon" type="image/x-icon" href="${absolute_path}/assets/favicon.ico">
   <link href='/finbacktest/build/backtest/assets/bootstrap.min.css' rel='stylesheet', type='text/css'>
   <link href="/finbacktest/build/backtest/assets/navbar.css" rel="stylesheet" type="text/css">
   <script src="/finbacktest/build/backtest/assets/bootstrap.min.js"></script>
