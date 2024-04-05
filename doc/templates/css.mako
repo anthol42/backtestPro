@@ -322,6 +322,7 @@
       font-size: 1em;
     }
     main {
+      margin-top: 60px;
       display: flex;
       flex-direction: row-reverse;
       justify-content: flex-end;

@@ -380,6 +380,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
   <meta name="generator" content="pdoc ${pdoc.__version__}" />
   <link href='/finbacktest/build/backtest/assets/bootstrap.min.css' rel='stylesheet', type='text/css'>
+  <link href="/finbacktest/build/backtest/assets/navbar.css" rel="stylesheet" type="text/css">
   <script src="/finbacktest/build/backtest/assets/bootstrap.min.js"></script>
   <script>
     function navigateToUrl(url) {
@@ -436,9 +437,9 @@
     <script>window.addEventListener('DOMContentLoaded', () => hljs.initHighlighting())</script>
   % endif
 
-  <%include file="head.mako"/>
 </head>
 <body>
+  <%include file="head.mako"/>
 <main>
   % if module_list:
     <article id="content">

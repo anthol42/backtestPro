@@ -5,18 +5,18 @@
 <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/tingle/0.15.3/tingle.min.css" integrity="sha512-j1u8eUJ4f23xPPxwOrLUPQaCD2dwzNqqmDDcWS4deWsMv2ohLqmXXuP3hU7g8TyzbMSakP/mMqoNBYWj8AEIFg==" crossorigin>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/tingle/0.15.3/tingle.min.js" integrity="sha512-plGUER9JkeEWPPqQBE4sdLqBoQug5Ap+BCGMc7bJ8BXkm+VVj6QzkpBz5Yv2yPkkq+cqg9IpkBaGCas6uDbW8g==" crossorigin></script>
 <style>
-    .modal-dialog iframe {
+    .modal-box iframe {
         width: 100vw;
         height: calc(100vh - 80px);
     }
     @media screen and (min-width: 700px) {
-        .modal-dialog iframe {
+        .modal-box iframe {
             width: 70vw;
             height: 80vh;
         }
     }
-    .modal-dialog .tingle-modal-box {width: auto;}
-    .modal-dialog .tingle-modal-box__content {padding: 0;}
+    .modal-box .tingle-modal-box {width: auto;}
+    .modal-box .tingle-modal-box__content {padding: 0;}
 </style>
 <script>
     const input = document.getElementById('lunr-search');
@@ -38,13 +38,13 @@
     function search(query) {
         const url = '${'../' * module.url().count('/')}doc-search.html#' + encodeURIComponent(query);
         new tingle.modal({
-            cssClass: ['modal-dialog'],
+            cssClass: ['modal-box'],
             onClose: () => {
                 const url = new URL(window.location);
                 url.searchParams.delete('q');
                 history.replaceState({}, null, url.toString());
                 setTimeout(() => input.focus(), 100);
             }
-        }).setContent('<iframe src="' + url + '"></iframe>').open();
+        }).setContent('<div class="embed-responsive embed-responsive-16by9"><iframe class="embed-responsive-item" src="' + url + '"></iframe></div>').open();
     }
 </script>
