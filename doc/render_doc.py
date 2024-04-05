@@ -11,6 +11,8 @@ import inspect
 from enum import EnumType
 import os
 import sys
+from utils import render_page
+
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + "/..")
 sys.path.append(os.getcwd())
 
@@ -27,13 +29,13 @@ backtest
 Instead of having a structure based on the file tree.
 """
 VERBOSE = 1    # 0: No output, 1: Ignored objects (Because no docstring)
-pdoc.cli.args.output_dir = "build"
-pdoc.tpl_lookup.directories.insert(0, './doc/templates')
+pdoc.cli.args.output_dir = "build/docs"
+pdoc.tpl_lookup.directories.insert(0, './doc/templates/pdoc')
 template_config = {'lunr_search': {'index_docstrings': True},
                    'list_class_variables_in_index': True,
                    'show_source_code': False,
                    'show_inherited_members': True,
-                   'absolute_path': '/finBacktest/build/backtest'}
+                   'absolute_path': '/finBacktest/build'}
 documented_modules = {
     "data",
     "engine",
@@ -206,7 +208,7 @@ if lunr_config is not None:
     _generate_lunr_search(
         modules, lunr_config.get("index_docstrings", True), template_config)
 
-shutil.copytree("doc/assets", "build/backtest/assets", dirs_exist_ok=True)
+shutil.copytree("doc/assets", "build/assets", dirs_exist_ok=True)
 
 def svg_to_ico(svg_file, output_ico, sizes=((64, 64), )):
     # Convert SVG to PNG
@@ -216,4 +218,7 @@ def svg_to_ico(svg_file, output_ico, sizes=((64, 64), )):
     with Image.open(io.BytesIO(png_data)) as img:
         img.save(output_ico, sizes=sizes)
 
-svg_to_ico("doc/assets/logo_small_light.svg", "build/backtest/assets/favicon.ico", sizes=((64, 64),))
+svg_to_ico("doc/assets/logo_small_light.svg", "build/assets/favicon.ico", sizes=((64, 64),))
+
+# Render the home page
+render_page("home")

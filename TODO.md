@@ -8,9 +8,9 @@
   - [X] Add navbar
   - [X] Make a logo
   - [ ] Link to other parts of the documentation
-  - [ ] Make the render doc cleaner + automatically create the folders, the assets, etc.
-  - [ ] Markdown renderer to themed html
-  - [ ] Build home page renderer (from markdown)
+  - [X] Make the render doc cleaner + automatically create the folders, the assets, etc.
+  - [X] Template for basic pages
+  - [X] Build home page
   - [ ] Build the Get Started page (from markdown)
   - [ ] Build the About page (from markdown)
   - [ ] Build tutorial templates

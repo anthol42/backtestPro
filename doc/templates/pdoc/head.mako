@@ -9,7 +9,7 @@
                     <div class="navbar-center-item">
                         <ul class="navbar-nav" id="navbar-main-elements">
                             <li class="toctree-l1 nav-item">
-                                <a class="reference internal nav-link" href="#">
+                                <a class="reference internal nav-link" href="${absolute_path}/home.html">
                                     Home
                                 </a>
                             </li>
@@ -33,15 +33,14 @@
                             </li>
 
                             <li class="toctree-l1 nav-item">
-                                <a class="reference internal nav-link active" href="#">
+                                <a class="reference internal nav-link active" href="${absolute_path}/docs/backtest">
                                     API Documentation
                                 </a>
                             </li>
 
 
                             <li class="nav-item">
-                                <a class="nav-link nav-external" href="#">About<i
-                                        class="fas fa-external-link-alt"></i></a>
+                                <a class="nav-link nav-external" href="#">About</a>
                             </li>
 
                         </ul>

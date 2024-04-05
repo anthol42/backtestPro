@@ -1,0 +1,59 @@
+<h1>Backtestpro - The next generation backtesting framework</h1>
+<p><strong>Backtest-Pro</strong> is a framework that provides a way to test complex strategies in an environment that is
+    designed to
+    look as much as possible to the real world. This way, the historical results are more likely to reflect the
+    real world results. It is an <strong>event-driven</strong> backtesting framework that is designed to be as flexible
+    as possible and
+    as complete as possible. It supports <strong>end-to-end</strong> quant pipeline from data fetching to production
+    release.<br/>
+    <strong>Also, it has the broader goal of becoming the most complete backtesting framework available for python
+        finely tuned
+        for professional applications.</strong></p>
+<p><strong>Note:</strong> It is currently in early alpha. The api might change without notice. Bugs are expected and
+    could make the
+    results of the backtest invalid. Always double-check the results with your own code. If you find a bug, please open
+    an issue on the github page.</p>
+<h1>Features</h1>
+<p>Here are just a few of the features that <strong>backtest-pro</strong> offers:</p>
+<ul>
+    <li><strong>DataPiplines</strong>
+        <ul>
+            <li>An easy to use data pipeline api that makes building a data pipeline a breeze.</li>
+            <li>A pipeline built with the api is easy to maintain and easy to understand.</li>
+            <li>Support caching for more efficient pipelines.</li>
+        </ul>
+    </li>
+    <li><strong>Backtest</strong>
+        <ul>
+            <li>Backtest with a single or with multiple assets simultaneously</li>
+            <li>Feed a moving window to the strategy</li>
+            <li>Multiple time resolution simultaneously</li>
+            <li>Take into account:
+                <ul>
+                    <li>Trading fees</li>
+                    <li>Margin rates</li>
+                    <li>Margin calls</li>
+                    <li>Stock splits</li>
+                    <li>Dividends</li>
+                </ul>
+            </li>
+            <li>Records a lot of metrics for easier analysis and debugging.</li>
+        </ul>
+    </li>
+    <li><strong>Release</strong>
+        <ul>
+            <li>Use the same code as used in the backtest in production.</li>
+            <li>Only a few lines of codes are necessary to build a production pipeline that can run on a server or
+                locally.
+            </li>
+            <li>Automatic reporting of the results using report builders. (Html, pdf)</li>
+            <li>Easy integration with other services such as api for algorithmic trading.</li>
+        </ul>
+    </li>
+</ul>
+<h1>Installation</h1>
+<p>To install <strong>backtest-pro</strong>, you can use pip:</p>
+<div class="code-container">
+    <button class="copy-button"><i class="fas fa-copy"></i></button>
+    <pre><code class="language-shell">pip install backtest-pro</code></pre>
+</div>
