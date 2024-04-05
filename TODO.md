@@ -4,7 +4,7 @@
 - [ ] Try building the documentation
   - [X] Format doc for decorator objects
   - [X] Flatten modules
-  - [ ] Do not display items that do not have a docstring (var, functions, classes, methods, etc.)
+  - [X] Do not display items that do not have a docstring (var, functions, classes, methods, etc.)
   - [ ] Add navbar
   - [X] Make a logo
   - [ ] Link to other parts of the documentation

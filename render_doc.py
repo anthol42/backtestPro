@@ -4,6 +4,7 @@ from pdoc.cli import recursive_write_files, _generate_lunr_search
 from typing import Optional
 from pathlib import PurePath
 import inspect
+from enum import EnumType
 
 FLATTEN_DOC = True
 """
@@ -17,7 +18,7 @@ backtest
         renderers
 Instead of having a structure based on the file tree.
 """
-
+VERBOSE = 1    # 0: No output, 1: Ignored objects (Because no docstring)
 pdoc.cli.args.output_dir = "build"
 pdoc.tpl_lookup.directories.insert(0, './doc/templates')
 template_config = {'lunr_search': {'index_docstrings': True},
@@ -42,6 +43,34 @@ def docFilter(doc: pdoc.Doc):
         return False
 
 mod = pdoc.Module(pdoc.import_module("src/backtest"), docfilter=docFilter)
+
+def delete_no_doc(module: pdoc.Module):
+    """
+    Recursively Delete the objects that have no docstring or their docstring is "NO DOC"
+    :param module: The module to clean
+    """
+    for key, value in list(module.doc.items()):
+        if isinstance(value, pdoc.Module):
+            delete_no_doc(value)
+        elif isinstance(value, pdoc.Class) and not isinstance(value.obj, EnumType):   # Enum are handled differently
+            if value.docstring == "NO DOC":
+                print(f"Deleting {key} from {module.name}") if VERBOSE > 0 else None
+                del module.doc[key]
+            for method_name, method in list(value.doc.items()):
+                if method.docstring == "":
+                    print(f"Deleting {method_name} from {key} in {module.name}") if VERBOSE > 0 else None
+                    del value.doc[method_name]
+            if len(value.doc) == 0:
+                print(f"Deleting {key} from {module.name}") if VERBOSE > 0 else None
+                del module.doc[key]
+        elif isinstance(value.obj, EnumType):
+            if value.docstring == "NO DOC":
+                print(f"Deleting {key} from {module.name}") if VERBOSE > 0 else None
+                del module.doc[key]
+        elif value.docstring == "":
+            print(f"Deleting {key} from {module.name}") if VERBOSE > 0 else None
+            del module.doc[key]
+delete_no_doc(mod)
 
 def rename_module_alias(module: pdoc.Module):
     members = {name: obj for name, obj in inspect.getmembers(module.obj)}

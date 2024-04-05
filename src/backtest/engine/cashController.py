@@ -22,6 +22,7 @@ from enum import Enum
 from typing import Union, Tuple, Optional, List
 
 class CashControllerTimeframe(Enum):
+    __doc__ = "NO DOC"
     DAY = "DAY"
     WEEK = "WEEK"
     MONTH = "MONTH"

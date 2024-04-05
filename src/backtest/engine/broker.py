@@ -289,19 +289,68 @@ class Broker:
 
     def buy_long(self, ticker: str, amount: int, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
                  price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
+        """
+        The strategy calls this method to open a long position.  The position can be bought on margin.
+        :param ticker: The ticker of the security to buy
+        :param amount: The amount of shares to buy
+        :param amount_borrowed: The amount of shares to buy on margin.  (Won't be charged in the account)
+        :param expiry: The expiry date of the order.  If the order is not executed before the expiry date, it is
+                        automatically cancelled.  If the expiry date is None, the order is never cancelled.
+        :param price_limit: The price limit of the order.  The first value of the tuple is the maximum price to buy.
+        Meaning the order will be executed if the price is lower or equal to the limit.  The second value is the minimum
+        price to buy.  Meaning the order will be executed if the price is higher or equal to the limit.  If the limit is
+        (None, None) the order will be executed at the next open price.
+        :return: None
+        """
         self._queued_trade_offers.append(BuyLongOrder(self._current_timestamp, ticker, price_limit, amount,
                                                       amount_borrowed, expiry))
 
     def sell_long(self, ticker: str, amount: int, expiry: Optional[datetime] = None,
                  price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
+        """
+        The strategy calls this method to close a long position.
+        :param ticker: The ticker of the security to sell
+        :param amount: The amount of shares to sell
+        :param expiry: The expiry date of the order.  If the order is not executed before the expiry date, it is
+                        automatically cancelled.  If the expiry date is None, the order is never cancelled.
+        :param price_limit: The price limit of the order.  The first value of the tuple is the minimum price to sell
+        (Stop loss). Meaning the order will be executed if the price is lower or equal to the limit.  The second value
+        is the maximum price to sell.  Meaning the order will be executed if the price is higher or equal to the limit.
+        If the limit is (None, None) the order will be executed at the next open price.
+        :return: None
+        """
         self._queued_trade_offers.append(SellLongOrder(self._current_timestamp, ticker, price_limit, amount, 0, expiry))
 
     def sell_short(self, ticker: str, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
                  price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
+        """
+        The strategy calls this method to open a short position.
+        :param ticker: The ticker of the security to sell
+        :param amount_borrowed: The amount of shares to sell short.
+        :param expiry: The expiry date of the order.  If the order is not executed before the expiry date, it is
+                        automatically cancelled.  If the expiry date is None, the order is never cancelled.
+        :param price_limit: The price limit of the order.  The first value of the tuple is the minimum price to sell.
+        Meaning the order will be executed if the price is lower or equal to the limit.  The second value is the maximum
+         price to sell.  Meaning the order will be executed if the price is higher or equal to the limit.
+        If the limit is (None, None) the order will be executed at the next open price.
+        :return: None
+        """
         self._queued_trade_offers.append(SellShortOrder(self._current_timestamp, ticker, price_limit, 0, amount_borrowed, expiry))
 
     def buy_short(self, ticker: str, amount_borrowed: int = 0, expiry: Optional[datetime] = None,
                  price_limit: Tuple[Optional[float], Optional[float]] = (None, None)):
+        """
+        The strategy calls this method to close a short position.
+        :param ticker: The ticker of the security to buy
+        :param amount_borrowed: The amount of shares to buy back.
+        :param expiry: The expiry date of the order.  If the order is not executed before the expiry date, it is
+                        automatically cancelled.  If the expiry date is None, the order is never cancelled.
+        :param price_limit: The price limit of the order.  The first value of the tuple is the maximum price to buy.
+        Meaning the order will be executed if the price is lower or equal to the limit.  The second value is the minimum
+        price to buy.  Meaning the order will be executed if the price is higher or equal to the limit.  If the limit is
+        (None, None) the order will be executed at the next open price.
+        :return: None
+        """
         self._queued_trade_offers.append(BuyShortOrder(self._current_timestamp, ticker, price_limit, 0, amount_borrowed, expiry))
 
     def tick(self, timestamp: datetime, next_timestamp, security_names: List[str], current_tick_data: np.ndarray,
