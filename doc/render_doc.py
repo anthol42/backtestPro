@@ -9,6 +9,10 @@ from typing import Optional
 from pathlib import PurePath
 import inspect
 from enum import EnumType
+import os
+import sys
+os.chdir(os.path.dirname(os.path.abspath(__file__)) + "/..")
+sys.path.append(os.getcwd())
 
 FLATTEN_DOC = True
 """
@@ -48,7 +52,6 @@ def docFilter(doc: pdoc.Doc):
         return False
 
 mod = pdoc.Module(pdoc.import_module("src/backtest"), docfilter=docFilter)
-
 def delete_no_doc(module: pdoc.Module):
     """
     Recursively Delete the objects that have no docstring or their docstring is "NO DOC"
@@ -213,4 +216,4 @@ def svg_to_ico(svg_file, output_ico, sizes=((64, 64), )):
     with Image.open(io.BytesIO(png_data)) as img:
         img.save(output_ico, sizes=sizes)
 
-svg_to_ico("doc/assets/logo_small_light.svg", "build/backtest/assets/favicon.ico", sizes=((64, 64), ))
+svg_to_ico("doc/assets/logo_small_light.svg", "build/backtest/assets/favicon.ico", sizes=((64, 64),))
