@@ -150,7 +150,7 @@
                       'Module'} <code>${module.name.split(".")[-1]}</code></h1>
   % endif
   </header>
-
+  <div class="content-container">
   <section id="section-intro">
   ${module.docstring | to_html}
   ${show_source(module)}
@@ -278,6 +278,7 @@
     </dl>
     % endif
   </section>
+  </div>
 </%def>
 
 <%def name="module_index(module)">

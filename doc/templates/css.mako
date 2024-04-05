@@ -302,17 +302,24 @@
 
 <%def name="desktop()" filter="minify_css">
   @media screen and (min-width: 700px) {
+    .module-list{
+      min-height: 100vh;
+    }
     #sidebar {
       width: 30%;
       height: 100vh;
       overflow: auto;
       position: sticky;
-      top: 0;
+      top: 80px;
+    }
+    .content-container{
+      min-height: 100vh;
     }
     #content {
       width: 70%;
       max-width: 100ch;
       padding: 3em 4em;
+      margin-top: 20px;
       border-left: 1px solid #ddd;
     }
     pre code {
@@ -322,7 +329,7 @@
       font-size: 1em;
     }
     main {
-      margin-top: 60px;
+      ## margin-top: 80px;
       display: flex;
       flex-direction: row-reverse;
       justify-content: flex-end;
