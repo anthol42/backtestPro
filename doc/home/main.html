@@ -1,29 +1,73 @@
-<h1>Backtestpro - The next generation backtesting framework</h1>
-<p><strong>Backtest-Pro</strong> is a framework that provides a way to test complex strategies in an environment that is
-    designed to
-    look as much as possible to the real world. This way, the historical results are more likely to reflect the
-    real world results. It is an <strong>event-driven</strong> backtesting framework that is designed to be as flexible
-    as possible and
-    as complete as possible. It supports <strong>end-to-end</strong> quant pipeline from data fetching to production
-    release.<br/>
-    <strong>Also, it has the broader goal of becoming the most complete backtesting framework available for python
-        finely tuned
-        for professional applications.</strong></p>
+  <div id="home-header">
+      <img alt="Logo image" class="big-logo" src="/finBacktest/build/assets/logo_light.svg">
+      <h2 id="home-short-desc">Feature rich backtesting framework</h2>
+  </div>
+  <div id="home-card-presentation" class="container" style="max-width: 1100px;">
+      <div class="row" style="display:flex; justify-content: space-between; margin: 15px;">
+      <div class="card shadow" style="width: 20rem; height: 15rem;">
+          <div class="card-body">
+              <h5 class="card-title>">End-to-End</h5>
+              <p class="card-text">Work with the same code and framework from data fetching and processing to algorithmic production release by passing through the backtesting step.</p>
+          </div>
+      </div>
+      <div class="card shadow" style="width: 20rem; height: 15rem;">
+          <div class="card-body">
+              <h5 class="card-title>">Easy</h5>
+              <p class="card-text">Build complex strategies that are tested in near real-world conditions in few lines of code</p>
+          </div>
+      </div>
+      <div class="card shadow" style="width: 20rem; height: 15rem;">
+          <div class="card-body">
+              <h5 class="card-title>">Customizable</h5>
+              <p class="card-text">If the default behavior isn't what you are expecting, you can customize a lot of parts to make your backtest as representative as possible.</p>
+          </div>
+      </div>
+      </div>
+      <div class="row" style="display:flex; justify-content: space-between; margin: 15px;">
+      <div class="card shadow" style="width: 20rem; height: 15rem;">
+          <div class="card-body">
+              <h5 class="card-title>">Event-Driven</h5>
+              <p class="card-text">An event-driven backtesting framework.</p>
+          </div>
+      </div>
+      <div class="card shadow" style="width: 20rem; height: 15rem;">
+          <div class="card-body">
+              <h5 class="card-title>">Representative</h5>
+              <p class="card-text">The open-source event-driven backtesting framework that is the most representative of real-world conditions</p>
+          </div>
+      </div>
+      <div class="card shadow" style="width: 20rem; height: 15rem;">
+          <div class="card-body">
+              <h5 class="card-title>">AI Friendly</h5>
+              <p class="card-text">It is really easy to implement a machine learning / deep learning model as a strategy.</p>
+          </div>
+      </div>
+      </div>
+  </div>
+  <div class="container">
 <p><strong>Note:</strong> It is currently in early alpha. The api might change without notice. Bugs are expected and
     could make the
     results of the backtest invalid. Always double-check the results with your own code. If you find a bug, please open
     an issue on the github page.</p>
-<h1>Features</h1>
+<h1>KEY FEATURES & CAPABILITIES</h1>
 <p>Here are just a few of the features that <strong>backtest-pro</strong> offers:</p>
-<ul>
-    <li><strong>DataPiplines</strong>
-        <ul>
+      <div class="container" style="max-width: 1300px; margin-bottom: 80px;">
+      <div class="row" style="display:flex; justify-content: space-between; margin: 15px;">
+          <div class="card shadow" style="width: 25rem; height: 30rem;">
+          <div class="card-body">
+              <h5 class="card-title>">DataPipelines</h5>
+              <p class="card-text">Build complex datapipelines to fetch, transform and cache data from different sources in only few lines of code.</p>
+              <ul>
             <li>An easy to use data pipeline api that makes building a data pipeline a breeze.</li>
-            <li>A pipeline built with the api is easy to maintain and easy to understand.</li>
-            <li>Support caching for more efficient pipelines.</li>
+            <li>Easy to maintain and Easy to understand.</li>
+            <li>Support Caching for more efficient pipelines.</li>
         </ul>
-    </li>
-    <li><strong>Backtest</strong>
+          </div>
+        </div>
+          <div class="card shadow" style="width: 25rem; height: 30rem;">
+          <div class="card-body">
+              <h5 class="card-title>">Backtest</h5>
+              <p class="card-text">Backtest your strategies in environments looking as similar as possible to real-world environments.</p>
         <ul>
             <li>Backtest with a single or with multiple assets simultaneously</li>
             <li>Feed a moving window to the strategy</li>
@@ -39,21 +83,27 @@
             </li>
             <li>Records a lot of metrics for easier analysis and debugging.</li>
         </ul>
-    </li>
-    <li><strong>Release</strong>
-        <ul>
-            <li>Use the same code as used in the backtest in production.</li>
+          </div>
+        </div>
+                    <div class="card shadow" style="width: 25rem; height: 30rem;">
+          <div class="card-body">
+              <h5 class="card-title>">Release</h5>
+              <p class="card-text">Release your strategy in production on a server, or locally on your computer in only a few lines of code.</p>
+              <ul>
+            <li>Use the same code used in the backtest in production.</li>
             <li>Only a few lines of codes are necessary to build a production pipeline that can run on a server or
                 locally.
             </li>
-            <li>Automatic reporting of the results using report builders. (Html, pdf)</li>
+            <li>Automatic reporting of the results using report builders. (HTML, PDF)</li>
             <li>Easy integration with other services such as api for algorithmic trading.</li>
         </ul>
-    </li>
-</ul>
-<h1>Installation</h1>
-<p>To install <strong>backtest-pro</strong>, you can use pip:</p>
-<div class="code-container">
-    <button class="copy-button"><i class="fas fa-copy"></i></button>
-    <pre><code class="language-shell">pip install backtest-pro</code></pre>
-</div>
+          </div>
+        </div>
+      </div>
+      </div>
+<h1>Getting started and installation</h1>
+<p>To install the module and see quick code example, check out our <a href="get_started.html">Get Started</a> page</p>
+
+      <h1>Tutorials</h1>
+      <p>To learn how to use the api and become a pro of backtesting, check-out our <a href="tutorials">Tutorials</a>.</p>
+  </div>

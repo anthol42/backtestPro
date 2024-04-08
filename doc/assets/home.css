@@ -1,0 +1,18 @@
+#home-header {
+  margin-top: 72px;
+  display: flex;
+  background-color: #f0f0f0;
+  padding: 10px;
+  height: 200px;
+  justify-content: center;
+  gap: 50px;
+  align-items: center;
+}
+#home-short-desc{
+  font-size: 3em;
+  font-weight: bold;
+}
+
+.big-logo {
+  height: 150px;
+}

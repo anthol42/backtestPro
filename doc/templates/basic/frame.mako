@@ -7,6 +7,7 @@
   <link href='${absolute_path}/assets/bootstrap.min.css' rel='stylesheet', type='text/css'>
   <link href="${absolute_path}/assets/navbar.css" rel="stylesheet" type="text/css">
   <link href="${absolute_path}/assets/basic.css" rel="stylesheet" type="text/css">
+  <link href="${absolute_path}/assets/home.css" rel="stylesheet" type="text/css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" crossorigin="anonymous" />
   <script src="${absolute_path}/assets/bootstrap.min.js"></script>
   <title>${page_title}</title>
@@ -14,9 +15,7 @@
 </head>
 <body>
   <%include file="head.mako"/>
-  <div class="container">
     ${page_content}
-  </div>
   <div class="divider"></div>
   <footer id="footer">
     <%include file="footer.mako"/>
