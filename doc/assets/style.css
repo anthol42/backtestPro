@@ -1,0 +1,85 @@
+    #tableOfContents {
+      position: fixed;
+      top: 0;
+      margin-top: 75px;
+      left: 0;
+      height: 100%;
+      overflow-y: auto;
+      background-color: #f8f9fa; /* Change as needed */
+      border-right: 1px solid #dee2e6; /* Change as needed */
+    }
+    /* Styling for the active section link */
+.active-section {
+  color: green !important; /* Change as needed */
+}
+.toc-doc {
+    margin-top: 100px;
+    margin-left: 350px;
+}
+
+.shell-box{
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    background-color: #f6f8fa;
+    overflow: auto !important;
+    position: relative !important;
+    box-sizing: border-box;
+    unicode-bidi: isolate;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    font-size: 16px;
+    line-height: 1.5;
+    word-wrap: break-word;
+    padding: 16px;
+}
+
+pre {
+    margin: 0;
+}
+
+.copy-button-container {
+    position: relative;
+}
+.copy-button {
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 0px 0px;
+    background-color: rgba(0, 0, 0, 0); /* GitHub's copy button color */
+    color: rgba(0, 0, 0, 0); /* Text color */
+    border: none;
+    border-radius: 0 4px 0 4px; /* Rounded corners on the left side */
+    cursor: pointer;
+    font-size: 16px;
+}
+
+/* Hover effect */
+.shell-box:hover .copy-button {
+    color: #878787; /* Icon color on hover */
+}
+
+/* Icon styling */
+.copy-button i {
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+}
+
+/* Icon positioning */
+.copy-button i {
+    position: relative;
+    top: 1px;
+    margin-right: 5px;
+}
+
+h2 {
+    margin-top: 34px;
+    margin-bottom: 24px;
+    font-size: 36px;
+    font-weight: 600;
+    line-height: 1.25;
+}
+
+.code-header{
+margin-top: 50px;
+}

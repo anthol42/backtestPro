@@ -12,8 +12,10 @@
   - [X] Template for basic pages
   - [X] Build home page
   - [ ] Build the Get Started page (from markdown)
+    - [ ] Make the example and render it in the mako template
   - [ ] Build the About page (from markdown)
   - [ ] Build tutorial templates
+  - [ ] Link the navbar to the pages
 - [ ] Fix documentation bugs
 - [ ] Notebooks tutorials
 - [ ] Render the documentation + notebooks + blog section

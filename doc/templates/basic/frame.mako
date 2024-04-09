@@ -8,6 +8,7 @@
   <link href="${absolute_path}/assets/navbar.css" rel="stylesheet" type="text/css">
   <link href="${absolute_path}/assets/basic.css" rel="stylesheet" type="text/css">
   <link href="${absolute_path}/assets/home.css" rel="stylesheet" type="text/css">
+  <link href="${absolute_path}/assets/style.css" rel="stylesheet" type="text/css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" crossorigin="anonymous" />
   <script src="${absolute_path}/assets/bootstrap.min.js"></script>
   <title>${page_title}</title>
@@ -23,17 +24,67 @@
 </footer>
 </body>
   <script>
-      document.querySelectorAll('.copy-button').forEach(button => {
-      button.addEventListener('click', () => {
-        const codeElement = button.parentElement.querySelector('pre');
-        const codeText = codeElement.textContent;
+    function copyToClipboard(button) {
+      var preElement = button.parentNode.previousElementSibling;
+      var codeElement = preElement.querySelector('code');
+      var codeText = codeElement.textContent || codeElement.innerText;
 
-        navigator.clipboard.writeText(codeText).then(() => {
-          console.log('Code copied to clipboard');
-        }).catch(err => {
-          console.error('Failed to copy code: ', err);
+      navigator.clipboard.writeText(codeText).then(function() {
+        button.innerHTML = '<i class="far fa-check-circle"></i>';
+        button.classList.add('copied');
+
+        setTimeout(function() {
+          button.innerHTML = '<i class="far fa-copy"></i>';
+          button.classList.remove('copied');
+        }, 3000);
+      }).catch(function(error) {
+        console.error('Failed to copy: ', error);
+      });
+    }
+        document.addEventListener('DOMContentLoaded', function() {
+      // Get all section links
+      const sectionLinks = document.querySelectorAll('#toc a');
+
+      // Function to handle scroll synchronization
+      function syncScroll() {
+        const fromTop = window.scrollY;
+        sectionLinks.forEach(link => {
+          const section = document.querySelector(link.hash);
+          if (section.offsetTop <= fromTop + 100 && section.offsetTop + section.offsetHeight > fromTop + 100) {
+            link.classList.add('active-section');
+          } else {
+            link.classList.remove('active-section');
+          }
+        });
+      }
+
+      // Add scroll event listener to sync scroll position
+      window.addEventListener('scroll', syncScroll);
+
+      // Add click event listeners to section links to smoothly scroll to the respective section
+      sectionLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+          e.preventDefault();
+          const targetId = this.hash;
+          const targetSection = document.querySelector(targetId);
+          window.scrollTo({
+            top: targetSection.offsetTop - 100, // Adjust as needed for any fixed headers
+            behavior: 'smooth'
+          });
         });
       });
     });
+    document.querySelectorAll('.copy-button').forEach(button => {
+    button.addEventListener('click', () => {
+      const codeElement = button.parentElement.querySelector('pre');
+      const codeText = codeElement.textContent;
+
+      navigator.clipboard.writeText(codeText).then(() => {
+        console.log('Code copied to clipboard');
+      }).catch(err => {
+        console.error('Failed to copy code: ', err);
+      });
+    });
+  });
   </script>
 </html>

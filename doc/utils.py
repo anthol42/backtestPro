@@ -7,9 +7,13 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)) + "/..")
 sys.path.append(os.getcwd())
 
 def render_page(path: str):
-    # Load the html file
-    with open(f"doc/{path}/main.html", "r") as f:
-        html = f.read()
+    if os.path.exists(f"doc/{path}/main.html"):
+        # Load the html file
+        with open(f"doc/{path}/main.html", "r") as f:
+            html = f.read()
+    else:
+        with open(f"doc/{path}/main.mako", "r") as f:
+            html = f.read()
 
     # Load config
     with open(f"doc/{path}/config.json", "r") as f:

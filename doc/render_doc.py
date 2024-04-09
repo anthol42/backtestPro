@@ -222,3 +222,7 @@ svg_to_ico("doc/assets/logo_small_light.svg", "build/assets/favicon.ico", sizes=
 
 # Render the home page
 render_page("home")
+
+# Render the get started page
+render_page("get_started")
+

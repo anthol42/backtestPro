@@ -15,7 +15,7 @@
                             </li>
 
                             <li class="toctree-l1 nav-item">
-                                <a class="reference internal nav-link" href="#">
+                                <a class="reference internal nav-link" href="${absolute_path}/get_started.html">
                                     Get Started
                                 </a>
                             </li>
