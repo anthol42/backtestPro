@@ -230,3 +230,34 @@ def CausalImpute(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, pd
     :return: pd.DataFrame
     """
     return {ticker: chart.ffill() for ticker, chart in po.value.items()}
+
+
+@Process
+def PadNan(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, Optional[pd.DataFrame]]], **kwargs):
+    """
+    This pipe will pad the charts (dataframes) with NaNs.  It will reindex them with the longest index found in the
+    data.  The index will be the same for all the charts.
+    :param frm: From datetime
+    :param to:  to datetime
+    :param args: Args passed to the pipe
+    :param po: Previous Pipe output. Must be a dictionary of charts (ticker, pd.DataFrame)
+    :param kwargs: The keyword arguments passed to the pipe
+    :return: pd.DataFrame
+    """
+    data = po.value
+    index = None
+    out = {}
+    # Get the longest index
+    for ticker, chart in data.items():
+        if index is None:
+            index = chart.index
+            continue
+
+        if len(chart.index) > len(index):
+            index = chart.index
+
+    # Pad the dataframes with NaNs
+    for ticker, chart in data.items():
+        out[ticker] = chart.reindex(index)
+
+    return out

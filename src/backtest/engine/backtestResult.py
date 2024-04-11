@@ -27,6 +27,7 @@ import json
 from pathlib import PurePath
 from .utils import *
 from . import backtest
+from ..__version__ import __version__
 from typing import Optional
 
 class Period(Enum):
@@ -336,7 +337,7 @@ class BackTestResult:
             "sys_info":{
                 "software": {
                     "python": get_py_version(),
-                    "finBacktest": backtest.__version__
+                    "BacktestPro": __version__
                 },
                 "platform": get_platform(),
                 "hardware": get_hardware()
@@ -355,7 +356,9 @@ class BackTestResult:
         broker = Broker.load_state(data["run_states"]["broker"], account)
         self = cls(data["stats"]["strategy_name"], metadata, datetime.fromisoformat(data["stats"]["start"]),
                    datetime.fromisoformat(data["stats"]["end"]), data["metadata"]["backtest_parameters"]["initial_cash"],
-                   np.array(data["run_states"]["market_index"]), broker, account,
+                   data["stats"]["added_cash"],
+                   np.array(data["run_states"]["market_index"]) if data["run_states"]["market_index"] is not None else None,
+                   broker, account,
                    risk_free_rate=data["metadata"]["backtest_parameters"]["risk_free_rate"])
 
         self.equity_history = data["run_states"]["equity_history"]

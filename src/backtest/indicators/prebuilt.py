@@ -145,3 +145,13 @@ def EMA(data: np.ndarray, index: List[datetime], features: List[str], previous_d
             return prev_sma[:, np.newaxis]
         else:
             return ta.EMA(data[:, 3], timeperiod=period)[:, np.newaxis]
+
+@Indicator(out_feat=["MACD", "MACD_SIGNAL", "MACD_HIST"], fastperiod=int, slowperiod=int, signalperiod=int)
+def MACD(data: np.ndarray, index: List[datetime], features: List[str], previous_data: np.ndarray,
+         fastperiod: int = 12, slowperiod: int = 26, signalperiod: int = 9) -> np.ndarray:
+    """
+    Data is a 2D numpy array with the shape (n, f) where n is the number of observations.  The first 4 columns of the
+    array are the OHLC data.
+    """
+    macd, signal, hist = ta.MACD(data[:, 3], fastperiod=fastperiod, slowperiod=slowperiod, signalperiod=signalperiod)
+    return np.concatenate([macd[:, np.newaxis], signal[:, np.newaxis], hist[:, np.newaxis]], axis=1)

@@ -101,6 +101,9 @@ class Records:
     def __iter__(self):
         return iter(self.records.items())
 
+    def __contains__(self, item):
+        return item in self.records
+
     def numpy(self) -> npt.NDArray[np.float64]:
         out = []
         for ticker in self.tickers:

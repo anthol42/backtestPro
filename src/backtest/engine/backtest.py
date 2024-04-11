@@ -58,6 +58,8 @@ class Backtest:
         """
         :param data: The data on which to run the backtest.  It is a list of dictionaries where each dictionary
                         represents a group of time series data.  The key is the ticker and the value is the TSData object.
+                        IMPORTANT: The length of each time series (charts) must be the same with the same index.  If
+                        they are not, you need to pad the data with nan.
         :param strategy: The strategy to test
         :param metadata: A metadata object.  This is useful to store information about the backtest to add context.
         :param market_index: The TSData object containing the reference market index.  (Used to compare the strategy
@@ -596,7 +598,7 @@ class Backtest:
 
             # Normalize the price and volume of window according to splits
             multiplier = cropped["Stock Splits"].max()
-            cropped = cropped.iloc[start_idx:]
+            cropped = cropped.iloc[start_idx:].copy()
             if multiplier > 0:
                 cropped["Open"] /= multiplier
                 cropped["High"] /= multiplier

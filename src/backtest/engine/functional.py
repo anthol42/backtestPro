@@ -1,3 +1,6 @@
+"""
+This module contains multiple helper function to execute a backtest.
+"""
 # Copyright (C) 2024 Anthony Lavertu
 #
 #     This program is free software: you can redistribute it and/or modify
@@ -12,9 +15,10 @@
 #
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <https://www.gnu.org/licenses/>.
-"""
-Module to manage complex data pipelines.
-"""
-from .datapipe import DataPipe, RevalidateAction, DataPipeType, PipeOutput, CacheObject, clear_cache
-from .pipes import Fetch, Process, Collate, Cache
-from .utils import JSONCache, FetchCharts, FilterNoneCharts, ToTSData, CausalImpute, PadNan
+import pandas as pd
+
+def crossover(series1: pd.Series, series2: pd.Series):
+    return (series1.iloc[-1] > series2.iloc[-1]) & (series1.iloc[-2] < series2.iloc[-2])
+
+def descending(series: pd.Series):
+    return series.iloc[-1] < series.iloc[-2]

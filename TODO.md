@@ -1,6 +1,8 @@
 # TODO
 - [X] Implement the cli module
 - [X] Finish the README.md with the contribution section, the roadmap section and the useful resources section
+- [ ] Make portfolio handle split
+- [ ] Make backtest trigger the split method of the portfolio when a split happens
 - [ ] Try building the documentation
   - [X] Format doc for decorator objects
   - [X] Flatten modules
