@@ -11,5 +11,5 @@ plotly
 kaleido
 python-crontab
 pdoc3
-mkdocs
-mkdocs-material
+notebook
+nbconvert

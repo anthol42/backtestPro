@@ -131,3 +131,7 @@ margin-top: 80px;
   font-weight: bold;
   text-align: center;
 }
+
+.nav-item-dynamic:hover {
+    background-color: rgba(0, 0, 0, 0.1); /* Adjust the last value for transparency */
+}

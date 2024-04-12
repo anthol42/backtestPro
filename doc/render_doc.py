@@ -11,7 +11,7 @@ import inspect
 from enum import EnumType
 import os
 import sys
-from utils import render_page, render_mako_page
+from utils import render_page, render_mako_page, render_tutorials
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + "/..")
 sys.path.append(os.getcwd())
@@ -208,6 +208,22 @@ if lunr_config is not None:
     _generate_lunr_search(
         modules, lunr_config.get("index_docstrings", True), template_config)
 
+
+# Render the home page
+render_page("home")
+
+# Render the get started page
+render_mako_page("get_started")
+
+render_page("about")
+
+
+# Render the tutorials
+render_tutorials()
+
+
+
+# Finally, handle assets
 shutil.copytree("doc/assets", "build/assets", dirs_exist_ok=True)
 
 def svg_to_ico(svg_file, output_ico, sizes=((64, 64), )):
@@ -219,11 +235,3 @@ def svg_to_ico(svg_file, output_ico, sizes=((64, 64), )):
         img.save(output_ico, sizes=sizes)
 
 svg_to_ico("doc/assets/logo_small_light.svg", "build/assets/favicon.ico", sizes=((64, 64),))
-
-# Render the home page
-render_page("home")
-
-# Render the get started page
-render_mako_page("get_started")
-
-render_page("about")

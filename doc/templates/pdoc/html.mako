@@ -382,7 +382,7 @@
   <meta name="generator" content="pdoc ${pdoc.__version__}" />
   <link rel="icon" type="image/x-icon" href="${absolute_path}/assets/favicon.ico">
   <link href='${absolute_path}/assets/bootstrap.min.css' rel='stylesheet', type='text/css'>
-  <link href="${absolute_path}/assets/navbar.css" rel="stylesheet" type="text/css">
+  <link href="${absolute_path}/assets/style.css" rel="stylesheet" type="text/css">
   <script src="${absolute_path}/assets/bootstrap.min.js"></script>
   <script>
     function navigateToUrl(url) {
