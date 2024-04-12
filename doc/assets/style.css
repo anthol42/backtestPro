@@ -24,3 +24,103 @@ h2 {
     font-weight: 600;
     line-height: 1.25;
 }
+
+.container{
+    align-items: center;
+    margin-top: 100px;
+}
+h1 {
+   margin-top: 40px;
+    border-bottom: 2px solid #000;
+    width: 80%;
+}
+
+#footer {
+font-size: .75em;
+padding: 5px 30px;
+border-top: 1px solid #ddd;
+text-align: right;
+margin-top: 80px;
+}
+#footer p {
+  margin: 0 0 0 1em;
+  display: inline-block;
+}
+#footer p:last-child {
+  margin-right: 30px;
+}
+
+#footer_container{
+    display: flex;
+    flex-direction: column;
+    justify-content: right;
+}
+
+/* NavBar*/
+#navbar-end{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+}
+
+.logo__image{
+    height: 45px;
+}
+
+.navbar-container{
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+#navbar-end{
+
+    gap: 15px;
+
+}
+
+#home-header {
+  margin-top: 72px;
+  display: flex;
+  background-color: #f0f0f0;
+  padding: 10px;
+  height: 200px;
+  justify-content: center;
+  gap: 50px;
+  align-items: center;
+}
+#home-short-desc{
+  font-size: 3em;
+  font-weight: bold;
+}
+
+.big-logo {
+  height: 150px;
+}
+
+
+.description-container {
+  margin-top: 100px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 50px;
+  width: 80%;
+  max-width: 600px;
+}
+.description-container .paragraph{
+  margin-top: 40px;
+}
+
+.paragraph h2{
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 1.5em;
+    font-weight: bold;
+}
+
+.paragraph p{
+    font-family: Arial, Helvetica, sans-serif;
+}

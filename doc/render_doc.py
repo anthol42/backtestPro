@@ -226,3 +226,4 @@ render_page("home")
 # Render the get started page
 render_mako_page("get_started")
 
+render_page("about")

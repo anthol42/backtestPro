@@ -45,6 +45,7 @@
     padding: 5px 30px;
     border-top: 1px solid #ddd;
     text-align: right;
+    margin-top: 4em;
   }
     #footer p {
       margin: 0 0 0 1em;

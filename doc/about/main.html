@@ -1,12 +1,79 @@
-<!--TODO: Continue the page    -->
-<h1>Backtestpro - The next generation backtesting framework</h1>
-<p><strong>Backtest-Pro</strong> is a framework that provides a way to test complex strategies in an environment that is
-    designed to
-    look as much as possible to the real world. This way, the historical results are more likely to reflect the
-    real world results. It is an <strong>event-driven</strong> backtesting framework that is designed to be as flexible
-    as possible and
-    as complete as possible. It supports <strong>end-to-end</strong> quant pipeline from data fetching to production
-    release.<br/>
-    <strong>Also, it has the broader goal of becoming the most complete backtesting framework available for python
-        finely tuned
-        for professional applications.</strong></p>
+<div class="description-container">
+    <h1>Backtestpro - The next generation open-source backtesting framework</h1>
+
+    <div class="paragraph">
+        <h2>Why another backtesting framework?</h2>
+        <p>There are a wide variety of open-source backtesting framework. This is due to the fact that everyone has its
+            own idea and preference on how a backtesting engine should work, so they make their own implementation. This
+            is kind of why I created this framework: I wanted to have something more flexible, and more complete than
+            what I found on the market. I wanted to have a framework that is designed to be as close as possible to the
+            real world, and that is designed to be as flexible as possible. I also wanted a framework that was well
+            integrated, and could spare most of the non-datascience development time. This means that the datascientist
+            or quant can invest more time at actually developing the strategy than setting up the code around to
+            strategy to fetch the data, make the backtest work, or deploy the strategy. This is why I created this
+            framework: A complete and flexible framework, the most realistic framework I found in the open-source, and
+            the one that gives you the best bang for your buck in productive time (based on my opinion).
+        </p>
+    </div>
+
+    <div class="paragraph">
+        <h2>What to expect</h2>
+        <p>
+            This framework was created by aiming to build a system that could test complex strategies that can work on
+            multiple assets types (stocks, crypto, derivatives, etc.) at multiple time-resolutions and simulate
+            conditions that looks as much as possible to the real world. This has been created for datascientists and
+            quants that designed their strategy with statistical or machine learning models, and that want to test them
+            in a realistic environment. This framework will provide accurate results on how a strategy would have
+            performed in the past. It will also facilitate the deployment of the strategy in a production environment.
+            In addition, the framework provides a module to facilitate the construction of complex data pipelines.
+            However, this framework hasn't been designed to be fast. In fact, it is quite slow compared to other
+            backtesting frameworks. This is due to the fact that it needs to make a lot of computation at every
+            time-steps to simulate real-world conditions (Handling splits, dividends, computing indicators, etc.).
+            However, if used correctly, it shouldn't be a problem. In fact, the backtest module of the framework was
+            designed to be the last step of a strategy development. At prior steps, the strategy can be optimized on
+            faster and simpler or vector-based backtesting framework (or even a simple loop over the data). Once we are
+            confident that the strategy should be good, then we can test it on this framework to see how it would have
+            performed in the past. This is the goal of this framework. If your strategy is used for high-frequency
+            trading, this framework is not for you, for now. If there is a big demand for it, it might be implemented in
+            the future.
+        </p>
+    </div>
+
+    <div class="paragraph">
+        <h2>Why integrate this framework in my strategy development workflow?</h2>
+        <p>
+            As said before, the backtest module of this framework is designed to be in the last steps of a strategy
+            development. It can provide you with powerful insights on how your strategy could perform in real-world
+            scenarios. It can be the last line of defence before deploying a strategy in production. It can give you
+            more confidence in your strategy, or help you find the flaws before deploying it. However, this framework
+            can be integrated at every step of the workflow. Inf act, it comes with a package that helps you build
+            complex data pipelines in a really intelligible way at the firsts steps of the workflow. This can save you a
+            lot of time in the long run and help the maintenance team to understand the code more easily and fix the
+            pipeline more quickly in production. Finally, it can help you deploy your strategy in only few lines of code
+            for the last step of the workflow. In addition, it is a project in active development ,so if you believe
+            some features are missing, you can contribute to the project and add them or add a feature request on
+            GitHub. This is the power of open-source.
+        </p>
+    </div>
+
+    <div class="paragraph">
+        <h2>Alternatives</h2>
+        <p>
+            If you read this, and you think that this framework doesn't fit your needs, or you want to use it and want
+            another framework for quicker computations, here are some alternatives that you can use:
+        </p>
+        <ul>
+            <li><a href="https://kernc.github.io/backtesting.py/">backtesting.py</a>: A <b>simple</b> and quick
+                backtesting framework that can be used for simple strategies. (Single stocks)
+            </li>
+            <li><a href="https://vectorbt.dev/">vectorbt</a>: A vectorized backtesting framework that can be used for
+                simple strategies. (Single stocks, but <b>really fast</b>)
+            </li>
+        </ul>
+        <p>
+            If you like the initiative, but the features you need aren't implemented yet, you can contribute to the
+            project or add a feature request on GitHub. We are open to any suggestions, and we will try to implement
+            them as soon as possible. Welcome to the community!
+        </p>
+    </div>
+</div>
