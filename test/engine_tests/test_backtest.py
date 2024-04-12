@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from src.backtest.engine import TSData
 from src.backtest.engine import Strategy
 from typing import List
-from src.backtest.engine import Record
+from src.backtest.engine import Record, RecordsBucket, Records
 from src.backtest.engine import DividendFrequency
 from src.backtest.engine import Backtest
 from copy import deepcopy
@@ -88,6 +88,43 @@ class TestBacktest(TestCase):
                              [np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, np.nan],])
         res = bcktst._reverse_split_norm(hist2)
         np.testing.assert_array_almost_equal(res.values, expected, decimal=2)
+
+    def test_handle_splits(self):
+        # Step 1: Initialize data
+        chart1 = pd.DataFrame(data=[[100, 101, 99, 100, 1e6, 0., 0.],
+                                    [101, 102, 100, 101, 1e6, 0., 0.],
+                                    [102, 103, 101, 102, 1e6, 0., 2.]],
+                              columns=["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"],
+                              index=pd.date_range(start="2021-01-01", periods=3, freq="D"))
+        chart2 = pd.DataFrame(data=[[20, 20.5, 19., 20.25, 1e5, 0., 0.],
+                                    [20.5, 21., 20., 20.5, 1e5, 0., 0.],
+                                    [21., 21.5, 20.5, 21., 1e5, 0., 0.]],
+                                columns=["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"],
+                                index=pd.date_range(start="2021-01-01", periods=3, freq="D"))
+        records = [
+            Record(chart1, "AAPL", 0, False, False, DividendFrequency.QUARTERLY, short_rate=0.0),
+            Record(chart2, "NVDA", 0, False, False, DividendFrequency.NO_DIVIDENDS, short_rate=0.0)
+        ]
+        prepared_data = RecordsBucket([Records(records, timedelta(days=1), 0, 3)],
+                                      [timedelta(days=1)], 0, 3)
+
+        # Step 2: Initialize Backtest with the broker object and its portfolio
+        bcktst = Backtest([], MyStrat())
+        bcktst.broker.portfolio._long = {
+            "AAPL": Position("AAPL", 100, True, 100., datetime(2022, 1, 3), 0.5),
+            "NVDA": Position("NVDA", 100, True, 200., datetime(2022, 1, 3), 1.)
+        }
+
+        # Step 3: Handle splits
+        bcktst._handle_splits(prepared_data)
+
+        # Step 4: Check the results
+        expected = {
+            "AAPL": Position("AAPL", 200, True, 50., datetime(2022, 1, 3), 0.5),
+            "NVDA": Position("NVDA", 100, True, 200., datetime(2022, 1, 3), 1.)
+        }
+        self.assertEqual(bcktst.broker.portfolio._long, expected)
+
 
     def test_default_forge_last_candle(self):
         data = [

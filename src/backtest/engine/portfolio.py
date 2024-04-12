@@ -176,6 +176,18 @@ class Position:
         else:
             raise NotImplementedError(f"Addition not implemented for type {type(other)}")
 
+    def split(self, ratio: float) -> None:
+        """
+        Call this method when a stock split occurs.  It will update the average price and the amount.
+
+        - $new_price = old_price / ratio$
+        - $new_amount = old_amount * ratio$
+        :param ratio: The ratio of the split. let's say it is 7:1, then the ratio is 7, 2:3, then the ratio is 2/3
+        :return: The two new positions
+        """
+        self.amount *= ratio
+        self.average_price /= ratio
+
     def __sub__(self, other):
         """
         Subtract a position from the current one.  It will update the average price and the amount and the amount
@@ -486,6 +498,18 @@ class Portfolio:
 
                 # Compute trade value
                 return -self._getCost(trade, include_borrow=True)
+
+    def split(self, ticker: str, ratio: float):
+        """
+        Call this method when a stock split occurs.  It will update the average price and the amount of the position.
+        :param ticker: The ticker of the security
+        :param ratio: The ratio of the split. let's say it is 7:1, then the ratio is 7, 2:3, then the ratio is 2/3
+        :return: None
+        """
+        if ticker in self._long:
+            self._long[ticker].split(ratio)
+        if ticker in self._short:
+            self._short[ticker].split(ratio)
 
     @property
     def len_long(self):

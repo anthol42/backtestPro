@@ -286,6 +286,23 @@ class TestPosition(TestCase):
         self.assertRaises(ValueError, short.__sub__, trade_ss)
         self.assertRaises(ValueError, short.__sub__, trade_sl)
 
+    def test_splits(self):
+        position1 = Position("AAPL", 300, long=True, average_price=100,
+                             average_filled_time=datetime(2021, 1, 1))
+        self.assertEqual(position1.amount, 300)
+        self.assertEqual(position1.average_price, 100)
+        position1.split(5)
+        self.assertEqual(position1.amount, 1500)
+        self.assertEqual(position1.average_price, 20)
+
+        position2 = Position("AAPL", 300, long=True, average_price=100,
+                                average_filled_time=datetime(2021, 1, 1))
+        self.assertEqual(position2.amount, 300)
+        self.assertEqual(position2.average_price, 100)
+        position2.split(0.25)
+        self.assertEqual(position2.amount, 75)
+        self.assertEqual(position2.average_price, 400)
+
 
     def test_export(self):
         position = Position("AAPL", 300, long=True, average_price=100,
@@ -886,6 +903,51 @@ class TestPortfolio(TestCase):
         self.assertEqual(portfolio_abs.get_trade_count(), 0)
 
         self.assertFalse(portfolio_abs.empty())
+
+    def test_splits(self):
+        # ------------------------------
+        # Test Splits
+        # ------------------------------
+        portfolio = Portfolio()
+        portfolio._long = {
+            "AAPL": Position("AAPL", 100, True, 100, datetime(2021, 2, 1), 0.5),
+            "MSFT": Position("MSFT", 100, True, 100, datetime(2021, 2, 1), 1.),
+        }
+        portfolio._short = {
+            "TSLA": Position("TSLA", 100, False, 100, datetime(2021, 2, 1), 0.),
+            "GOOGL": Position("GOOGL", 100, False, 100, datetime(2021, 2, 1), 0.),
+        }
+        expected = Position("AAPL", 100, True, 100, datetime(2021, 2, 1), 0.5)
+        self.assertEqual(portfolio._long["AAPL"], expected)
+        expected = Position("MSFT", 100, True, 100, datetime(2021, 2, 1), 1.)
+        self.assertEqual(portfolio._long["MSFT"], expected)
+
+        expected = Position("TSLA", 100, False, 100, datetime(2021, 2, 1), 0.)
+        self.assertEqual(portfolio._short["TSLA"], expected)
+        expected = Position("GOOGL", 100, False, 100, datetime(2021, 2, 1), 0.)
+        self.assertEqual(portfolio._short["GOOGL"], expected)
+
+        # Split 2:1
+        portfolio.split("AAPL", 2.)
+        expected = Position("AAPL", 200, True, 50, datetime(2021, 2, 1), 0.5)
+        self.assertEqual(portfolio._long["AAPL"], expected)
+
+        # Split 1:2
+        portfolio.split("MSFT", 0.5)
+        expected = Position("MSFT", 50, True, 200, datetime(2021, 2, 1), 1.)
+        self.assertEqual(portfolio._long["MSFT"], expected)
+
+        ## Short
+        # Split 5:1
+        portfolio.split("TSLA", 5.)
+        expected = Position("TSLA", 500, False, 20, datetime(2021, 2, 1), 0.)
+        self.assertEqual(portfolio._short["TSLA"], expected)
+
+        # Split 1:5
+        portfolio.split("GOOGL", 0.2)
+        expected = Position("GOOGL", 20, False, 500, datetime(2021, 2, 1), 0.)
+        self.assertEqual(portfolio._short["GOOGL"], expected)
+
 
 
     def test_update_time_stock_idx(self):

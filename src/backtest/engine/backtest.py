@@ -182,19 +182,34 @@ class Backtest:
         mask = self._get_mask(processed_data[self.main_timestep])
         filtered_data: List[npt.NDArray[Record]] = [np.array(processed_data[i])[mask] for i in range(len(processed_data))]
         prepared_data = RecordsBucket(filtered_data, self.available_time_res, self.main_timestep, self.window)
-        # Step 3: Run strategy
+
+        # Step 3: Manage stock splits
+        self._handle_splits(prepared_data)
+
+        # Step 4: Run strategy
         # Tell the broker what datetime it is, so it can mark trade orders to this timestamp
         self.broker.set_current_timestamp(timestep)
         self.strategy(prepared_data, timestep)
 
-        # Step 4: Run broker
+        # Step 5: Run broker
         current_data, next_tick_data, marginables, dividends, div_freq, short_rate, security_names = (
             self._prep_brokers_data(prepared_data.main.to_list()))
         self.broker.tick(timestep, next_time_step, security_names, current_data, next_tick_data, marginables, dividends, div_freq,
                          short_rate)
 
-        # Step 5: Increase run_iter
+        # Step 6: Increase run_iter
         self.run_iter += 1
+
+    def _handle_splits(self, prepared_data: RecordsBucket):
+        """
+        Handle stock splits.  This method will iterate over every securities in the main timestep and check if a split
+        occurred at the current timestep.  If yes, it will split the position in the broker portfolio.
+        :param prepared_data: The prepared data.  (Cropped and split applied)
+        :return: None
+        """
+        for ticker, record in prepared_data.main:
+            if record.chart.iloc[-1]["Stock Splits"] > 0:
+                self.broker.portfolio.split(ticker, record.chart.iloc[-1]["Stock Splits"].item())
 
     @staticmethod
     def _prep_brokers_data(prepared_data: List[Record]) \
