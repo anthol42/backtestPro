@@ -1,4 +1,4 @@
-<nav class="navbar navbar-light navbar-expand-lg bg-light fixed-top shadow-sm" id="navbar-main">
+<nav class="navbar navbar-light navbar-expand bg-light fixed-top shadow-sm" id="navbar-main">
     <div class="navbar-container" style="padding-left: 20px">
             <a class="navbar-brand logo" href="${absolute_path}">
                 <img alt="Logo image" class="logo__image only-light" src="${absolute_path}/assets/logo_light.svg">
