@@ -2,5 +2,5 @@
   "title": "home",
   "description": "Home Page",
   "id": "home",
-  "out_path": "home.html"
+  "out_path": "index.html"
 }

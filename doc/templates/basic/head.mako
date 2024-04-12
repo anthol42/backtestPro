@@ -1,6 +1,6 @@
 <nav class="navbar navbar-light navbar-expand-lg bg-light fixed-top shadow-sm" id="navbar-main">
     <div class="navbar-container" style="padding-left: 20px">
-            <a class="navbar-brand logo" href="#">
+            <a class="navbar-brand logo" href="${absolute_path}">
                 <img alt="Logo image" class="logo__image only-light" src="${absolute_path}/assets/logo_light.svg">
             </a>
             <div class="col-lg-9 navbar">
@@ -9,38 +9,32 @@
                     <div class="navbar-center-item">
                         <ul class="navbar-nav" id="navbar-main-elements">
                             <li class="toctree-l1 nav-item">
-                                <a class="reference internal nav-link ${'active' if page_id == 'home' else ''}" href="#">
+                                <a class="reference internal nav-link ${'active' if page_id == 'home' else ''}" href="${absolute_path}">
                                     Home
                                 </a>
                             </li>
 
                             <li class="toctree-l1 nav-item">
-                                <a class="reference internal nav-link ${'active' if page_id == 'get_started' else ''}" href="#">
+                                <a class="reference internal nav-link ${'active' if page_id == 'get_started' else ''}" href="${absolute_path}/get_started.html">
                                     Get Started
                                 </a>
                             </li>
 
                             <li class="toctree-l1 nav-item">
-                                <a class="reference internal nav-link" href="#">
+                                <a class="reference internal nav-link" href="${absolute_path}/tutorials">
                                     Tutorials
                                 </a>
                             </li>
 
                             <li class="toctree-l1 nav-item">
-                                <a class="reference internal nav-link" href="#">
-                                    CLI Documentation
-                                </a>
-                            </li>
-
-                            <li class="toctree-l1 nav-item">
                                 <a class="reference internal nav-link" href="${absolute_path}/docs/backtest">
-                                    API Documentation
+                                    Documentation
                                 </a>
                             </li>
 
 
                             <li class="nav-item">
-                                <a class="nav-link nav-external ${'active' if page_id == 'about' else ''}" href="#">About</a>
+                                <a class="nav-link nav-external ${'active' if page_id == 'about' else ''}" href="${absolute_path}/about.html">About</a>
                             </li>
 
                         </ul>

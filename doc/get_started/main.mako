@@ -96,7 +96,7 @@
                         <button class="copy-button" onclick="copyToClipboardText(this, 'code_example')"><i class='fas'>&#xf0c5;</i></button>
                     </div>
                 </div>
-                <p>For more examples, please check our <a href="tutorials/home.html">Tutorials section.</a></p>
+                <p>For more examples, please check our <a href="tutorials">Tutorials section.</a></p>
             </div>
         </div>
     </div>
