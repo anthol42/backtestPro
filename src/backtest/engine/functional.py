@@ -18,7 +18,57 @@ This module contains multiple helper function to execute a backtest.
 import pandas as pd
 
 def crossover(series1: pd.Series, series2: pd.Series):
+    """
+    Check if series1 crosses over series2
+    :param series1: Any pandas series with any index
+    :param series2: Any pandas series with any index
+    :return: True if series1 crosses over series2, False otherwise
+    """
     return (series1.iloc[-1] > series2.iloc[-1]) & (series1.iloc[-2] < series2.iloc[-2])
 
-def descending(series: pd.Series):
-    return series.iloc[-1] < series.iloc[-2]
+def crossunder(series1: pd.Series, series2: pd.Series):
+    """
+    Check if series1 crosses under series2
+    :param series1: Any pandas series with any index
+    :param series2: Any pandas series with any index
+    :return: True if series1 crosses under series2, False otherwise
+    """
+    return (series1.iloc[-1] < series2.iloc[-1]) & (series1.iloc[-2] > series2.iloc[-2])
+
+def descending(series: pd.Series, lookback: int = 1):
+    """
+    Check if series is **continuously** descending.
+
+    ## Example:
+
+    >>> series = pd.Series([10, 7, 8, 7, 5])
+    >>> descending(series, lookback=3) # True
+    >>> descending(series, lookback=5) # False
+
+    :param series: Any pandas series with any index
+    :param lookback: Number of previous values to consider.  It is also the number of values that needs to be
+    continuously descending.
+    :return: True if series is continuously descending, False otherwise
+    """
+    a = series.to_numpy()
+    delta = a[1:] - a[:-1]
+    return (delta < 0)[-lookback:].all()
+
+def ascending(series: pd.Series, lookback: int = 1):
+    """
+    Check if series is **continuously** ascending.
+
+    ## Example:
+
+    >>> series = pd.Series([1, 4, 3, 6, 7])
+    >>> ascending(series, lookback=3) # True
+    >>> ascending(series, lookback=5) # False
+
+    :param series: Any pandas series with any index
+    :param lookback: Number of previous values to consider.  It is also the number of values that needs to be
+    continuously descending.
+    :return: True if series is continuously ascending, False otherwise
+    """
+    a = series.to_numpy()
+    delta = a[1:] - a[:-1]
+    return (delta > 0)[-lookback:].all()

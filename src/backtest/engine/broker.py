@@ -410,7 +410,7 @@ class Broker:
             self._pay_missing_funds(timestamp)
             self._update_account_collateral(timestamp, security_names, current_tick_data)
             # 3. Sell
-            filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
+            filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables, filled_tickers=set())
             worth = self.get_worth(security_names, current_tick_data)
             # 4. Save
             self.historical_states.append(
@@ -456,7 +456,8 @@ class Broker:
         )
 
         # Step 7: Execute trades that can be executed
-        self.filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
+        filled_tickers = set()
+        self.filled_orders = self._execute_trades(next_timestamp, security_names, next_tick_data, marginables, filled_tickers=filled_tickers)
 
         # Step 8: Liquidate expired margin calls that weren't covered by the strategy
         self._liquidate_expired_mc(timestamp, security_names, next_tick_data)
@@ -468,7 +469,7 @@ class Broker:
             if order not in pending_orders:
                 pending_orders.append(order)
         self.historical_states[-1].pending_orders = pending_orders
-        self.filled_orders += self._execute_trades(next_timestamp, security_names, next_tick_data, marginables)
+        self.filled_orders += self._execute_trades(next_timestamp, security_names, next_tick_data, marginables, filled_tickers=filled_tickers)
 
         # If in bankruptcy, set the amount
         if self.message.bankruptcy:
@@ -628,7 +629,7 @@ class Broker:
                                          timestamp, comment=f"Dividends - {ticker}")
 
     def _execute_trades(self, next_timestep: datetime, security_names: List[str], next_tick_data: np.ndarray,
-                        marginables: npt.NDArray[bool]) -> List[TradeOrder]:
+                        marginables: npt.NDArray[bool], filled_tickers: set) -> List[TradeOrder]:
         """
         Execute trades that can be executed.  (Price becomes within limits)
         :param next_timestep: The next timestep timestamp (Where orders will be evaluated/completed)
@@ -639,13 +640,26 @@ class Broker:
         :param marginables: A boolean array of shape (n_securities, 2) [Marginable, Shortable) where True means that
                             the security can be bought on margin / sold short and False means that it cannot be bought on
                             margin / sold short.
-        :return: Teh filled orders
+        :param filled_tickers: A set of tickers that have been filled.  (To avoid buying and selling the same day)
+        :return: The filled orders
         """
         filled_orders = []
         expired_orders = []
         for order in self._queued_trade_offers:
             if order.expiry is not None and order.expiry < next_timestep:
                 expired_orders.append(order)
+                continue
+            # We ignore closing orders concerning securities that are not in the portfolio
+            elif (order.trade_type == TradeType.SellLong or order.trade_type == TradeType.BuyShort) and\
+                    order.security not in self.portfolio.long and\
+                    order.security not in self.portfolio.short:
+                expired_orders.append(order)
+                # print(f"Order {order} expired because the security is not in the portfolio.")
+                continue
+
+            # We do not want to buy and sell the same day, because it could buy at close, and sell at high which breaks
+            # the direction of time.
+            if order.security in filled_tickers:
                 continue
 
             eq_idx = security_names.index(order.security)
@@ -658,6 +672,7 @@ class Broker:
                 self._update_account_collateral(next_timestep, security_names, next_tick_data, message="Buy Short Trade execution")
             if result:
                 filled_orders.append(order)
+                filled_tickers.add(order.security)
 
         # At the end of the timestep, when all trades that could have been done are executed, we update the collateral.
         self._update_account_collateral(next_timestep, security_names, next_tick_data, message="Trade execution")

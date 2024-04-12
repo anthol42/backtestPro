@@ -199,7 +199,7 @@ class BackTestResult:
         elif period == Period.QUARTERLY:
             out = equity_series.resample("Q", closed='left', label='left').ohlc()
         elif period == Period.MONTHLY:
-            out = equity_series.resample("M", closed='left', label='left').ohlc()
+            out = equity_series.resample("ME", closed='left', label='left').ohlc()
         elif period == Period.DAILY:
             out = equity_series.resample("D", closed='left', label='left').ohlc()
         elif period == Period.WEEKLY:
@@ -213,7 +213,7 @@ class BackTestResult:
         :param risk_free_rate: The risk free rate or MAR (Minimum acceptable return)
         :return: The sharp ratio of the strategy
         """
-        equity_ohlc = self.get_ohlc(Period.WEEKLY)
+        equity_ohlc = self.get_ohlc(Period.MONTHLY)
         diff = equity_ohlc["Close"].diff()
         diff.iloc[0] = equity_ohlc["Close"].iloc[0] - equity_ohlc["Open"].iloc[0]
         diff_ratio = diff / equity_ohlc["Close"].shift(1)
@@ -222,7 +222,7 @@ class BackTestResult:
         if diff.std() == 0:
             return None
         else:
-            std = np.sqrt(52)*diff_ratio.std()    # Annualize the std
+            std = np.sqrt(12)*diff_ratio.std()    # Annualize the std
             return (self.annual_returns - risk_free_rate) / (100 * std)
     def compute_sortino_ratio(self, risk_free_rate) -> float:
         """
@@ -230,14 +230,14 @@ class BackTestResult:
         :param risk_free_rate: The risk free rate or MAR (Minimum acceptable return)
         :return: The sortino ratio of the strategy
         """
-        equity_ohlc = self.get_ohlc(Period.WEEKLY)
+        equity_ohlc = self.get_ohlc(Period.MONTHLY)
         diff = equity_ohlc["Close"].diff()
         diff.iloc[0] = equity_ohlc["Close"].iloc[0] - equity_ohlc["Open"].iloc[0]
         diff_percentage = (diff / equity_ohlc["Close"].shift(1)) - risk_free_rate / 100
         downside = diff_percentage[diff_percentage < 0].to_numpy()
         if len(diff_percentage) < 2:
             return None
-        annualized_downside_deviation = np.sqrt(52 * (downside ** 2).sum() / (len(diff_percentage) - 1))
+        annualized_downside_deviation = np.sqrt(12 * (downside ** 2).sum() / (len(diff_percentage) - 1))
         if annualized_downside_deviation == 0:
             return None
         else:
