@@ -86,10 +86,23 @@
             </div>
             <div id="Example" class="section">
                 <h2>Example</h2>
+                <p class="code-header">This example shows how to backtest a simple strategy based on technical analysis.
+                The strategy buys long when the MACD crosses over the signal line and sells when the MACD crosses under it.
+                It is also required that the MACD is below 0 to trigger a buy.  All default backtest parameters are used.
+                The backtest is made on the Magnificent 7 stocks from 2010 to 2020.</p>
                 <div class="code-container">
                     ${code_example}
+                     <div class="copy-button-container">
+                        <button class="copy-button" onclick="copyToClipboardText(this, 'code_example')"><i class='fas'>&#xf0c5;</i></button>
+                    </div>
                 </div>
+                <p>For more examples, please check our <a href="tutorials/home.html">Tutorials section.</a></p>
             </div>
         </div>
     </div>
+     <script>
+        const codeTexts = {
+            "code_example": '${code_example_raw}'
+        };
+     </script>
 </div>

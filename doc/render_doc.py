@@ -11,7 +11,7 @@ import inspect
 from enum import EnumType
 import os
 import sys
-from utils import render_page
+from utils import render_page, render_mako_page
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + "/..")
 sys.path.append(os.getcwd())
@@ -224,5 +224,5 @@ svg_to_ico("doc/assets/logo_small_light.svg", "build/assets/favicon.ico", sizes=
 render_page("home")
 
 # Render the get started page
-render_page("get_started")
+render_mako_page("get_started")
 
