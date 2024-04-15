@@ -109,8 +109,8 @@ class Cache(DataPipe):
     datetime, a timeout or a maximum number of requests.
 
     Examples:
-    >>>@Cache(loading_cb=JSON_load, store=True, timeout=timedelta(seconds=1))
-    ...def MyCache(frm: datetime, to: datetime, *args, po: PipeOutput, pipe_id: int, revalidate: datetime,
+    >>> @Cache(loading_cb=JSON_load, store=True, timeout=timedelta(seconds=1))
+    ... def MyCache(frm: datetime, to: datetime, *args, po: PipeOutput, pipe_id: int, revalidate: datetime,
     ...          timedelta, max_requests: int, n_requests: int, **kwargs):
     ...     value = {
     ...         "data": po.value,
@@ -137,6 +137,17 @@ class Cache(DataPipe):
                  store: bool = True,
                  revalidate_cb: Callable[[datetime, datetime, Tuple[Any, ...], PipeOutput[Any], dict[str, Any]],
                     RevalidateAction] = None):
+        """
+        :param caching_cb: The callback that is called after the pipeline wrapped by the Cache pipe is executed.  It is used to store the cache.
+        :param loading_cb: The callback used to load the cache from the disk.
+        :param revalidate: The next datetime to revalidate the cache.
+        :param timeout: A timedelta object representing the max age of the cache before revalidating it.  If it is one
+        day, the cache will be revalidated every day as opposed to the revalidate parameter, which revalidate only once.
+        :param max_requests: The maximum number of request that hit the cache before revalidating it.
+        :param store: Whether to store the cache on disk or keep it only in memory.
+        :param revalidate_cb: A callback method that returns a RevalidateAction enum value.  It is used to determine if
+        the cache should be revalidated or not. This callback can be provided for complex revalidation logic.
+        """
         super().__init__(DataPipeType.CACHE)
         if caching_cb is not None:
             self._caching_cb = caching_cb
