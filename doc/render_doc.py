@@ -34,7 +34,7 @@ pdoc.tpl_lookup.directories.insert(0, './doc/templates/pdoc')
 template_config = {'lunr_search': {'index_docstrings': True},
                    'list_class_variables_in_index': True,
                    'show_source_code': False,
-                   'show_inherited_members': True,
+                   'show_inherited_members': False,
                    'absolute_path': '/finBacktest/build'}
 documented_modules = {
     "data",

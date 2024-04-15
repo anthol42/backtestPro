@@ -214,7 +214,14 @@
       </code></dt>
 
       <dd>${show_desc(c)}
-
+      % if mro:
+          <h3>Parent</h3>
+          <ul class="hlist">
+          % for cls in mro[:1]:
+              <li>${link(cls)}</li>
+          % endfor
+          </ul>
+      %endif
       % if class_vars:
           <h3>Class variables</h3>
           <dl>
@@ -252,26 +259,26 @@
           </dl>
       % endif
 
-      % if not show_inherited_members:
-          <%
-              members = c.inherited_members()
-          %>
-          % if members:
-              <h3>Inherited members</h3>
-              <ul class="hlist">
-              % for cls, mems in members:
-                  <li><code><b>${link(cls)}</b></code>:
-                      <ul class="hlist">
-                          % for m in mems:
-                              <li><code>${link(m, name=m.name)}</code></li>
-                          % endfor
-                      </ul>
+      ## % if not show_inherited_members:
+      ##     <%
+      ##         members = c.inherited_members()
+      ##     %>
+      ##     % if members:
+      ##         <h3>Inherited members</h3>
+      ##         <ul class="hlist">
+      ##         % for cls, mems in members:
+      ##             <li><code><b>${link(cls)}</b></code>:
+      ##                 <ul class="hlist">
+      ##                     % for m in mems:
+      ##                         <li><code>${link(m, name=m.name)}</code></li>
+      ##                     % endfor
+      ##                 </ul>
 
-                  </li>
-              % endfor
-              </ul>
-          % endif
-      % endif
+      ##             </li>
+      ##         % endfor
+      ##         </ul>
+      ##     % endif
+      ## % endif
 
       </dd>
     % endfor

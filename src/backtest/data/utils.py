@@ -138,11 +138,12 @@ class FetchCharts(DataPipe):
     If the returned chart is empty, it will be returned as None.  Consider removing the None  charts in further
     preprocessing steps.
     Warning:
-        The returned index contains the timezone information that might be inconsistent.  Consider removing them.
+        The returned index contains timezone information that might be inconsistent.  Consider removing them.
 
-    IN: Optional[List[str]]: The list of tickers to fetch the charts for.  If provided, it will override the ticker
+    **IN: Optional[List[str]]:** The list of tickers to fetch the charts for.  If provided, it will override the ticker
                                 list passed during initialization.
-    OUT: dict[str, Optional[pd.DataFrame]] where the values are the charts and the keys are the tickers
+
+    **OUT: dict[str, Optional[pd.DataFrame]]** where the values are the charts and the keys are the tickers
     """
     def __init__(self, tickers = None, interval: str = "1d", progress: bool = False, throttle: float = 0.,
                  *args, **kwargs):
@@ -182,8 +183,10 @@ def FilterNoneCharts(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str
                      **kwargs) -> Dict[str, pd.DataFrame]:
     """
     This pipe will filter out the tickers that doesn't have a chart.  (Chart is None)
-    IN: dict[str, Optional[pd.DataFrame]] where the values are the charts and the keys are the tickers
-    OUT: dict[str, pd.DataFrame] where the values are the charts and the keys are the tickers
+
+    **IN: dict[str, Optional[pd.DataFrame]]** where the values are the charts and the keys are the tickers
+
+    **OUT: dict[str, pd.DataFrame]** where the values are the charts and the keys are the tickers
     :param frm: From datetime
     :param to:  to datetime
     :param args: Args passed to the pipe
@@ -199,8 +202,10 @@ def ToTSData(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, pd.Dat
              **kwargs) -> List[Dict[str, TSData]]:
     """
     This pipe will convert the charts into a time series object (TSData).
-    IN: dict[str, pd.DataFrame] where the values are the charts and the keys are the tickers
-    OUT: list[dict[str, TSData]] where the values are the TSData and the keys are the tickers (len of list = 1)
+
+    **IN: dict[str, pd.DataFrame]** where the values are the charts and the keys are the tickers
+
+    **OUT: list[dict[str, TSData]]** where the values are the TSData and the keys are the tickers (len of list = 1)
     :param frm: From datetime
     :param to:  to datetime
     :param args: Args passed to the pipe
@@ -220,8 +225,10 @@ def CausalImpute(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, pd
     Example:
         a = [1, 2, 3, nan, 5, 6, nan, 8, 9]
         causal_impute(a) -> [1, 2, 3, 3, 5, 6, 6, 8, 9]
-    IN: dict[str, pd.Dataframe] where the values are the charts as Dataframe and the keys are the tickers
-    OUT: dict[str, TSData] where the values are the TSData and the keys are the tickers
+
+    **IN: dict[str, pd.Dataframe]** where the values are the charts as Dataframe and the keys are the tickers
+
+    **OUT: dict[str, TSData]** where the values are the TSData and the keys are the tickers
     :param frm: From datetime
     :param to:  to datetime
     :param args: Args passed to the pipe
@@ -233,10 +240,16 @@ def CausalImpute(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, pd
 
 
 @Process
-def PadNan(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, Optional[pd.DataFrame]]], **kwargs):
+def PadNan(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, Optional[pd.DataFrame]]], **kwargs) -> Dict[str, Optional[pd.DataFrame]]:
     """
     This pipe will pad the charts (dataframes) with NaNs.  It will reindex them with the longest index found in the
     data.  The index will be the same for all the charts.
+
+    **IN: dict[str, Optional[pd.DataFrame]]** where the values are the charts and the keys are the tickers
+
+    **OUT: dict[str, pd.DataFrame]** where the values are the charts and the keys are the tickers, but the charts are
+    all the same length, and padded with Nans.
+
     :param frm: From datetime
     :param to:  to datetime
     :param args: Args passed to the pipe
@@ -249,6 +262,8 @@ def PadNan(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, Optional
     out = {}
     # Get the longest index
     for ticker, chart in data.items():
+        if chart is None:
+            continue
         if index is None:
             index = chart.index
             continue
@@ -258,6 +273,9 @@ def PadNan(frm: datetime, to: datetime, *args, po: PipeOutput[Dict[str, Optional
 
     # Pad the dataframes with NaNs
     for ticker, chart in data.items():
+        if chart is None:
+            out[ticker] = None
+            continue
         out[ticker] = chart.reindex(index)
 
     return out
