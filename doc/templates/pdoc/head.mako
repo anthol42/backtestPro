@@ -45,7 +45,7 @@
                 <div id="navbar-end">
 
                     <div class="navbar-end-item">
-                        <code class="navbar-version">v1.21.0</code>
+                        <code class="navbar-version">v${backtest.__version__}</code>
                     </div>
 
                     <div class="navbar-end-item">

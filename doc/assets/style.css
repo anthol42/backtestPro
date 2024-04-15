@@ -18,7 +18,18 @@
     margin-top: 100px;
     margin-left: 350px;
     padding: 0px;
-    width: calc(100% - 350px);
+    width: calc(100vw - 350px);
+}
+
+.notebook-container {
+    margin: auto;
+    max-width: 1000px;
+}
+
+@media screen and (min-width: 1350px) {
+    .notebook-container {
+        padding-right: 10%;
+    }
 }
 
 h2 {
@@ -138,4 +149,11 @@ margin-top: 80px;
 
 .nav-item-dynamic:hover {
     background-color: rgba(0, 0, 0, 0.1); /* Adjust the last value for transparency */
+}
+
+.navbar-version {
+    background: #f2f2f1;
+    padding: 1px 4px;
+    overflow-wrap: break-word;
+    font-size: 1em;
 }

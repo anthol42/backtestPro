@@ -8,6 +8,7 @@
   <link href="${absolute_path}/assets/style.css" rel="stylesheet" type="text/css">
   <link href="${absolute_path}/assets/notebook.css" rel="stylesheet" type="text/css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" crossorigin="anonymous" />
+  <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
   <script src="${absolute_path}/assets/bootstrap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.1.10/require.min.js"></script>
   <title>${page_title}</title>
@@ -33,7 +34,7 @@
     </nav>
     </div>
     <div class="toc-doc">
-        <div class="col-md-9">
+        <div class="notebook-container">
             ${notebook_content}
         </div>
     </div>

@@ -12,6 +12,7 @@ from enum import EnumType
 import os
 import sys
 from utils import render_page, render_mako_page, render_tutorials
+from src import backtest
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + "/..")
 sys.path.append(os.getcwd())
@@ -36,7 +37,8 @@ template_config = {'lunr_search': {'index_docstrings': True},
                    'show_source_code': False,
                    'show_inherited_members': False,
                    'absolute_path': '/finBacktest/build',
-                   'pdoc': pdoc}
+                   'pdoc': pdoc,
+                   'backtest': backtest}
 documented_modules = {
     "data",
     "engine",

@@ -64,4 +64,5 @@
     latex_math = False
 
     pdoc = None
+    backtest = None
 %>

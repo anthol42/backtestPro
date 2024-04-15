@@ -13,6 +13,7 @@ from pygments.formatters import HtmlFormatter
 from bs4 import BeautifulSoup
 from nbconvert import HTMLExporter
 import nbformat
+from src import backtest
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + "/..")
 sys.path.append(os.getcwd())
@@ -53,7 +54,7 @@ def render_page(path: str, html: str = None):
     template = template_lookup.get_template("frame.mako")
 
     # Render the template with the provided variables
-    rendered_page = template.render(**params, pdoc=pdoc)
+    rendered_page = template.render(**params, pdoc=pdoc, backtest=backtest)
 
     # Print or use the rendered HTML page
     with open(f"build/{config['out_path']}", "w") as f:
@@ -162,7 +163,7 @@ def render_tutorials():
         }
 
         # Render the template with the provided variables
-        html = template.render(**params, pdoc=pdoc)
+        html = template.render(**params, pdoc=pdoc, backtest=backtest)
         if not os.path.exists("build/tutorials"):
             os.makedirs("build/tutorials")
 
@@ -183,6 +184,6 @@ def render_tutorials():
         "available_files": notebooks,
         "page_id": "home"
     }
-    html = template.render(**params, pdoc=pdoc)
+    html = template.render(**params, pdoc=pdoc, backtest=backtest)
     with open(f"build/tutorials/index.html", "w") as f:
         f.write(html)

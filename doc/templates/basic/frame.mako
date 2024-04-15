@@ -9,6 +9,7 @@
   <link href="${absolute_path}/assets/python_code.css" rel="stylesheet" type="text/css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" crossorigin="anonymous" />
   <script src="${absolute_path}/assets/bootstrap.min.js"></script>
+  <link rel="preload stylesheet" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/10up-sanitize.css/11.0.1/typography.min.css" integrity="sha256-7l/o7C8jubJiy74VsKTidCy1yBkRtiUGbVkYBylBqUg=" crossorigin>
   <title>${page_title}</title>
   <meta name="description" content="${page_desc}" />
 </head>
