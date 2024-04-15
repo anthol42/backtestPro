@@ -1,4 +1,4 @@
-<div class="row">
+<div class="row" style="margin-right: 0;">
     <!-- Table of Contents Section -->
     <div id="tableOfContents" class="col-md-3" style="width: 300px">
         <nav id="toc">
@@ -16,7 +16,7 @@
         </nav>
     </div>
     <div class="toc-doc">
-        <div class="col-md-9">
+        <div class="col-md-9" style="padding-left: 20px">
             <div id="install" class="section">
                 <h2>Install</h2>
                 <p class="code-header">The easiest way to install it is with pip:</p>

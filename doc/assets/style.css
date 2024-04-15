@@ -1,12 +1,14 @@
-    #tableOfContents {
+#tableOfContents {
       position: fixed;
       top: 0;
       margin-top: 75px;
+      margin-left: 0;
       left: 0;
       height: 100%;
       overflow-y: auto;
       background-color: #f8f9fa; /* Change as needed */
       border-right: 1px solid #dee2e6; /* Change as needed */
+      width: 350px;
     }
     /* Styling for the active section link */
 .active-section {
@@ -15,6 +17,8 @@
 .toc-doc {
     margin-top: 100px;
     margin-left: 350px;
+    padding: 0px;
+    width: calc(100% - 350px);
 }
 
 h2 {

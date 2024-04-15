@@ -35,7 +35,8 @@ template_config = {'lunr_search': {'index_docstrings': True},
                    'list_class_variables_in_index': True,
                    'show_source_code': False,
                    'show_inherited_members': False,
-                   'absolute_path': '/finBacktest/build'}
+                   'absolute_path': '/finBacktest/build',
+                   'pdoc': pdoc}
 documented_modules = {
     "data",
     "engine",

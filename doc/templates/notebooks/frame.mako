@@ -16,7 +16,7 @@
 </head>
 <body>
   <%include file="head.mako"/>
-    <div class="row">
+    <div class="row" style="margin-right: 0;">
     <!-- Table of Contents Section -->
     <div id="tableOfContents" class="col-md-3" style="width: 300px">
     <nav id="toc">
