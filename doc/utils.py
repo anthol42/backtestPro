@@ -154,7 +154,7 @@ def render_tutorials():
         params = {
             "html_lang": "en",
             "absolute_path": "/finBacktest/build",
-            "page_title": notebook,
+            "page_title": notebook.replace("_", " "),
             "page_desc": "A tutorial on how to use the BacktestPro Framework.",
             "notebook_content": notebook_object,
             "rendering_scripts": rendering_scripts,

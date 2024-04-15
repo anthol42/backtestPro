@@ -27,7 +27,7 @@
             </li>
             % for filename in available_files:
                 <li class="nav-item nav-item-dynamic">
-                    <a class="nav-link" style="${'color: green' if page_id == filename else ''}" href="/finBacktest/build/tutorials/${filename}.html">${filename.capitalize()}</a>
+                    <a class="nav-link" style="${'color: green' if page_id == filename else ''}" href="/finBacktest/build/tutorials/${filename}.html">${filename.replace("_", " ").title()}</a>
                 </li>
             % endfor
         </ul>
