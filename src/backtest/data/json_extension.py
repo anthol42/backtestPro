@@ -23,13 +23,14 @@ TYPES: dict[str, type] = {}
 DETECTED_TYPES: dict[str, type] = {}
 
 
-def add_types(**types):
+def add_types(*types: type):
     """
     Add new types supported by extended json encoder/decoder.  The type will be serialized using the __tojson__ method.
     (Must exist in the object) and deserialized using the __fromjson__ class method.
     :param types: A dictionary of types to add to the JSONEncoder [str: class]
     """
-    TYPES.update(types)
+    d_types = {t.__name__: t for t in types}
+    TYPES.update(d_types)
 
 def remove_types(*types):
     """
@@ -67,6 +68,63 @@ class JSONEncoder(json.JSONEncoder):
     This class extends the JSONEncoder class from the json module to handle the serialization of a variety of objects.
     If your object isn't serialized properly, you can add a __json__ method to your object to handle the serialization
     and return a jsonable dictionary.
+
+    **The types supported by default are:**
+
+    - int
+    - float
+    - str
+    - list
+    - tuple
+    - dict
+    - bool
+    - None
+    - pd.DataFrame
+    - np.ndarray
+    - np.int64
+    - np.float64
+    - np.bool_
+    - np.datetime64
+    - np.timedelta64
+    - datetime
+    - timedelta
+    - date
+    - time
+    - pd.Series
+    - Enum
+    - Any object with a __dict__ attribute
+    - Any object that is iterable
+
+    If you want to add a custom serializer to your object, you can add a __tojson__ method to your object that returns a
+    dictionary that can be serialized.  To be able to deserialize the object, you must also add a __fromjson__ class
+    method that takes the dictionary and returns the object.  In order fo the Serializer to use those method, you must
+    first register the class using the add_types function.
+
+    Example:
+
+        >>> from backtest.data import json_extension as je
+        >>> class MyClass:
+        ...     def __init__(self, a, b):
+        ...         self.a = a
+        ...         self.b = b
+        ...     def __tojson__(self):
+        ...         return {"a": self.a, "b": self.b}
+        ...     @classmethod
+        ...     def __fromjson__(cls, d):
+        ...         return cls(d["a"], d["b"])
+        ...     def __repr__(self):
+        ...         return f"MyClass({self.a}, {self.b})"
+        ...
+        >>> je.add_types(MyClass)
+        >>> obj = MyClass(1, 2)
+        >>> print(json.dumps(obj, cls=je.JSONEncoder))
+        {"__TYPE__": "MyClass", "data": {"a": 1, "b": 2}}
+        >>> # To deserialize the object
+        >>> d = '{"__TYPE__": "MyClass", "data": {"a": 1, "b": 2}}'
+        >>> print(json.loads(d, cls=je.JSONDecoder))
+        MyClass(1, 2)
+        >>> # To unregister a type, use the remove_types function
+        >>> je.remove_types(MyClass)
     """
     def default(self, o):
         return self._recursive_json(o)
@@ -124,6 +182,62 @@ class JSONDecoder(json.JSONDecoder):
     This class extends the JSONDecoder class from the json module to handle the deserialization of a variety of objects.
     If your object isn't deserialized properly, you can add a __fromjson__ method to your object to handle the
     deserialization and return the object.
+
+        **The types supported by default are:**
+
+    - int
+    - float
+    - str
+    - list
+    - tuple
+    - dict
+    - bool
+    - None
+    - pd.DataFrame
+    - np.ndarray
+    - np.int64
+    - np.float64
+    - np.bool_
+    - np.datetime64
+    - np.timedelta64
+    - datetime
+    - timedelta
+    - date
+    - time
+    - pd.Series
+    - Enum
+    - Any object with a __dict__ attribute
+    - Any object that is iterable
+
+    If you want to add a custom serializer to your object, you can add a __tojson__ method to your object that returns a
+    dictionary that can be serialized.  To be able to deserialize the object, you must also add a __fromjson__ class
+    method that takes the dictionary and returns the object.  In order fo the Serializer to use those method, you must
+    first register the class using the add_types function.
+
+    Example:
+        >>> from backtest.data import json_extension as je
+        >>> class MyClass:
+        ...     def __init__(self, a, b):
+        ...         self.a = a
+        ...         self.b = b
+        ...     def __tojson__(self):
+        ...         return {"a": self.a, "b": self.b}
+        ...     @classmethod
+        ...     def __fromjson__(cls, d):
+        ...         return cls(d["a"], d["b"])
+        ...     def __repr__(self):
+        ...         return f"MyClass({self.a}, {self.b})"
+        ...
+        >>> je.add_types(MyClass)
+        >>> obj = MyClass(1, 2)
+        >>> print(json.dumps(obj, cls=je.JSONEncoder))
+        {"__TYPE__": "MyClass", "data": {"a": 1, "b": 2}}
+        >>> # To deserialize the object
+        >>> d = '{"__TYPE__": "MyClass", "data": {"a": 1, "b": 2}}'
+        >>> print(json.loads(d, cls=je.JSONDecoder))
+        MyClass(1, 2)
+        >>> # To unregister a type, use the remove_types function
+        >>> je.remove_types(MyClass)
     """
     def __init__(self, *args, **kwargs):
         json.JSONDecoder.__init__(self, object_hook=self._recursive_fromjson, *args, **kwargs)

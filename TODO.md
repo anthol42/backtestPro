@@ -1,25 +1,30 @@
 # TODO
 - [X] Implement the cli module
 - [X] Finish the README.md with the contribution section, the roadmap section and the useful resources section
-- [ ] Make portfolio handle split
-- [ ] Make backtest trigger the split method of the portfolio when a split happens
+- [X] Make portfolio handle split
+- [X] Make backtest trigger the split method of the portfolio when a split happens
 - [ ] Try building the documentation
   - [X] Format doc for decorator objects
   - [X] Flatten modules
   - [X] Do not display items that do not have a docstring (var, functions, classes, methods, etc.)
   - [X] Add navbar
   - [X] Make a logo
-  - [ ] Link to other parts of the documentation
+  - [X] Link to other parts of the documentation
   - [X] Make the render doc cleaner + automatically create the folders, the assets, etc.
   - [X] Template for basic pages
   - [X] Build home page
-  - [ ] Build the Get Started page (from markdown)
-    - [ ] Make the example and render it in the mako template
-  - [ ] Build the About page (from markdown)
-  - [ ] Build tutorial templates
-  - [ ] Link the navbar to the pages
+  - [X] Build the Get Started page (from markdown)
+    - [X] Make the example and render it in the mako template
+  - [X] Build the About page
+  - [X] Build tutorial templates
+  - [X] Link the navbar to the pages
 - [ ] Fix documentation bugs
 - [ ] Notebooks tutorials
+  - [ ] Data
+  - [ ] Backtest
+  - [ ] Indicators
+  - [ ] Serve
 - [ ] Render the documentation + notebooks + blog section
+- [ ] Fix the CONTRIBUTING.md to change the SPHINX doc to pdoc3
 - [ ] Make a github pages for the documentation
 - [ ] Alpha Release (In a pip module) !!!

@@ -12,7 +12,7 @@
     }
     /* Styling for the active section link */
 .active-section {
-  color: green !important; /* Change as needed */
+  color: rgb(34, 34, 34) !important; /* Change as needed */
 }
 .toc-doc {
     margin-top: 100px;

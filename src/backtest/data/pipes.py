@@ -108,7 +108,15 @@ class Cache(DataPipe):
     If no revalidate method is passed, the default revalidate method check if the cache is expired given an expired
     datetime, a timeout or a maximum number of requests.
 
+    Note:
+
+        *If timeout is None, max_requests is None and revalidate_cb is None, the cache will never be revalidated.*
+        *If the structure of the underlying pipe changes or the parameters of the underlying pipe changes, the whole
+        pipeline will be revalidated (full revalidation).  This means that every cache pipe will revalidate their cache,
+         not only the one that changed.*
+
     Examples:
+
     >>> @Cache(loading_cb=JSON_load, store=True, timeout=timedelta(seconds=1))
     ... def MyCache(frm: datetime, to: datetime, *args, po: PipeOutput, pipe_id: int, revalidate: datetime,
     ...          timedelta, max_requests: int, n_requests: int, **kwargs):

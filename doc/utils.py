@@ -130,6 +130,11 @@ def build_notebook_object(notebook_path: str):
     main["data-jp-theme-light"] = "true"
     main["data-jp-theme-name"] = "JupyterLab Light"
 
+    # Remove all div element having this class: class="jp-InputPrompt jp-InputArea-prompt"
+    for div in main.find_all('div', class_="jp-InputPrompt jp-InputArea-prompt"):
+        div.decompose()
+    for div in main.find_all('div', class_="jp-OutputPrompt jp-OutputArea-prompt"):
+        div.decompose()
     return body.contents[1]
 
 

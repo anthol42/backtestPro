@@ -118,7 +118,7 @@ class TestJSONEncoder(TestCase):
                 return {"Hello": "World", "a": self.a, "b": self.b, "c": self.c, "serie": self.serie.to_dict()}
 
         my_class = MyClass()
-        je.add_types(MyClass=MyClass)
+        je.add_types(MyClass)
         out = json.dumps(my_class, cls=JSONEncoder)
         expected = "{\"__TYPE__\": \"MyClass\", \"data\": {\"Hello\": \"World\", \"a\": 1, \"b\": 2, \"c\": 3, \"serie\": {\"0\": 1, \"1\": 2, \"2\": 3}}}"
         self.assertEqual(expected, out)
@@ -251,7 +251,7 @@ class TestJSONDecoder(TestCase):
                 return a_eq and b_eq and c_eq and s_eq
 
         my_class = MyClassJson()
-        je.add_types(MyClassJson=MyClassJson)
+        je.add_types(MyClassJson)
         json_data = json.dumps(my_class, cls=JSONEncoder)
         out = json.loads(json_data, cls=JSONDecoder)
         self.assertEqual(my_class, out)

@@ -105,7 +105,7 @@ class JSONCache(Cache):
         self._cache = JSONCacheObject(po.value, self._pipe_id, self.hash(), self._revalidate, self._max_request,
                                       self._n_requests)
         if self.store:
-            je.add_types(**self._custom_types)
+            je.add_types(*self._custom_types.values())
             self._cache.store()
             with open(".cache/detected_types.pkl", "wb") as file:
                 pickle.dump(je.get_detected_types(), file)
@@ -118,7 +118,7 @@ class JSONCache(Cache):
         :return: JSONCacheObject if cache is found and None otherwise
         """
         if os.path.exists(f".cache/{self._pipe_id}.json"):
-            je.add_types(**self._custom_types)
+            je.add_types(*self._custom_types.values())
             with open(".cache/detected_types.pkl", "rb") as file:
                 je.add_detected_types(pickle.load(file))
             out = JSONCacheObject.load(self._pipe_id)
