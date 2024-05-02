@@ -89,7 +89,7 @@
                 <p class="code-header">This example shows how to backtest a simple strategy based on technical analysis.
                 The strategy buys long when the MACD crosses over the signal line and sells when the MACD crosses under it.
                 It is also required that the MACD is below 0 to trigger a buy.  All default backtest parameters are used.
-                The backtest is made on the Magnificent 7 stocks from 2010 to 2020.</p>
+                The backtest is executed on the Magnificent 7 stocks from 2010 to 2020.</p>
                 <div class="code-container">
                     ${code_example}
                      <div class="copy-button-container">
