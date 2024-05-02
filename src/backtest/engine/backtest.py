@@ -487,7 +487,7 @@ class Backtest:
                 if last_index is None:
                     last_index = ts.data.index
                 else:
-                    if (last_index != ts.data.index).any():
+                    if len(last_index) != len(ts.data.index) or (last_index != ts.data.index).any():
                         raise ValueError(f"All the timeseries data in the same group must have the same index.\n"
                                             f"Ticker: {ticker} for data in group {i} has a different index than the "
                                             f"other data in the same group.")

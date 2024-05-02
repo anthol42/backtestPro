@@ -764,14 +764,14 @@ class Portfolio:
         return len(self.long) == 0 and len(self.short) == 0
 
     @property
-    def long(self):
+    def long(self) -> Dict[str, Position]:
         """
         Return the long positions that are not empty (amount > 0)
         """
         return {ticker: pos for ticker, pos in self._long.items() if pos.amount > 0}
 
     @property
-    def short(self):
+    def short(self) -> Dict[str, Position]:
         """
         Return the short positions that are not empty (amount > 0)
         """

@@ -136,9 +136,9 @@ class Indicator:
         :return: The output features of the indicator
         """
         if self._id != 0:
-            return [f"{feat}_{self._id}" for feat in self._out]
+            return [f"{feat}({self.get_args()})_{self._id}" for feat in self._out]
         else:
-            return self._out
+            return [f"{feat}({self.get_args()})" for feat in self._out]
 
     @staticmethod
     def run(data: npt.NDArray[np.float32], index: Union[List[datetime], List[str]], features: List[str],
@@ -171,9 +171,9 @@ class Indicator:
         :return: A unique name for the indicator.  (The name of the function and its identifier if different from 0)
         """
         if self._id == 0:
-            return self._name
+            return self.get_name_no_id()
         else:
-            return f"{self._name}_{self._id}"
+            return f"{self.get_name_no_id()}_{self._id}"
 
     @property
     def type_name(self) -> str:
@@ -181,6 +181,18 @@ class Indicator:
         :return: The name of the indicator type
         """
         return self._name
+
+    def get_name_no_id(self) -> str:
+        """
+        :return: The name of the indicator without the identifier
+        """
+        return f"{self._name}({self.get_args()})"
+
+    def get_args(self) -> str:
+        """
+        :return: The arguments of the indicator as a string
+        """
+        return ', '.join([f'{v}' for v in self.params.values()])
 
     @property
     def identifier(self) -> int:

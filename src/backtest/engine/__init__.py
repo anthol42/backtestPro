@@ -16,7 +16,7 @@ This module contains the logic to run the backtest.
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from .backtest import Backtest
-from .time_resolution_extenders import TimeResExtender, BasicExtender
+from .time_resolution_extenders import TimeResExtender, BasicExtender, TimePeriod
 from .broker import Broker, MarginCall, BrokerState, StepState
 from .portfolio import Portfolio, Position, TradeStats
 from .account import Account, CollateralUpdateType, CollateralUpdate

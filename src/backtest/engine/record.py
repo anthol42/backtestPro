@@ -65,7 +65,21 @@ class Record:
 
 class Records:
     """
-    Class containing multiple records for a given time resolution.
+    Class containing multiple records for a given time resolution.  You can access the record like a list with the
+    index of the record being the index of the ticker in the list of tickers.  You can also access the record by the
+    string of the ticker like a dictionary.  You can iterate over the records like a dictionary (ticker, record).
+    Finally, you can check if a ticker is in the records like a dictionary.
+
+    Attributes:
+        records: The records.  The keys are the tickers of the securities.
+        tickers: The tickers of the securities in the same order as the records attribute.
+        features: The features of the records.  It is the columns of the charts.
+        time_res: The time resolution
+        time_res_idx: The index of the time resolution in the available_time_res attribute of the backtest object
+        window: The window size (lookback period) of the records.  Used when exporting to numpy.
+
+    Implements:
+        __getitem__, __setitem__, __iter__, __contains__
     """
     def __init__(self, records: Union[List[Record], Dict[str, Record]], time_res: timedelta, time_res_idx: int,
                  window: int):
@@ -105,6 +119,12 @@ class Records:
         return item in self.records
 
     def numpy(self) -> npt.NDArray[np.float64]:
+        """
+        This method will return the charts as a numpy array.  The array might contain nan values if the chart is not
+        long enough to fill the window.
+        :return: A numpy array of the shape (n, w, p) where n is the number of securities, w is the window size and p is
+                    the number of features.
+        """
         out = []
         for ticker in self.tickers:
             chart = self.records[ticker].chart.to_numpy()
@@ -115,6 +135,10 @@ class Records:
         return np.array(out)
 
     def to_list(self) -> List[Record]:
+        """
+        Convert the Records object to a list of Record
+        :return: A list of Record
+        """
         return [self.records[ticker] for ticker in self.tickers]
 
     def update_features(self):
@@ -129,7 +153,15 @@ class Records:
 
 class RecordsBucket:
     """
-    Class containing multiple records for all time resolutions.
+    Class containing multiple Records objects for all time resolutions. You can access each Records object by their
+    corresponding time resolution or their index in the available_time_res attribute of the backtest object.  You can
+    also iterate over the Records objects like a dictionary (time resolution, Records object).  To simplify the access
+    of the Records object associated with the main time resolution, you can use the main attribute.
+
+    Attributes:
+        records: The Records objects.  The keys are the time resolutions.
+        available_time_res: The available time resolutions
+        main_timestep: The index of the main time resolution in the available_time_res attribute of the backtest object
     """
     def __init__(self, records: Union[List[Records], List[Iterable[Record]]], available_time_res: List[timedelta],
                  main_timestep: int, window: Optional[int] = None):

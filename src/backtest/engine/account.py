@@ -16,6 +16,7 @@ from .transaction import Transaction, TransactionType
 from datetime import datetime
 from typing import List
 from enum import Enum
+from copy import deepcopy
 
 class CollateralUpdateType(Enum):
     """
@@ -77,6 +78,15 @@ class CollateralUpdate:
                 self.collateral_update_type == other.collateral_update_type)
 
 class Account:
+    """
+    Object representing the bank account of the strategy.  This object keeps track of the cash available in the account,
+    the collateral used in the account and the transactions made by the strategy.
+
+    Attributes:
+        available_cash: The amount of cash available in the account.  This is the amount of cash that can be used to buy securities.
+        collateral: The amount of money that is currently being used as collateral.
+        transactions: The transactions made by the strategy.
+    """
     def __init__(self, initial_cash: float = 100_000, allow_debt: bool = False):
         self._cash = initial_cash
         self._collateral = 0    # This is the amount of money that is currently being used as collateral.
@@ -181,8 +191,24 @@ class Account:
         return self._cash - self._collateral
 
     @property
+    def available_cash(self):
+        return self.get_cash()
+
+    @property
     def collateral(self):
         return self._collateral
+
+    @property
+    def transactions(self):
+        return self._transactions
+
+    def get_transactions(self):
+        """
+        Return a deepcopy of the transactions list.
+        :return: The transactions list
+        """
+        return deepcopy(self._transactions)
+
     def get_total_cash(self):
         """
         The total amount of cash in the account.  Not deducing collateral.  This include cash that cannot be used to

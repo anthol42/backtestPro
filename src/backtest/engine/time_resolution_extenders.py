@@ -13,13 +13,22 @@
 #     You should have received a copy of the GNU General Public License
 #     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 from abc import ABC, abstractmethod
-from typing import List, Dict, Tuple, Union
+from typing import List, Dict, Tuple, Union, Optional
 from copy import deepcopy
-from datetime import timedelta
+from datetime import timedelta, datetime
 from .tsData import TSData
 from enum import Enum
 import pandas as pd
 import numpy as np
+from ..data import PadNan, ToTSData, Fetch, PipeOutput
+
+@Fetch
+def FetchContext(frm: datetime, to: datetime, *args, po: Optional[PipeOutput], context, **kwargs):
+    """
+    This Pipe will return as a pipe output what has been passed as the context.
+    """
+    return context
+
 
 class TimeResExtender(ABC):
     # Number of new time resolution that this extender will add
@@ -40,14 +49,20 @@ class TimeResExtender(ABC):
         :param main_timestep: The index of the timeseries data in data list to use as the main series.
         :return: The new data with the new time resolutions.  (Do not mutate the original data)
         """
-        out = [{} for _ in range(self.n_out)]
+        out: List[Dict[str, pd.DataFrame]] = [{} for _ in range(self.n_out)]
         for ticker in data[main_timestep].keys():
             news = self.single_extend(data[main_timestep][ticker])
             for i, new in enumerate(news):
                 out[i][ticker] = new
+
+        # Pad with nan the time shorter sequence in order to make them the same length
+        pipe = FetchContext() | PadNan() | ToTSData()
+        for i in range(self.n_out):
+            out[i] = pipe.get(None, None, context=out[i])[0]
         return out
 
-    def single_extend(self, data: TSData) -> Tuple[TSData, ...]:
+
+    def single_extend(self, data: TSData) -> Tuple[pd.DataFrame]:
         """
         Extend a single timeseries data with new time resolutions.  Override this method
         :param data: The current data statically acquired.  (Fetch from sources)
@@ -110,11 +125,11 @@ class BasicExtender(TimeResExtender):
             raise ValueError("Invalid period.")
         super().__init__()
 
-    def single_extend(self, data: TSData) -> Tuple[TSData]:
+    def single_extend(self, data: TSData) -> Tuple[pd.DataFrame]:
         if data.time_res.total_seconds() > self.out_res[0].total_seconds():
             raise RuntimeError("The main timestep must be smaller than the extended timestep.")
         pd.set_option('mode.chained_assignment', None)
-        out: TSData
+        out: pd.DataFrame
         if self.period == TimePeriod.THIRTY_MINUTES:
             out = self.thirty_minutes(data)
         elif self.period == TimePeriod.ONE_HOUR:
@@ -132,51 +147,56 @@ class BasicExtender(TimeResExtender):
             raise RuntimeError("Invalid period.")
         return out,
 
-    def thirty_minutes(self, data: TSData) -> TSData:
-        out = deepcopy(data)
-        out.data = self._resample(out, "30T")
-        out.time_res = timedelta(minutes=30)
-        return out
+    def thirty_minutes(self, data: TSData) -> pd.DataFrame:
+        # out = deepcopy(data)
+        # out.data = self._resample(out, "30T")
+        # out.time_res = timedelta(minutes=30)
+        df = deepcopy(data.data)
+        return self._resample(df, "30T")
 
-    def one_hour(self, data: TSData) -> TSData:
-        out = deepcopy(data)
-        out.data = self._resample(out, "h")
-        out.time_res = timedelta(hours=1)
-        return out
+    def one_hour(self, data: TSData) -> pd.DataFrame:
+        # out = deepcopy(data)
+        # out.data = self._resample(out, "h")
+        # out.time_res = timedelta(hours=1)
+        df = deepcopy(data.data)
+        return self._resample(df, "h")
 
-    def four_hours(self, data: TSData) -> TSData:
-        out = deepcopy(data)
-        out.data = self._resample(out, "4h")
-        out.time_res = timedelta(hours=4)
-        return out
+    def four_hours(self, data: TSData) -> pd.DataFrame:
+        # out = deepcopy(data)
+        # out.data = self._resample(out, "4h")
+        # out.time_res = timedelta(hours=4)
+        df = deepcopy(data.data)
+        return self._resample(df, "4h")
 
-    def one_day(self, data: TSData) -> TSData:
-        out = deepcopy(data)
-        out.data = self._resample(out, "D")
-        out.time_res = timedelta(days=1)
-        return out
+    def one_day(self, data: TSData) -> pd.DataFrame:
+        # out = deepcopy(data)
+        # out.data = self._resample(out, "D")
+        # out.time_res = timedelta(days=1)
+        df = deepcopy(data.data)
+        return self._resample(df, "D")
 
-    def one_week(self, data: TSData) -> TSData:
-        out = deepcopy(data)
-        out.data = self._resample(out, "W")
-        out.time_res = timedelta(weeks=1)
-        return out
+    def one_week(self, data: TSData) -> pd.DataFrame:
+        # out = deepcopy(data)
+        # out.data = self._resample(out, "W")
+        # out.time_res = timedelta(weeks=1)
+        df = deepcopy(data.data)
+        return self._resample(df, "W")
 
-    def one_month(self, data: TSData) -> TSData:
-        out = deepcopy(data)
-        out.data = self._resample(out, "30D")
-        out.time_res = timedelta(days=30)
-        return out
+    def one_month(self, data: TSData) -> pd.DataFrame:
+        # out = deepcopy(data)
+        # out.data = self._resample(out, "30D")
+        # out.time_res = timedelta(days=30)
+        df = deepcopy(data.data)
+        return self._resample(df, "30D")
 
     @staticmethod
-    def _resample(data: TSData, sample_s: str) -> pd.DataFrame:
+    def _resample(data: pd.DataFrame, sample_s: str) -> pd.DataFrame:
         """
         This method will mutate the data.data attribute.  Make sure to make a deep copy before using this method.
         :param data: The data to resample
         :param sample_s: The sample indicator
         :return: The resampled dataset
         """
-        data = data.data
         open_resampled = data["Open"].resample(sample_s, closed='right', label='left').ohlc()['open']
         high_resampled = data["High"].resample(sample_s, closed='right', label='left').ohlc()["high"]
         low_resampled = data["Low"].resample(sample_s, closed='right', label='left').ohlc()["low"]

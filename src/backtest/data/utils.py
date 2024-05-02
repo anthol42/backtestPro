@@ -22,7 +22,7 @@ from . import json_extension as je
 import os
 import yfinance as yf
 from tqdm import tqdm
-from ..engine import TSData
+from ..engine.tsData import TSData
 import time
 
 class JSONCacheObject(CacheObject):
