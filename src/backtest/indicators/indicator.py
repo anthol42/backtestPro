@@ -135,10 +135,16 @@ class Indicator:
         """
         :return: The output features of the indicator
         """
-        if self._id != 0:
-            return [f"{feat}({self.get_args()})_{self._id}" for feat in self._out]
+        if len(self.params) > 0:
+            if self._id != 0:
+                return [f"{feat}({self.get_args()})_{self._id}" for feat in self._out]
+            else:
+                return [f"{feat}({self.get_args()})" for feat in self._out]
         else:
-            return [f"{feat}({self.get_args()})" for feat in self._out]
+            if self._id != 0:
+                return [f"{feat}_{self._id}" for feat in self._out]
+            else:
+                return self._out
 
     @staticmethod
     def run(data: npt.NDArray[np.float32], index: Union[List[datetime], List[str]], features: List[str],

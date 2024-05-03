@@ -612,7 +612,7 @@ class Backtest:
                 short_rate = default_short_rate
 
             # Normalize the price and volume of window according to splits
-            multiplier = cropped["Stock Splits"].max()
+            multiplier = cropped["Stock Splits"].loc[cropped["Stock Splits"] != 0].prod()
             cropped = cropped.iloc[start_idx:].copy()
             if multiplier > 0:
                 cropped["Open"] /= multiplier
@@ -743,7 +743,7 @@ class Backtest:
             end_index = main_res_last_candle.name
 
             # Step 3: Get the series between the beginning of the candle (Current resolution) and the current timestep.
-            intra_candle = main_res_data.loc[start_index:end_index]
+            intra_candle = main_res_data.loc[start_index:end_index].copy(deep=True)
 
             # Step 4: Get missing OHLC stats: High, Low and Volume
             candle_high = intra_candle["High"].max()
