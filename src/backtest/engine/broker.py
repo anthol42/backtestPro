@@ -366,7 +366,7 @@ class Broker:
         :param current_tick_data: An array of prices of each security for the current step(n_securities, 4)
                                   The 4 columns of the array are: Open, High, Low, Close of the next step.
         :param next_tick_data: An array containing prices of each security for the next step shape(n_securities, 4)
-                               The 4 columns of the array are: Open, High, Low, Close of the next step.
+                               The 5 columns of the array are: Open, High, Low, Close and Stock Splits of the next step.
         :param marginables: A boolean array of shape (n_securities, 2) [Marginable, Shortable) where True means that
                             the security can be bought on margin / sold short and False means that it cannot be bought on
                             margin / sold short.
@@ -635,8 +635,8 @@ class Broker:
         :param next_timestep: The next timestep timestamp (Where orders will be evaluated/completed)
         :param security_names: A list of all securities where the index of each ticker is the index of the data of the
                                corresponding security in the 'next_tick_data' parameter along the first axis (axis=0).
-        :param next_tick_data: An array containing prices of each security for the next step shape(n_securities, 4)
-                               The 4 columns of the array are: Open, High, Low, Close of the next step.
+        :param next_tick_data: An array containing prices of each security for the next step shape(n_securities, 5)
+                               The 5 columns of the array are: Open, High, Low, Close and Stocks Splits of the next step.
         :param marginables: A boolean array of shape (n_securities, 2) [Marginable, Shortable) where True means that
                             the security can be bought on margin / sold short and False means that it cannot be bought on
                             margin / sold short.
@@ -669,13 +669,13 @@ class Broker:
                 # Because of the tricky nature of short collateral calculation (Which is calculated as a whole instead
                 # of independently for each position), we need to update the collateral after each exit of a
                 # short position.
-                self._update_account_collateral(next_timestep, security_names, next_tick_data, message="Buy Short Trade execution")
+                self._update_account_collateral(next_timestep, security_names, next_tick_data[:, :-1], message="Buy Short Trade execution")
             if result:
                 filled_orders.append(order)
                 filled_tickers.add(order.security)
 
         # At the end of the timestep, when all trades that could have been done are executed, we update the collateral.
-        self._update_account_collateral(next_timestep, security_names, next_tick_data, message="Trade execution")
+        self._update_account_collateral(next_timestep, security_names, next_tick_data[:, :-1], message="Trade execution")
 
         if self.account.get_cash() > 0 and "missing_funds" in self.message.margin_calls:
             if self.message.margin_calls["missing_funds"].amount < self.account.get_cash():
@@ -1069,12 +1069,12 @@ class Broker:
         del self.message.margin_calls[key]
         del self._debt_record[key]
 
-    def make_trade(self, order: TradeOrder, security_price: Tuple[float, float, float, float], timestamp: datetime,
+    def make_trade(self, order: TradeOrder, security_price: Tuple[float, float, float, float, float], timestamp: datetime,
                    marginable: bool, shortable: bool) -> bool:
         """
         This method is call to make trades (convert tradeOrders to trade).  Make the trade if price is within limits
         :param order: TradeOrder
-        :param security_price: The security price (Open, High, Low, Close)
+        :param security_price: The security price (Open, High, Low, Close, Splits)
         :param timestamp: The time where securities will be bought (Usually the next step)
         :param marginable: If the security is marginable.
         :param shortable: If the security is shortable.
@@ -1109,7 +1109,7 @@ class Broker:
                     return False
                 else:
                     trade = order.convertToTrade(price, timestamp, str(self.n))
-                    total = self.portfolio.trade(trade)
+                    total = self.portfolio.trade(trade, correction=security_price[-1] if len(security_price) > 4 else 0)    # Correction with stock split is optional
                     # Sanity check
                     if total > 0:
                         raise RuntimeError("The total should not be positive when buying long")
@@ -1135,7 +1135,7 @@ class Broker:
             if price is not None:    # We sell
 
                 trade = order.convertToTrade(price, timestamp, str(self.n))
-                money = self.portfolio.trade(trade)
+                money = self.portfolio.trade(trade, correction=security_price[-1] if len(security_price) > 4 else 0)
                 # Remove margin calls if there are any for that position
                 if f"long margin call {order.security}" in self.message.margin_calls:
                     self.remove_margin_call(f"long margin call {order.security}")
@@ -1184,7 +1184,7 @@ class Broker:
 
                 # Verify if we have enough margin to make the trade
                 if self.account.get_cash() / total > self.min_initial_margin_short:
-                    money = self.portfolio.trade(order.convertToTrade(price, timestamp, str(self.n)))
+                    money = self.portfolio.trade(order.convertToTrade(price, timestamp, str(self.n)), correction=security_price[-1] if len(security_price) > 4 else 0)
                     self.account.deposit(money, timestamp, transaction_id=str(self.n))
                     if self._relative:
                         self.account.add_collateral((self.min_maintenance_margin + 1) * price * order.amount_borrowed * self._comm,
@@ -1249,7 +1249,7 @@ class Broker:
 
                 if total > self.account.get_cash():
                     trade = order.convertToTrade(price, timestamp, str(self.n))
-                    self.portfolio.trade(trade)
+                    self.portfolio.trade(trade, correction=security_price[-1] if len(security_price) > 4 else 0)
                     self.new_margin_call(total - (self.account.get_cash()), message="missing_funds")
                     # Restore old margin call with updated amount
                     self.account.withdrawal(self.account.get_cash(), timestamp, transaction_id=str(self.n))

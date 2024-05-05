@@ -1,3 +1,4 @@
+import json
 from unittest import TestCase
 from src.backtest.serve.job import Job
 from src.backtest.engine import Account, TradeOrder, TradeType, TSData, Record, Strategy, RecordsBucket, Metadata, SimpleCashController
@@ -79,9 +80,9 @@ class TestJob(TestCase):
 
         # 3 check if the data is correct
         np.testing.assert_allclose(aapl[["Open", "High", "Low", "Close"]].iloc[-2].values, yesterday_data[0])
-        np.testing.assert_allclose(aapl[["Open", "High", "Low", "Close"]].iloc[-1].values, current_tick_data[0])
+        np.testing.assert_allclose(aapl[["Open", "High", "Low", "Close"]].iloc[-1].values, current_tick_data[0, :-1])
         np.testing.assert_allclose(nvda[["Open", "High", "Low", "Close"]].iloc[-2].values, yesterday_data[1])
-        np.testing.assert_allclose(nvda[["Open", "High", "Low", "Close"]].iloc[-1].values, current_tick_data[1])
+        np.testing.assert_allclose(nvda[["Open", "High", "Low", "Close"]].iloc[-1].values, current_tick_data[1, :-1])
         np.testing.assert_array_equal([[False, False], [True, False]], marginables)
 
     def test_pipeline(self):
@@ -207,10 +208,8 @@ class TestJob(TestCase):
                 self.assertEqual(1, len(job.broker.filled_orders))
                 self.assertEqual(0, len(renderer.signal.sell_long_signals))
 
-
-
         # Check that the money is correctly calculated
-        self.assertAlmostEqual(108_641.01, job.broker.historical_states[-1].worth, delta=0.1)
+        self.assertAlmostEqual(108_634.73, job.broker.historical_states[-1].worth, delta=0.1)
 
         # Check that the portfolio is empty
         self.assertEqual(0, job.broker.portfolio.len_long)

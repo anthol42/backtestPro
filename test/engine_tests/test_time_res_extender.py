@@ -54,7 +54,7 @@ class TestTimeResExtender(TestCase):
         class ResExtender(TimeResExtender):
             n_out = 2
             out_res = [timedelta(days=3), timedelta(weeks=1)]
-            def single_extend(self, data: TSData) -> Tuple[TSData, ...]:
+            def single_extend(self, data: TSData) -> Tuple[pd.DataFrame, ...]:
                 pd.set_option('mode.chained_assignment', None)
                 data3d = deepcopy(data)
                 data1w = deepcopy(data)
@@ -92,12 +92,12 @@ class TestTimeResExtender(TestCase):
                 data1w.data = pd.concat([ohlc_resampled, other_resampled], axis=1)
                 data1w.time_res = timedelta(weeks=1)
                 pd.set_option('mode.chained_assignment', 'warn')
-                return data3d, data1w
+                return data3d.data, data1w.data
 
         class MonthExtender(TimeResExtender):
             n_out = 1
             out_res = [timedelta(days=30)]
-            def single_extend(self, data: TSData) -> Tuple[TSData]:
+            def single_extend(self, data: TSData) -> Tuple[pd.DataFrame]:
                 pd.set_option('mode.chained_assignment', None)
                 data1m = deepcopy(data)
                 ohlc_resampled = data.data.resample('30D').ohlc()
@@ -117,7 +117,7 @@ class TestTimeResExtender(TestCase):
                 data1m.data = pd.concat([ohlc_resampled, other_resampled], axis=1)
                 data1m.time_res = timedelta(days=30)
                 pd.set_option('mode.chained_assignment', 'warn')
-                return data1m,
+                return data1m.data,
 
         aapl = pd.read_csv("test_data/AAPL_6mo_1d.csv", index_col="Date", parse_dates=True)
         nvda = pd.read_csv("test_data/NVDA_6mo_1d.csv", index_col="Date", parse_dates=True)

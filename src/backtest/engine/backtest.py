@@ -227,6 +227,11 @@ class Backtest:
         # Prepare current data for broker
         current_data = np.array([record.chart[["Open", "High", "Low", "Close"]].iloc[-1].to_list() for record in prepared_data], dtype=np.float32)
         next_tick_data = np.array([record.next_tick[["Open", "High", "Low", "Close"]].to_list() for record in prepared_data], dtype=np.float32)
+        if "Stock Splits" in prepared_data[0].chart.columns:
+            splits = np.array([record.next_tick["Stock Splits"] for record in prepared_data])
+            next_tick_data = np.concatenate([next_tick_data, splits[:, np.newaxis]], axis=1)
+        else:
+            next_tick_data = np.concatenate([next_tick_data, np.zeros((len(prepared_data), 1), dtype=np.float32)], axis=1)
         marginables = np.array([[record.marginable, record.shortable] for record in prepared_data], dtype=bool)
         dividends = np.array([record.chart["Dividends"].iloc[-1] if record.has_dividends else 0. for record in prepared_data], dtype=np.float32)
         div_freq = [record.div_freq for record in prepared_data]
@@ -627,7 +632,7 @@ class Backtest:
             if save_next_tick:
                 if next_tick_is_current:
                     end_idx = end_idx - 1
-                next_point = ts.data[["Open", "High", "Low", "Close", "Volume", "Dividends"]].iloc[end_idx]
+                next_point = ts.data[["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"]].iloc[end_idx]
                 if multiplier > 0:
                     next_point["Open"] /= multiplier
                     next_point["High"] /= multiplier
@@ -635,9 +640,6 @@ class Backtest:
                     next_point["Close"] /= multiplier
                     next_point["Volume"] *= multiplier
                     next_point["Dividends"] *= multiplier
-                if ts.data["Stock Splits"].iloc[end_idx] > 0:
-                    next_point[["Open", "High", "Low", "Close"]] /= ts.data["Stock Splits"].iloc[end_idx]
-                    next_point[["Volume", "Dividends"]] *= ts.data["Stock Splits"].iloc[end_idx]
                 prepared_data.append(Record(cropped, ticker, current_time_res,
                                         marginable, shortable, ts.div_freq, short_rate, next_point))
             else:

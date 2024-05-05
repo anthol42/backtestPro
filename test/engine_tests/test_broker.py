@@ -1232,13 +1232,13 @@ class TestBroker(TestCase):
         broker.buy_long("AAPL", 100, 100, expiry=datetime(2021, 1, 5), price_limit=(None, None))
         broker.buy_long("TSLA", 100, 100, expiry=datetime(2021, 1, 2), price_limit=(50, None))
         broker.buy_long("MSFT", 100, 100, expiry=None, price_limit=(250, 350))
-        filled_orders = broker._execute_trades(datetime(2021, 1, 2), security_names, next_prices, marginables)
+        filled_orders = broker._execute_trades(datetime(2021, 1, 2), security_names, next_prices, marginables, set())
         self.assertEqual(list(broker.portfolio._long.keys()), ["AAPL"])
         self.assertEqual([order.security for order in broker._queued_trade_offers], ["TSLA", "MSFT"])
         self.assertEqual(filled_orders, [TradeOrder(None, "AAPL",
                                                     (None, None), 100, 100,
                                                     TradeType.BuyLong,datetime(2021, 1, 5))])
-        filled_orders = broker._execute_trades(datetime(2021, 1, 3), security_names, next_prices, marginables)
+        filled_orders = broker._execute_trades(datetime(2021, 1, 3), security_names, next_prices, marginables, set())
         self.assertEqual(list(broker.portfolio._long.keys()), ["AAPL"])
         self.assertEqual([order.security for order in broker._queued_trade_offers], ["MSFT"])
         self.assertEqual(filled_orders, [])
@@ -1257,12 +1257,12 @@ class TestBroker(TestCase):
             [302, 304, 298, 300]  # OLN
         ], dtype=np.float32)
         next_prices = np.array([
-            [103, 105, 99, 101],  # AAPL
-            [60, 59, 62, 61.5],  # TSLA
-            [300, 300, 295, 298],  # MSFT
-            [103, 105, 99, 101],  # V
-            [200, 202, 194, 199],  # CAT
-            [295, 300, 290, 296]  # OLN
+            [103, 105, 99, 101, 0.],  # AAPL
+            [60, 59, 62, 61.5, 0.],  # TSLA
+            [300, 300, 295, 298, 0.],  # MSFT
+            [103, 105, 99, 101, 0.],  # V
+            [200, 202, 194, 199, 0.],  # CAT
+            [295, 300, 290, 296, 0.]  # OLN
         ], dtype=np.float32)
         marginables = np.ones((6, 2), dtype=bool)
         broker = Broker(Account(100_000), 6.99, margin_interest=0.02)
@@ -1296,7 +1296,7 @@ class TestBroker(TestCase):
 
         # We should only sell the CAT position to cover the margin call
         broker._liquidate(3_000, datetime(2021, 1, 2), security_names, prices)
-        broker._execute_trades(datetime(2021, 1, 2), security_names, next_prices, marginables)
+        broker._execute_trades(datetime(2021, 1, 2), security_names, next_prices, marginables, set())
         # Now, the whole short margin call should be erased.  And we should have 12 482.525$ remaining that should be
         # removed from collateral.  However, buying back the position will cost 30 006.99$.  So, we should have a
         # missing funds margin call of 17 524.465$.
@@ -1344,7 +1344,7 @@ class TestBroker(TestCase):
         self.assertAlmostEqual(broker.message.margin_calls["long margin call TSLA"].amount, 4223.9925)
         self.assertAlmostEqual(broker._debt_record["long margin call TSLA"], 4223.9925)
         broker._liquidate(25005.2425, datetime(2021, 1, 2), security_names, prices)
-        broker._execute_trades(datetime(2021, 1, 2), security_names, next_prices, marginables)
+        broker._execute_trades(datetime(2021, 1, 2), security_names, next_prices, marginables, set())
         # Collateral contribution - cost of the position:
         # V: 2501.7475; ; 12508.7375
         # CAT: 7501.7475; ; 37508.7375
@@ -1398,7 +1398,7 @@ class TestBroker(TestCase):
         self.assertAlmostEqual(broker.message.margin_calls["short margin call"].amount, 25026.2125)
 
         broker._liquidate(25026.2125, datetime(2021, 1, 2), security_names, prices)
-        broker._execute_trades(datetime(2021, 1, 2), security_names, next_prices, marginables)
+        broker._execute_trades(datetime(2021, 1, 2), security_names, next_prices, marginables, set())
         self.assertEqual(broker.portfolio._short, {
             "V": Position("V", 0, False, 100,
                             datetime(2021, 1, 1), ratio_owned=0.),
@@ -1455,12 +1455,12 @@ class TestBroker(TestCase):
             [600, 605, 595, 602]  # OLN
         ], dtype=np.float32)
         next_prices = np.array([
-            [25, 26, 20, 21],  # AAPL
-            [31, 32, 29, 29],  # TSLA
-            [30, 31, 30, 31],  # MSFT
-            [10, 11, 9, 10],  # V
-            [400, 421, 380, 400],  # CAT
-            [600, 605, 595, 602]  # OLN
+            [25, 26, 20, 21, 0.],  # AAPL
+            [31, 32, 29, 29, 0.],  # TSLA
+            [30, 31, 30, 31, 0.],  # MSFT
+            [10, 11, 9, 10, 0],  # V
+            [400, 421, 380, 400, 0],  # CAT
+            [600, 605, 595, 602, 0]  # OLN
         ], dtype=np.float32)
         broker._update_account_collateral(datetime(2021, 1, 2), security_names, prices)
         # Collateral:
@@ -1481,7 +1481,7 @@ class TestBroker(TestCase):
         self.assertAlmostEqual(broker.message.margin_calls["long margin call AAPL"].amount, 6855.2425)
 
         broker._liquidate(141_624.1975, datetime(2021, 1, 2), security_names, prices)
-        broker._execute_trades(datetime(2021, 1, 2), security_names, next_prices, marginables)
+        broker._execute_trades(datetime(2021, 1, 2), security_names, next_prices, marginables, set())
         # Now, each margin calls should be erased, but another margin call for missing funds should be created.
         # All position should be liquidated and bankruptcy should be declared.
         # How much we should lose by position:
@@ -1812,12 +1812,12 @@ class TestBroker(TestCase):
             [302, 304, 298, 300]  # OLN
         ], dtype=np.float32)
         next_prices = np.array([
-            [128, 132, 126, 130],  # AAPL
-            [61, 60, 63, 62.5],  # TSLA
-            [302, 304, 298, 300],  # MSFT
-            [102, 104, 98, 100],  # V
-            [202, 208, 196, 200],  # CAT
-            [302, 304, 298, 300]  # OLN
+            [128, 132, 126, 130, 0],  # AAPL
+            [61, 60, 63, 62.5, 0],  # TSLA
+            [302, 304, 298, 300, 0],  # MSFT
+            [102, 104, 98, 100, 0],  # V
+            [202, 208, 196, 200, 0],  # CAT
+            [302, 304, 298, 300, 0]  # OLN
         ], dtype=np.float32)
         marginables = np.ones((6,2), dtype=bool)
         dividends = np.zeros(6, dtype=np.float32)
@@ -1853,14 +1853,14 @@ class TestBroker(TestCase):
         self.assertEqual(broker.portfolio._short["V"].time_stock_idx, 0)
 
         # Now, update prices and add new position to the portfolio
-        prices = next_prices
+        prices = next_prices[:, :-1]
         next_prices = np.array([
-            [130, 133, 129, 131],  # AAPL
-            [100, 102, 98, 101],  # TSLA
-            [302, 304, 298, 303],  # MSFT
-            [98, 100, 94, 95],  # V
-            [202, 208, 196, 200],  # CAT
-            [302, 304, 298, 300]  # OLN
+            [130, 133, 129, 131, 0],  # AAPL
+            [100, 102, 98, 101, 0],  # TSLA
+            [302, 304, 298, 303, 0],  # MSFT
+            [98, 100, 94, 95, 0],  # V
+            [202, 208, 196, 200, 0],  # CAT
+            [302, 304, 298, 300, 0]  # OLN
         ], dtype=np.float32)
         broker.buy_long("TSLA", 100, 100, datetime(2021, 1, 14), (103, None))
         broker.tick(datetime(2021, 1, 3), datetime(2021, 1, 4), security_names,
@@ -1894,12 +1894,12 @@ class TestBroker(TestCase):
                 [302, 304, 298, 300]  # OLN
             ], dtype=np.float32)
             next_prices = np.array([
-                [128, 132, 126, 130],  # AAPL
-                [61, 60, 63, 62.5],  # TSLA
-                [302, 304, 298, 300],  # MSFT
-                [102, 104, 98, 100],  # V
-                [202, 208, 196, 200],  # CAT
-                [302, 304, 298, 300]  # OLN
+                [128, 132, 126, 130, 0.],  # AAPL
+                [61, 60, 63, 62.5, 0.],  # TSLA
+                [302, 304, 298, 300, 0.],  # MSFT
+                [102, 104, 98, 100, 0.],  # V
+                [202, 208, 196, 200, 0.],  # CAT
+                [302, 304, 298, 300, 0.]  # OLN
             ], dtype=np.float32)
             marginables = np.ones((6, 2), dtype=bool)
             dividends = np.zeros(6, dtype=np.float32)
@@ -1913,14 +1913,14 @@ class TestBroker(TestCase):
                         prices, next_prices, marginables, dividends, div_freq, short_rates)
 
             # Now, update prices and add new position to the portfolio
-            prices = next_prices
+            prices = next_prices[:, :-1]
             next_prices = np.array([
-                [130, 133, 129, 131],  # AAPL
-                [100, 102, 98, 101],  # TSLA
-                [302, 304, 298, 303],  # MSFT
-                [98, 100, 94, 95],  # V
-                [202, 208, 196, 200],  # CAT
-                [302, 304, 298, 300]  # OLN
+                [130, 133, 129, 131, 0.],  # AAPL
+                [100, 102, 98, 101, 0.],  # TSLA
+                [302, 304, 298, 303, 0.],  # MSFT
+                [98, 100, 94, 95, 0.],  # V
+                [202, 208, 196, 200, 0.],  # CAT
+                [302, 304, 298, 300, 0.]  # OLN
             ], dtype=np.float32)
             broker.buy_long("TSLA", 100, 100, datetime(2021, 1, 14), (103, None))
             broker.tick(datetime(2021, 1, 3), datetime(2021, 1, 4), security_names,

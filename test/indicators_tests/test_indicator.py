@@ -39,7 +39,7 @@ class TestIndicator(TestCase):
         out = ind.get(data, None)
         self.assertEqual({"period": 2}, ind.params)
         self.assertEqual(10, len(out))
-        self.assertEqual(["SMA"], out.columns.tolist())
+        self.assertEqual(["SMA(2)"], out.columns.tolist())
 
         # Now, test with previous data
         @Indicator(["SMA"], period=int)
@@ -50,7 +50,7 @@ class TestIndicator(TestCase):
             return previous_data
 
         ind = SMA(period=4)
-        prev_data = pd.DataFrame(np.random.rand(10, 1), index=pd.date_range("2020-01-01", periods=10), columns=["SMA"])
+        prev_data = pd.DataFrame(np.random.rand(10, 1), index=pd.date_range("2020-01-01", periods=10), columns=["SMA(4)"])
         out = ind.get(data, prev_data)
         np.testing.assert_array_equal(prev_data.to_numpy(), out.to_numpy())
 

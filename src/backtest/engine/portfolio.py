@@ -357,13 +357,16 @@ class Portfolio:
         self._short_len = 0
         self._long_len = 0
 
-    def trade(self, trade: Trade) -> float:
+    def trade(self, trade: Trade, *, correction: float = 0.) -> float:
         """
         Make a trade and add it to the portfolio.
         Note:
             This class will handle the debt record.  It will add the amount borrowed to the debt record when buying long
             and remove it when selling long.
         :param trade: Can be BuyLong, SellLong, SellShort, BuyShort
+        :param correction: The correction to apply to the price of the trade.  It is used to correct the price only
+        while logging the transaction.  It could be used when a split happens at the next tick.  If the correction is 0,
+        it is ignored.
         :return: The cash change in account.  If negative, withdraw.  If positive, deposit.
         :raise RuntimeError: If the transaction ID is already used
         """
@@ -401,6 +404,11 @@ class Portfolio:
                 self._debt_record[trade.security] = newdebt
 
             # Save for stats
+            if correction != 0:
+                trade = deepcopy(trade)
+                trade.security_price /= correction
+                trade.amount *= correction
+                trade.amount_borrowed *= correction
             self._trades.append(trade)
 
             return -self._getCost(trade, include_borrow=False)
@@ -435,6 +443,12 @@ class Portfolio:
                                                         trade.amount + trade.amount_borrowed,
                                                         ratio_owned,
                                                         relative_debt, number_of_entry)
+                # Apply correction
+                if correction != 0:
+                    trade = deepcopy(trade)
+                    trade.security_price /= correction
+                    trade.amount *= correction
+                    trade.amount_borrowed *= correction
                 self._trades.append(
                     TradeStats(trade,
                                duration,
@@ -464,6 +478,13 @@ class Portfolio:
                 self._short[trade.security] = Position(trade.security, trade.amount_borrowed, False,
                                                        trade.security_price, trade.timestamp, 0)
                 self._short_len += 1
+
+            # Apply correction
+            if correction != 0:
+                trade = deepcopy(trade)
+                trade.security_price /= correction
+                trade.amount *= correction
+                trade.amount_borrowed *= correction
             self._trades.append(trade)
             return self._getCost(trade, include_borrow=True, sell=True)
         elif trade.trade_type == TradeType.BuyShort:
@@ -483,7 +504,16 @@ class Portfolio:
                 # Compute stats
                 duration = trade.timestamp - self._short[trade.security].average_filled_time
                 average_sell_price = self._short[trade.security].average_price
-                absolute_profit, rel_profit = self.getShortProfit(average_sell_price, trade.security_price, trade.amount_borrowed + trade.amount)
+                absolute_profit, rel_profit = self.getShortProfit(average_sell_price, trade.security_price,
+                                                                  trade.amount_borrowed + trade.amount)
+
+                # Apply correction
+                if correction != 0:
+                    trade = deepcopy(trade)
+                    trade.security_price /= correction
+                    trade.amount *= correction
+                    trade.amount_borrowed *= correction
+
                 self._trades.append(
                     TradeStats(trade,
                                duration,
@@ -514,6 +544,7 @@ class Portfolio:
     @property
     def len_long(self):
         return self._long_len
+
     @property
     def len_short(self):
         return self._short_len
@@ -528,7 +559,8 @@ class Portfolio:
         """
         intial_investment = average_sell_price * qty
         if self._relative:
-            gain = (intial_investment * (2 - self._transaction_cost)) - (average_buy_price * qty * self._transaction_cost)
+            gain = (intial_investment * (2 - self._transaction_cost)) - (
+                        average_buy_price * qty * self._transaction_cost)
             return gain, 100 * gain / intial_investment
         else:
             gain = (intial_investment - self._transaction_cost) - (average_buy_price * qty + self._transaction_cost)
@@ -550,12 +582,12 @@ class Portfolio:
         if self._relative:
             intial_investment = average_buy_price * qty * ratio_owned * self._transaction_cost
             gain = (average_sell_price * qty * (2 - self._transaction_cost) -
-                     intial_investment -
+                    intial_investment -
                     debt)
             return gain, 100 * gain / intial_investment
         else:
             initial_investment = average_buy_price * qty * ratio_owned + number_of_entry * self._transaction_cost
-            gain = ((average_sell_price * qty - self._transaction_cost) -initial_investment - debt)
+            gain = ((average_sell_price * qty - self._transaction_cost) - initial_investment - debt)
             return gain, 100 * gain / initial_investment
 
     def _getCost(self, trade: Trade, include_borrow: bool = False, sell: bool = False) -> float:
@@ -676,7 +708,8 @@ class Portfolio:
             rel_profit = [trade.rel_profit for trade in self._trades
                           if isinstance(trade, TradeStats) and trade.trade.timestamp > cutoff]
             abs_profit = np.array([trade.profit for trade in self._trades
-                                   if isinstance(trade, TradeStats) and trade.trade.timestamp > cutoff], dtype=np.float32)
+                                   if isinstance(trade, TradeStats) and trade.trade.timestamp > cutoff],
+                                  dtype=np.float32)
             duration_seconds = [trade.duration.total_seconds() for trade in self._trades if
                                 isinstance(trade, TradeStats) and trade.trade.timestamp > cutoff]
         else:
@@ -705,7 +738,7 @@ class Portfolio:
             sqn = None
         else:
             sqn = np.sqrt(self.get_trade_count(exit_only=True, cutoff=cutoff)) * (rel_profit.mean() / 100) / (
-                        (rel_profit / 100).std())
+                (rel_profit / 100).std())
         if total_losses == 0:
             profit_factor = total_gains
         else:
@@ -750,7 +783,8 @@ class Portfolio:
         self = cls(data["transaction_cost"], data["transaction_relative"], debt_record)
         self._long = {ticker: Position.load(pos) for ticker, pos in data["long"].items()}
         self._short = {ticker: Position.load(pos) for ticker, pos in data["short"].items()}
-        self._trades = [TradeStats.load(trade) if trade["type"] == "TradeStats" else Trade.load(trade) for trade in data["trades"]]
+        self._trades = [TradeStats.load(trade) if trade["type"] == "TradeStats" else Trade.load(trade) for trade in
+                        data["trades"]]
         self._transaction_ids = set(data["transaction_ids"])
         self._long_len = len([pos for pos in self._long.values() if pos.amount > 0])
         self._short_len = len([pos for pos in self._short.values() if pos.amount > 0])

@@ -203,22 +203,22 @@ class TestBacktest(TestCase):
             Record(pd.DataFrame(data=aapl_expected, columns=["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"],
                 dtype=np.float64), "AAPL", 0, False, False,
                    DividendFrequency.QUARTERLY, short_rate=0.0,
-                   next_tick=pd.Series([184.1150616539879,186.16243684463709,183.68560174206004,185.9527130126953,46792900,0.0],
-                                       index=["Open", "High", "Low", "Close", "Volume", "Dividends"])),
+                   next_tick=pd.Series([184.1150616539879,186.16243684463709,183.68560174206004,185.9527130126953,46792900, 0.0, 0.],
+                                       index=["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"])),
             Record(pd.DataFrame(data=nvda_tsla_expected,
                                 columns=["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"],
                                 dtype=np.float64), "NVDA", 0, False, False,
                    DividendFrequency.NO_DIVIDENDS, short_rate=0.0,
                    next_tick=pd.Series(
-                       [536.1599731445312,546.0,534.8900146484375,543.5,53379600,0.0],
-                       index=["Open", "High", "Low", "Close", "Volume", "Dividends"])),
+                       [536.1599731445312,546.0,534.8900146484375,543.5,53379600,0.0, 0.],
+                       index=["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"])),
             Record(pd.DataFrame(data=nvda_tsla_expected,
                                 columns=["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"],
                                 dtype=np.float64), "TSLA", 0, False, False,
                    DividendFrequency.NO_DIVIDENDS, short_rate=0.0,
                    next_tick=pd.Series(
-                       [536.1599731445312,546.0,534.8900146484375,543.5,53379600,0.0],
-                       index=["Open", "High", "Low", "Close", "Volume", "Dividends"])),
+                       [536.1599731445312,546.0,534.8900146484375,543.5,53379600,0.0, 0.],
+                       index=["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"])),
         ]
         for i in range(3):
             np.testing.assert_array_almost_equal(actual[i].chart.values, expected[i].chart.values)
@@ -267,15 +267,15 @@ class TestBacktest(TestCase):
             Record(nvda_df, "NVDA", 0, False, True,
                    DividendFrequency.NO_DIVIDENDS, short_rate=0.1,
                    next_tick=pd.Series(
-                       [474.8500061035156,481.8399963378906,473.20001220703125,475.69000244140625,32089600,0.0],
-                       index=["Open", "High", "Low", "Close", "Volume", "Dividends"])),
+                       [118.7125015,120.45999908,118.30000305,118.92250061,128358400,0.0, 0.25],
+                       index=["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"])),
             Record(pd.DataFrame(data=tsla_expected,
                                 columns=["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"],
                                 dtype=np.float64), "TSLA", 0, False, False,
                    DividendFrequency.NO_DIVIDENDS, short_rate=0.0,
                    next_tick=pd.Series(
-                       [474.8500061035156,481.8399963378906,473.20001220703125,475.69000244140625,32089600,0.0],
-                       index=["Open", "High", "Low", "Close", "Volume", "Dividends"])),
+                       [474.8500061035156,481.8399963378906,473.20001220703125,475.69000244140625,32089600,0.0, 0.],
+                       index=["Open", "High", "Low", "Close", "Volume", "Dividends", "Stock Splits"])),
         ]
         actual = bcktst._prepare_data(data, 0, datetime.fromisoformat(current_time), 3,
                                       False, False, 0., save_next_tick=True)
@@ -285,6 +285,8 @@ class TestBacktest(TestCase):
                 self.assertIsNone(actual[i].chart)
                 self.assertEqual(actual[i].next_tick, expected[i].next_tick)    # None
             else:
+                print(actual[i].chart.values)
+                print(actual[i].next_tick.values)
                 np.testing.assert_array_almost_equal(actual[i].chart.values, expected[i].chart.values)
                 np.testing.assert_array_almost_equal(actual[i].next_tick.values, expected[i].next_tick.values)
             self.assertEqual(actual[i].ticker, expected[i].ticker)
@@ -548,8 +550,8 @@ class TestBacktest(TestCase):
         ])
         np.testing.assert_array_almost_equal(expected_current_data, current_data, decimal=5)
         expected_next_tick_data = np.array([
-            [184.1150616539879,186.16243684463709,183.68560174206004,185.9527130126953],
-            [536.1599731445312,546.0,534.8900146484375,543.5]
+            [184.1150616539879,186.16243684463709,183.68560174206004,185.9527130126953,0],
+            [536.1599731445312,546.0,534.8900146484375,543.5,0]
         ])
         np.testing.assert_array_almost_equal(expected_next_tick_data, next_tick_data, decimal=5)
         marginables_expected = np.array([[True, False],
@@ -615,20 +617,20 @@ class TestBacktest(TestCase):
         )
         # Test full run
         out = bcktst.run_indicator(data, None, ind, streaming=False, bigger_res=False)
-        self.assertEqual(data.columns.tolist() + ["SMA"], out.columns.tolist())
+        self.assertEqual(data.columns.tolist() + ["SMA(10)"], out.columns.tolist())
 
         # Test streaming
         prev_data = out.copy(deep=True)
-        prev_data["SMA"].iloc[-5:] = np.nan
+        prev_data["SMA(10)"].iloc[-5:] = np.nan
         out2 = bcktst.run_indicator(data, prev_data, ind, streaming=True, bigger_res=False)
-        self.assertEqual(data.columns.tolist() + ["SMA"], out.columns.tolist())
+        self.assertEqual(data.columns.tolist() + ["SMA(10)"], out.columns.tolist())
         np.testing.assert_array_equal(out.values, out2.values)
 
         # Test with bigger res
         prev_data = out.copy(deep=True)
-        prev_data["SMA"].iloc[-1:] = 8    # Sabotage of the previous data to see if it is overwritten
+        prev_data["SMA(10)"].iloc[-1:] = 8    # Sabotage of the previous data to see if it is overwritten
         out3 = bcktst.run_indicator(data, prev_data, ind, streaming=True, bigger_res=True)
-        self.assertEqual(data.columns.tolist() + ["SMA"], out.columns.tolist())
+        self.assertEqual(data.columns.tolist() + ["SMA(10)"], out.columns.tolist())
         np.testing.assert_array_equal(out.values, out3.values)
 
     def test_apply_indicators(self):
@@ -675,39 +677,39 @@ class TestBacktest(TestCase):
                                              False, False, 0,
                                              max_look_back_dt=out1[0].chart.index[0])
         out3 = bcktst.apply_indicators(prepared_data, 0, False)
-        self.assertEqual(out3[0].chart["SMA"].isna().sum(), 9)
-        self.assertEqual(out3[1].chart["SMA"].isna().sum(), 9)
+        self.assertEqual(out3[0].chart["SMA(10)"].isna().sum(), 9)
+        self.assertEqual(out3[1].chart["SMA(10)"].isna().sum(), 9)
 
         # Now with streaming with smaller time res
         prepared_data = bcktst._prepare_data(data, 0, datetime(2024, 1, 29), 100,
                                              False, False, 0,
                                              max_look_back_dt=out2[0].chart.index[0])
         out4 = bcktst.apply_indicators(prepared_data, 0, True)
-        self.assertEqual(out4[0].chart["SMA"].isna().sum(), 2)
-        self.assertEqual(out4[1].chart["SMA"].isna().sum(), 2)
+        self.assertEqual(out4[0].chart["SMA(10)"].isna().sum(), 2)
+        self.assertEqual(out4[1].chart["SMA(10)"].isna().sum(), 2)
 
         # Now with bigger time res
         prepared_data = bcktst._prepare_data(data, 2, datetime(2024, 1, 26), 100,
                                              False, False, 0,
                                              max_look_back_dt=out1[0].chart.index[0])
         out5 = bcktst.apply_indicators(prepared_data, 2, False)
-        self.assertEqual(out5[0].chart["SMA"].isna().sum(), 9)
-        self.assertEqual(out5[1].chart["SMA"].isna().sum(), 9)
+        self.assertEqual(out5[0].chart["SMA(10)"].isna().sum(), 9)
+        self.assertEqual(out5[1].chart["SMA(10)"].isna().sum(), 9)
 
         # Now with streaming with bigger time res
         prepared_data = bcktst._prepare_data(data, 2, datetime(2024, 1, 29), 100,
                                              False, False, 0,
                                              max_look_back_dt=out2[0].chart.index[0])
         # Sabotage the cache to make a non-sense value at last time step of SMA to see if it is overwritten
-        bcktst.cache_data[2]["AAPL"]["SMA"].iloc[-1] = -1
-        bcktst.cache_data[2]["AAPL"]["SMA"].iloc[-2] = 10
-        bcktst.cache_data[2]["NVDA"]["SMA"].iloc[-1] = -1
-        bcktst.cache_data[2]["NVDA"]["SMA"].iloc[-2] = 10
+        bcktst.cache_data[2]["AAPL"]["SMA(10)"].iloc[-1] = -1
+        bcktst.cache_data[2]["AAPL"]["SMA(10)"].iloc[-2] = 10
+        bcktst.cache_data[2]["NVDA"]["SMA(10)"].iloc[-1] = -1
+        bcktst.cache_data[2]["NVDA"]["SMA(10)"].iloc[-2] = 10
         out6 = bcktst.apply_indicators(prepared_data, 2, True)
-        self.assertEqual(out6[0].chart["SMA"].iloc[-2], 10)
-        self.assertEqual(out6[1].chart["SMA"].iloc[-2], 10)
-        self.assertEqual(out6[0].chart["SMA"].iloc[-1], 190.75359344482422)
-        self.assertEqual(out6[1].chart["SMA"].iloc[-1], 505.6915710449219)
+        self.assertEqual(out6[0].chart["SMA(10)"].iloc[-2], 10)
+        self.assertEqual(out6[1].chart["SMA(10)"].iloc[-2], 10)
+        self.assertEqual(out6[0].chart["SMA(10)"].iloc[-1], 190.75359344482422)
+        self.assertEqual(out6[1].chart["SMA(10)"].iloc[-1], 505.6915710449219)
 
         # Now, try with different indicators with different time resolutions - list
         indicators = [None, IndicatorSet(TA.SMA(period=10)), IndicatorSet(TA.ADX(period=6))]
@@ -728,15 +730,15 @@ class TestBacktest(TestCase):
         prepared_data = bcktst._prepare_data(data, 1, datetime(2024, 1, 26), 100,
                                              False, False, 0)
         out8 = bcktst.apply_indicators(prepared_data, 1, False)
-        self.assertEqual(out8[0].chart.columns.tolist(), data[1]["AAPL"].data.columns.tolist() + ["SMA"])
-        self.assertEqual(out8[1].chart.columns.tolist(), data[1]["NVDA"].data.columns.tolist() + ["SMA"])
+        self.assertEqual(out8[0].chart.columns.tolist(), data[1]["AAPL"].data.columns.tolist() + ["SMA(10)"])
+        self.assertEqual(out8[1].chart.columns.tolist(), data[1]["NVDA"].data.columns.tolist() + ["SMA(10)"])
 
         # Run with resolution 2
         prepared_data = bcktst._prepare_data(data, 2, datetime(2024, 1, 26), 100,
                                              False, False, 0)
         out9 = bcktst.apply_indicators(prepared_data, 2, True)
-        self.assertEqual(out9[0].chart.columns.tolist(), data[2]["AAPL"].data.columns.tolist() + ["ADX"])
-        self.assertEqual(out9[1].chart.columns.tolist(), data[2]["NVDA"].data.columns.tolist() + ["ADX"])
+        self.assertEqual(out9[0].chart.columns.tolist(), data[2]["AAPL"].data.columns.tolist() + ["ADX(6)"])
+        self.assertEqual(out9[1].chart.columns.tolist(), data[2]["NVDA"].data.columns.tolist() + ["ADX(6)"])
 
         # Now, try with different indicators with different time resolutions - dict
         indicators = {
@@ -753,15 +755,15 @@ class TestBacktest(TestCase):
         prepared_data = bcktst._prepare_data(data, 0, datetime(2024, 1, 26), 100,
                                              False, False, 0)
         out10 = bcktst.apply_indicators(prepared_data, 0, False)
-        self.assertEqual(out10[0].chart.columns.tolist(), data[0]["AAPL"].data.columns.tolist() + ["ADX"])
-        self.assertEqual(out10[1].chart.columns.tolist(), data[0]["NVDA"].data.columns.tolist() + ["ADX"])
+        self.assertEqual(out10[0].chart.columns.tolist(), data[0]["AAPL"].data.columns.tolist() + ["ADX(6)"])
+        self.assertEqual(out10[1].chart.columns.tolist(), data[0]["NVDA"].data.columns.tolist() + ["ADX(6)"])
 
         # Run with resolution 1
         prepared_data = bcktst._prepare_data(data, 1, datetime(2024, 1, 26), 100,
                                              False, False, 0)
         out11 = bcktst.apply_indicators(prepared_data, 1, False)
-        self.assertEqual(out11[0].chart.columns.tolist(), data[1]["AAPL"].data.columns.tolist() + ["SMA"])
-        self.assertEqual(out11[1].chart.columns.tolist(), data[1]["NVDA"].data.columns.tolist() + ["SMA"])
+        self.assertEqual(out11[0].chart.columns.tolist(), data[1]["AAPL"].data.columns.tolist() + ["SMA(10)"])
+        self.assertEqual(out11[1].chart.columns.tolist(), data[1]["NVDA"].data.columns.tolist() + ["SMA(10)"])
 
         # Run with resolution 2
         prepared_data = bcktst._prepare_data(data, 2, datetime(2024, 1, 26), 100,

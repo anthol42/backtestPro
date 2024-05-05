@@ -50,16 +50,16 @@ class IndicatorSet:
             self._indicators.extend(indicators)
         else:
             self._indicators.append(indicators)
-        names = {indicator.type_name: 0 for indicator in self._indicators}
+        names = {indicator.get_name_no_id(): 0 for indicator in self._indicators}
         for indicator in self._indicators:
-            names[indicator.type_name] += 1
-            if names[indicator.type_name] == 2:
+            names[indicator.get_name_no_id()] += 1
+            if names[indicator.get_name_no_id()] == 2:
                 for ind in self._indicators:
                     if ind.name == indicator.name:
                         ind.set_id(1)
-                indicator.set_id(names[indicator.type_name])
+                indicator.set_id(names[indicator.get_name_no_id()])
             elif names[indicator.name] > 2:
-                indicator.set_id(names[indicator.type_name])
+                indicator.set_id(names[indicator.get_name_no_id()])
 
     def run_all(self, data: pd.DataFrame, previous_data: Optional[pd.DataFrame] = None) -> pd.DataFrame:
         """

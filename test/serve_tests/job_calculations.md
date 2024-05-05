@@ -18,6 +18,7 @@ Total = 8 641.01 - 40 + 40= 8 641.01$
 Final cash: 100 000 + 8 641.01 = 108 641.01$
 
 ## Deductions from borrowing rates
-Because we did not change month, no deductions are made.
-In fact, we change month from january to february, however, we didn't borrow any money in january, 
-so no deductions are made.
+interest payment: 6.28 for january
+
+## Final total:
+108 641.01 - 6.28 = 108 634.73$

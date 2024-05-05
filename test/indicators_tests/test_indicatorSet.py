@@ -26,8 +26,8 @@ class TestIndicatorSet(TestCase):
                                EMA(period=3)
                                )
         self.assertEqual(2, len(ind_set))
-        self.assertEqual(["SMA", "EMA"], [ind.name for ind in ind_set._indicators])
-        self.assertEqual(["SMA", "EMA", "Signal"], ind_set.out)
+        self.assertEqual(['SMA(2)', 'EMA(3)'], [ind.name for ind in ind_set._indicators])
+        self.assertEqual(['SMA(2)', 'EMA(3)', 'Signal(3)'], ind_set.out)
 
         # Now, test with duplicates
         ind_set = IndicatorSet(EMA(period=2),
@@ -35,8 +35,8 @@ class TestIndicatorSet(TestCase):
                                EMA(period=3)
                                )
         self.assertEqual(3, len(ind_set))
-        self.assertEqual(["EMA_1", "SMA", "EMA_2"], [ind.name for ind in ind_set._indicators])
-        self.assertEqual(["EMA_1", "Signal_1", "SMA", "EMA_2", "Signal_2"], ind_set.out)
+        self.assertEqual(['EMA(2)', 'SMA(3)', 'EMA(3)'], [ind.name for ind in ind_set._indicators])
+        self.assertEqual(['EMA(2)', 'Signal(2)', 'SMA(3)', 'EMA(3)', 'Signal(3)'], ind_set.out)
 
     def test_add(self):
         @Indicator(["SMA"], period=int)
@@ -58,14 +58,14 @@ class TestIndicatorSet(TestCase):
         ind_set = IndicatorSet(SMA(period=2))
         ind_set.add(EMA(period=2))
         self.assertEqual(2, len(ind_set))
-        self.assertEqual(["SMA", "EMA"], [ind.name for ind in ind_set._indicators])
-        self.assertEqual(["SMA", "EMA", "Signal"], ind_set.out)
+        self.assertEqual(["SMA(2)", "EMA(2)"], [ind.name for ind in ind_set._indicators])
+        self.assertEqual(["SMA(2)", "EMA(2)", "Signal(2)"], ind_set.out)
 
         # Now, test with duplicates
         ind_set.add(EMA(period=3))
         self.assertEqual(3, len(ind_set))
-        self.assertEqual(["SMA", "EMA_1", "EMA_2"], [ind.name for ind in ind_set._indicators])
-        self.assertEqual(["SMA", "EMA_1", "Signal_1", "EMA_2", "Signal_2"], ind_set.out)
+        self.assertEqual(['SMA(2)', 'EMA(2)', 'EMA(3)'], [ind.name for ind in ind_set._indicators])
+        self.assertEqual(['SMA(2)', 'EMA(2)', 'Signal(2)', 'EMA(3)', 'Signal(3)'], ind_set.out)
 
     def test_run_all(self):
         @Indicator(["SMA"], period=int)
@@ -90,10 +90,10 @@ class TestIndicatorSet(TestCase):
                                )
         out = ind_set.run_all(data, None)
         self.assertEqual(10, len(out))
-        self.assertEqual(["Open", "High", "Low", "Close", "SMA", "EMA", "Signal"], out.columns.tolist())
+        self.assertEqual(['Open', 'High', 'Low', 'Close', 'SMA(2)', 'EMA(3)', 'Signal(3)'], out.columns.tolist())
 
         # Now, test with previous data
-        prev_data = pd.DataFrame(np.random.rand(10, 3), index=pd.date_range("2020-01-01", periods=10), columns=["SMA", "EMA", "Signal"])
+        prev_data = pd.DataFrame(np.random.rand(10, 3), index=pd.date_range("2020-01-01", periods=10), columns=['SMA(4)', 'EMA(3)', 'Signal(3)'])
         @Indicator(["SMA"], period=int)
         def SMA(data: np.ndarray, index: list, features: list, previous_data: np.ndarray, period: int = 3) -> np.ndarray:
             out = np.zeros(len(data), dtype=np.float32)
@@ -105,7 +105,7 @@ class TestIndicatorSet(TestCase):
                                EMA(period=3)
                                )
         out = ind_set.run_all(data, prev_data)
-        np.testing.assert_array_equal(prev_data["SMA"], out["SMA"])
+        np.testing.assert_array_equal(prev_data["SMA(4)"], out["SMA(4)"])
 
         # Now, test with multiple indicators with the same name
         @Indicator(["SMA"], period=int)
@@ -120,4 +120,4 @@ class TestIndicatorSet(TestCase):
                                )
         out = ind_set.run_all(data, None)
         self.assertEqual(10, len(out))
-        self.assertEqual(["Open", "High", "Low", "Close", "SMA_1", "EMA", "Signal", "SMA_2"], out.columns.tolist())
+        self.assertEqual(['Open', 'High', 'Low', 'Close', 'SMA(2)', 'EMA(3)', 'Signal(3)', 'SMA(3)'], out.columns.tolist())
