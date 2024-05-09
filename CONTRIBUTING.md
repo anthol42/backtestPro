@@ -227,7 +227,7 @@ module in a try except block to avoid import errors when the module is not insta
 ### Documentation
 Documentation is an important part of the project.  If you are adding a new feature or fixing a bug, please update the
 documentation to reflect the changes.  The documentation is written in the reStructuredText format.  The documentation
-is the docstrings of the functions and classes.  It is later rendered using Sphinx.  If you are adding a new feature,
+is the docstrings of the functions and classes.  It is later rendered using pdoc3.  If you are adding a new feature,
 please add a new section in the documentation to explain how to use the feature.  If you are fixing a bug, please update
 the documentation to reflect the changes.  The documentation will be rendered when a new version is released.
 

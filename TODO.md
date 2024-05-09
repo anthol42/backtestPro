@@ -18,13 +18,13 @@
   - [X] Build the About page
   - [X] Build tutorial templates
   - [X] Link the navbar to the pages
-- [ ] Fix documentation bugs
-- [ ] Notebooks tutorials
-  - [ ] Data
-  - [ ] Backtest
+- [X] Fix documentation bugs
+- [X] Notebooks tutorials
+  - [X] Data
+  - [X] Backtest
   - [ ] Indicators
   - [ ] Serve
-- [ ] Render the documentation + notebooks + blog section
-- [ ] Fix the CONTRIBUTING.md to change the SPHINX doc to pdoc3
+- [X] Render the documentation + notebooks + blog section
+- [X] Fix the CONTRIBUTING.md to change the SPHINX doc to pdoc3
 - [ ] Make a github pages for the documentation
 - [ ] Alpha Release (In a pip module) !!!
