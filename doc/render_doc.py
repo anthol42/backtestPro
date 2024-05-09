@@ -217,10 +217,10 @@ if lunr_config is not None:
 
 
 # Render the home page
-render_mako_page("home", out_path=BASE_OUR_PATH)
+render_mako_page("home", out_path=BASE_OUR_PATH, abs_path=ABSOLUTE_PATH)
 
 # Render the get started page
-render_mako_page("get_started", out_path=BASE_OUR_PATH)
+render_mako_page("get_started", out_path=BASE_OUR_PATH, abs_path=ABSOLUTE_PATH)
 
 render_page("about", out_path=BASE_OUR_PATH)
 

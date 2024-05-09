@@ -1,5 +1,5 @@
   <div id="home-header">
-      <img alt="Logo image" class="big-logo" src="/${absolute_path}/assets/logo_light.svg">
+      <img alt="Logo image" class="big-logo" src="${absolute_path}/assets/logo_light.svg">
       <h2 id="home-short-desc">Feature rich backtesting framework</h2>
   </div>
   <div id="home-card-presentation" class="container" style="max-width: 1100px;">

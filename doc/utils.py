@@ -64,7 +64,7 @@ def render_page(path: str, out_path: str, html: str = None):
         f.write(rendered_page)
 
 
-def render_mako_page(path: str, out_path: str):
+def render_mako_page(path: str, out_path: str, abs_path: str = None):
     template_lookup = TemplateLookup(directories=[f'doc/{path}'])
 
     # Get a template
@@ -73,7 +73,7 @@ def render_mako_page(path: str, out_path: str):
     # Open python code
     files = glob.glob(f"doc/{path}/*.py")
     params = {}
-    params['absolute_path'] = out_path
+    params['absolute_path'] = abs_path
     for file in files:
         with open(file, "r") as f:
             code_raw = f.read()
