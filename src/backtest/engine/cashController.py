@@ -44,9 +44,30 @@ class CashControllerBase(ABC):
     thing but return -1000 instead.
     If you want to do your deposit/withdrawal based on information from your portfolio or your broker, use the
     attributes: self.broker.portfolio or self.broker.
-    Agan, if you use the broker, Make sure that the broker is not modified in any way!
 
-    DO NOT override the '_init' method. Instead, override the __init__ method if you need to initialize some variables.
+    You also need to return a comment on the transaction that can be None.  Check the example below for more
+    information.
+
+    **Again, if you use the broker, the account or the strategy, Make sure that they aren't modified in any way!**
+
+    DO NOT override the 'init' method. Instead, override the __init__ method if you need to initialize some variables.
+
+    Attributes:
+        broker: The broker object
+        account: The account object
+        strategy: The strategy object
+        transactions: A list of all transactions made by the cash controller
+        total_deposited: The total amount of money deposited in the account by the cash controller
+
+    Example:
+        >>> from backtest.engine import CashControllerBase
+        >>> # Deposit 1000$ in the account if the available cash is below 1000$ (Check every month)
+        >>> class MyCashController(CashControllerBase):
+        ...     def every_month(self, timestamp: datetime) -> Tuple[float, Optional[str]]:
+        ...         if self.account.available_cash < 1000:
+        ...             return 1000, "Fund deposit"
+        ...
+
     """
     def __init__(self):
         self.broker: Optional[Broker] = None
