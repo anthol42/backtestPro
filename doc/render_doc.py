@@ -13,11 +13,15 @@ import os
 import sys
 from utils import render_page, render_mako_page, render_tutorials
 from src import backtest
-
+import utils
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + "/..")
 sys.path.append(os.getcwd())
 
 FLATTEN_DOC = True
+BASE_OUR_PATH = '../anthol42.github.io/backtestpro'
+ABSOLUTE_PATH = '/backtestpro'
+
+utils.ABSOLUTE_PATH = ABSOLUTE_PATH
 """
 If True, the documentation will be flattened, meaning that the submodules will be part of the main module.
 We will have the following structure:
@@ -30,13 +34,13 @@ backtest
 Instead of having a structure based on the file tree.
 """
 VERBOSE = 1    # 0: No output, 1: Ignored objects (Because no docstring)
-pdoc.cli.args.output_dir = "build/docs"
+pdoc.cli.args.output_dir = f"{BASE_OUR_PATH}/docs"
 pdoc.tpl_lookup.directories.insert(0, './doc/templates/pdoc')
 template_config = {'lunr_search': {'index_docstrings': True},
                    'list_class_variables_in_index': True,
                    'show_source_code': False,
                    'show_inherited_members': False,
-                   'absolute_path': '/finBacktest/build',
+                   'absolute_path': ABSOLUTE_PATH,
                    'pdoc': pdoc,
                    'backtest': backtest}
 documented_modules = {
@@ -213,21 +217,19 @@ if lunr_config is not None:
 
 
 # Render the home page
-render_page("home")
+render_mako_page("home", out_path=BASE_OUR_PATH)
 
 # Render the get started page
-render_mako_page("get_started")
+render_mako_page("get_started", out_path=BASE_OUR_PATH)
 
-render_page("about")
-
-
-# Render the tutorials
-render_tutorials()
-
-
+render_page("about", out_path=BASE_OUR_PATH)
 
 # Finally, handle assets
-shutil.copytree("doc/assets", "build/assets", dirs_exist_ok=True)
+shutil.copytree("doc/assets", f"{BASE_OUR_PATH}/assets", dirs_exist_ok=True)
+
+# Render the tutorials
+render_tutorials(out_path=BASE_OUR_PATH)
+
 
 def svg_to_ico(svg_file, output_ico, sizes=((64, 64), )):
     # Convert SVG to PNG

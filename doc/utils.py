@@ -15,6 +15,8 @@ from nbconvert import HTMLExporter
 import nbformat
 from src import backtest
 
+ABSOLUTE_PATH = None
+
 os.chdir(os.path.dirname(os.path.abspath(__file__)) + "/..")
 sys.path.append(os.getcwd())
 
@@ -28,7 +30,7 @@ def render_python_code(code):
     return html_code
 
 
-def render_page(path: str, html: str = None):
+def render_page(path: str, out_path: str, html: str = None):
     if html is None:
         # Load the html file
         with open(f"doc/{path}/main.html", "r") as f:
@@ -39,9 +41,10 @@ def render_page(path: str, html: str = None):
         config = json.load(f)
 
     # Define variables for template substitution
+    assert ABSOLUTE_PATH is not None, "ABSOLUTE_PATH must be defined before rendering the page."
     params = {
         "html_lang": "en",
-        "absolute_path": "/finBacktest/build",
+        "absolute_path": ABSOLUTE_PATH,
         "page_title": config["title"],
         "page_desc": config["description"],
         "page_id": config["id"],
@@ -57,11 +60,11 @@ def render_page(path: str, html: str = None):
     rendered_page = template.render(**params, pdoc=pdoc, backtest=backtest)
 
     # Print or use the rendered HTML page
-    with open(f"build/{config['out_path']}", "w") as f:
+    with open(f"{out_path}/{config['out_path']}", "w") as f:
         f.write(rendered_page)
 
 
-def render_mako_page(path: str):
+def render_mako_page(path: str, out_path: str):
     template_lookup = TemplateLookup(directories=[f'doc/{path}'])
 
     # Get a template
@@ -70,6 +73,7 @@ def render_mako_page(path: str):
     # Open python code
     files = glob.glob(f"doc/{path}/*.py")
     params = {}
+    params['absolute_path'] = out_path
     for file in files:
         with open(file, "r") as f:
             code_raw = f.read()
@@ -80,7 +84,7 @@ def render_mako_page(path: str):
     # Render the template with the provided variables
     html = template.render(**params)
 
-    render_page(path, html)
+    render_page(path, out_path=out_path, html=html)
 
 
 def render_notebook_raw(notebook_path: str) -> str:
@@ -96,7 +100,7 @@ def render_notebook_raw(notebook_path: str) -> str:
 
     return body
 
-def extract_css(notebook_path: str):
+def extract_css(notebook_path: str, out_path: str):
     html = render_notebook_raw(notebook_path)
     soup = BeautifulSoup(html, 'html.parser')
     style_elements = soup.find_all('style')
@@ -109,7 +113,7 @@ def extract_css(notebook_path: str):
     # We remove the body spect because it is already defined in the main template
     css = re.sub(r'body {.*?}', '', css, flags=re.DOTALL)
 
-    with open('doc/assets/notebook.css', 'w', encoding='utf-8') as f:
+    with open(f'{out_path}/assets/notebook.css', 'w', encoding='utf-8') as f:
         f.write(css)
 
 def build_notebook_object(notebook_path: str):
@@ -138,27 +142,28 @@ def build_notebook_object(notebook_path: str):
     return body.contents[1]
 
 
-def render_tutorials():
-    with open("doc/templates/notebooks/rendering_scripts.html", "r") as f:
+def render_tutorials(out_path: str):
+    with open(f"doc/templates/notebooks/rendering_scripts.html", "r") as f:
         rendering_scripts = f.read()
 
     # Get notebooks
     notebooks = [os.path.basename(f.replace(".ipynb", "")) for f in glob.glob("doc/tutorials/notebooks/*.ipynb")]
 
     # Build the style file
-    extract_css(f"doc/tutorials/notebooks/{notebooks[0]}.ipynb")
+    extract_css(f"doc/tutorials/notebooks/{notebooks[0]}.ipynb", out_path)
 
     # Load the template
     template_lookup = TemplateLookup(directories=["doc/templates/notebooks"])
     template = template_lookup.get_template("frame.mako")
 
+    assert ABSOLUTE_PATH is not None, "ABSOLUTE_PATH must be defined before rendering the page."
     for notebook in notebooks:
         # Build the notebook object
         notebook_object = build_notebook_object(f"doc/tutorials/notebooks/{notebook}.ipynb")
 
         params = {
             "html_lang": "en",
-            "absolute_path": "/finBacktest/build",
+            "absolute_path": ABSOLUTE_PATH,
             "page_title": notebook.replace("_", " "),
             "page_desc": "A tutorial on how to use the BacktestPro Framework.",
             "notebook_content": notebook_object,
@@ -169,19 +174,21 @@ def render_tutorials():
 
         # Render the template with the provided variables
         html = template.render(**params, pdoc=pdoc, backtest=backtest)
-        if not os.path.exists("build/tutorials"):
-            os.makedirs("build/tutorials")
+        if not os.path.exists(f"{out_path}/tutorials"):
+            os.makedirs(f"{out_path}/tutorials")
 
         # Write the rendered page to file
-        with open(f"build/tutorials/{notebook}.html", "w") as f:
+        with open(f"{out_path}/tutorials/{notebook}.html", "w") as f:
             f.write(html)
 
     # Render the tutorial home page
-    with open("doc/tutorials/home.html", "r") as f:
+    with open(f"doc/tutorials/home.html", "r") as f:
         content = f.read()
+
+    assert ABSOLUTE_PATH is not None, "ABSOLUTE_PATH must be defined before rendering the page."
     params = {
         "html_lang": "en",
-        "absolute_path": "/finBacktest/build",
+        "absolute_path": ABSOLUTE_PATH,
         "page_title": "Tutorial Home",
         "page_desc": "A tutorial on how to use the BacktestPro Framework.",
         "notebook_content": content,
@@ -190,5 +197,5 @@ def render_tutorials():
         "page_id": "home"
     }
     html = template.render(**params, pdoc=pdoc, backtest=backtest)
-    with open(f"build/tutorials/index.html", "w") as f:
+    with open(f"{out_path}/tutorials/index.html", "w") as f:
         f.write(html)

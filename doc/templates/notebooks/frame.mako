@@ -23,11 +23,11 @@
     <nav id="toc">
         <ul class="nav flex-column">
             <li class="nav-item nav-item-dynamic">
-                <a class="nav-link"  style="${'color: rgb(34, 34, 34)' if page_id == 'home' else 'color: rgb(137, 137, 137)'}" href="/finBacktest/build/tutorials">Home</a>
+                <a class="nav-link"  style="${'color: rgb(34, 34, 34)' if page_id == 'home' else 'color: rgb(137, 137, 137)'}" href="${absolute_path}/tutorials">Home</a>
             </li>
             % for filename in available_files:
                 <li class="nav-item nav-item-dynamic">
-                    <a class="nav-link" style="${'color: rgb(34, 34, 34)' if page_id == filename else 'color: rgb(137, 137, 137)'}" href="/finBacktest/build/tutorials/${filename}.html">${filename.replace("_", " ").title()}</a>
+                    <a class="nav-link" style="${'color: rgb(34, 34, 34)' if page_id == filename else 'color: rgb(137, 137, 137)'}" href="${absolute_path}/tutorials/${filename}.html">${filename.replace("_", " ").title()}</a>
                 </li>
             % endfor
         </ul>
