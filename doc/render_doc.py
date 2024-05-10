@@ -239,4 +239,4 @@ def svg_to_ico(svg_file, output_ico, sizes=((64, 64), )):
     with Image.open(io.BytesIO(png_data)) as img:
         img.save(output_ico, sizes=sizes)
 
-svg_to_ico("doc/assets/logo_small_light.svg", "build/assets/favicon.ico", sizes=((64, 64),))
+svg_to_ico("doc/assets/logo_small_light.svg", f"{BASE_OUR_PATH}/assets/favicon.ico", sizes=((64, 64),))

@@ -26,5 +26,5 @@
   - [ ] Serve
 - [X] Render the documentation + notebooks + blog section
 - [X] Fix the CONTRIBUTING.md to change the SPHINX doc to pdoc3
-- [ ] Make a github pages for the documentation
+- [X] Make a github pages for the documentation
 - [ ] Alpha Release (In a pip module) !!!
