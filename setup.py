@@ -7,6 +7,7 @@ To push to pip test:
 """
 from setuptools import setup, find_packages
 import sys
+import os
 
 def increment_version(old: str):
     s = [int(i) for i in old.split(".")]
@@ -21,8 +22,11 @@ if "version++" in sys.argv:
     with open("src/backtest/__version__.py", "w") as f:
         f.write(f"__version__ = \"{increment_version(version)}\"")
 
-with open("PYPI.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+if os.path.exists("PYPI.md"):
+    with open("PYPI.md", "r", encoding="utf-8") as fh:
+        long_description = fh.read()
+else:
+    long_description = "No description found"
 
 # Load version
 with open("src/backtest/__version__.py", "r") as f:

@@ -19,7 +19,7 @@ sys.path.append(os.getcwd())
 
 FLATTEN_DOC = True
 BASE_OUR_PATH = '../anthol42.github.io/backtestpro'
-ABSOLUTE_PATH = '/backtestpro'
+ABSOLUTE_PATH = '/anthol42.github.io/backtestpro'
 
 utils.ABSOLUTE_PATH = ABSOLUTE_PATH
 """

@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1" />
-  <link rel="icon" type="image/x-icon" href="${absolute_path}/assets/favicon.ico">
+  <link rel="icon" type="image/x-icon" href="${absolute_path}/assets/favicon.ico?">
   <link href='${absolute_path}/assets/bootstrap.min.css' rel='stylesheet', type='text/css'>
   <link href="${absolute_path}/assets/style.css" rel="stylesheet" type="text/css">
   <link href="${absolute_path}/assets/notebook.css" rel="stylesheet" type="text/css">

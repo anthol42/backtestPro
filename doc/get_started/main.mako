@@ -21,7 +21,7 @@
                 <h2>Install</h2>
                 <p class="code-header">The easiest way to install it is with pip:</p>
                 <div class="shell-box">
-                    <pre><code>pip install backtestPro</code></pre>
+                    <pre><code>pip install backtest-pro</code></pre>
                     <div class="copy-button-container">
                         <button class="copy-button" onclick="copyToClipboard(this)"><i class='fas'>&#xf0c5;</i></button>
                     </div>
