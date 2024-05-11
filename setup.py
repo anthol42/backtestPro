@@ -21,7 +21,7 @@ if "version++" in sys.argv:
     with open("src/backtest/__version__.py", "w") as f:
         f.write(f"__version__ = \"{increment_version(version)}\"")
 
-with open("README.md", "r", encoding="utf-8") as fh:
+with open("PYPI.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 # Load version
@@ -47,7 +47,7 @@ setup(
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: OS Independent",
-        "Development Status :: 2 - Pre-Alpha",
+        "Development Status :: 3 - Alpha",
         "Intended Audience :: Financial and Insurance Industry",
         "Intended Audience :: Science/Research",
         "Intended Audience :: Education",

@@ -13,15 +13,6 @@ for professional applications.**
 make the results of the backtest invalid.  Always double-check the results with your own code.  If you find a bug, please
 open an issue on the github page.  The api might also change without notice.
 
-## Table of Contents
-- [Main Features](#features)
-- [Installation](#installation)
-- [Installation from source](#installation-from-source)
-- [License](#license)
-- [Documentation](#documentation)
-- [Contributing](#contributing)
-- [Beware](#beware)
-- [RoadMap](#roadmap)
 
 ## Features
 Here are just a few of the features that **backtest-pro** offers:
@@ -78,44 +69,31 @@ Then, you can install with the following command:
 pip install .
 ```
 
-## License
-[GNU General Public License v3.0](LICENSE)
+## Example
+```python
+from backtest import Strategy, Backtest
+from backtest.indicators import IndicatorSet, TA
+from backtest.data import FetchCharts, ToTSData, Cache, PadNan
+import backtest.engine.functional as F
+from datetime import datetime
 
-## Documentation
-[Click here](https://anthol42.github.io/backtestpro/)
+class MyStrategy(Strategy):
+    def run(self, data, timestep):
+        for ticker in data.main.tickers:
+            chart = data.main[ticker].chart
+            if len(chart) > 2 and F.crossover(chart["MACD"], chart["MACD_SIGNAL"]) and chart["MACD"].iloc[-1] < 0:
+                if ticker not in self.broker.portfolio.long:
+                    self.broker.buy_long(ticker, 500)
+            if ticker in self.broker.portfolio.long and F.crossunder(chart["MACD"], chart["MACD_SIGNAL"]):
+                self.broker.sell_long(ticker, 500)
 
-## Contributing
-All contributions are welcome.  It can be a bug report, a bug fix, a new feature, a documentation improvement, etc.  
-If you want to contribute, please read the [CONTRIBUTING.md](CONTRIBUTING.md) file.
+# The magnificent 7 tickers
+TICKERS = ["META", "AMZN", "AAPL", "NVDA", "GOOGL", "MSFT", "TSLA"]
+data_pipeline = FetchCharts(TICKERS, auto_adjust=False) | PadNan() | ToTSData() | Cache()
+bt = Backtest(data_pipeline.get(datetime(2010, 1, 1), datetime(2020, 1, 1)),
+              strategy=MyStrategy(),
+              indicators=IndicatorSet(TA.MACD()))
+results = bt.run()
+print(results)
 
-Do not forget to add tests for your code and to run all the tests before submitting a pull request.
-
-As contributors and maintainers to this project, you are expected to abide by pandas' code of conduct. More information 
-can be found at: [Contributor Code of Conduct](CODE_OF_CONDUCT.md)
-
-## Beware
-There are a few things to keep in mind when backtesting strategy to avoid unrepresentative results:
-- **Survivorship bias**: Make sure to include all the assets that were available at the time of the backtest, 
-including delisted assets.
-- **Look-ahead bias**: Make sure that your data pipeline does not include data that would not have been available at 
-the time of the backtest.  This could be, for example, normalizing the data with the mean of the whole series or 
-dataset.  It could also be to fetch fundamental data, but not using an appropriate padding, which would cause the 
-fundamental data to be shifted from the price data.  If the data is fetch and preprared correctly, the backtestPro 
-framework will make sure the strategy won't use future data.
-- **Split Bias**: Make sure to include the stock splits in the data.  The backtestPro framework will take care of the
-stock splits.
-- **Dividend Bias**: Make sure to include the dividends in the data.  The backtestPro framework will take care of the
-dividends.
-- **Trading fees**: Make sure to include the trading fees in the backtest.  The backtestPro framework will take care of
-the trading fees if configured correctly (passing the trading fees to the backtest object during initialization).
-
-*Reference: https://seekingalpha.com/performance/quant (Accordion: What are common issues with back testing and performance results?)*
-
-## RoadMap
-- [X] Alpha Release
-  - [X] Code implementation
-  - [X] Documentation (In progress: using pdoc3, [search bar](https://github.com/pdoc3/pdoc/issues/184))
-  - [ ] Notebooks tutorials (Missing few tutorials: Serve module and Indicator module)
-  - [X] Make documentation public
-- [ ] Beta Release
-- [ ] Stable Release
+```
