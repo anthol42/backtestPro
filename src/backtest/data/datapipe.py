@@ -597,10 +597,13 @@ class DataPipe(ABC):
             else:
                 pipe1 = [pipe1.rstrip("\n") + " -> ┐"]
             if n_lines2 > 0:
-                pipe2, longest_line2 = self._format_multiline_output(pipe2, self._pipes[1].name, join=False)
-                pipe2[longest_line2] += " -> ┘"
+                pipe2, longest_line2 = self._format_multiline_output(pipe2, "", join=False) # self._pipes[1].name
+                pipe2[longest_line2] += "┘"
+                pipe2 = pipe2[:-1]
                 for i in range(longest_line2):
-                    pipe2[i] += "    │"
+                    pipe2[i] += "│"
+                # Fill with space the ones that doesn't have '|'
+                pipe2 = [line.ljust(len(pipe2[0])) for line in pipe2]
             else:
                 pipe2 = [pipe2.rstrip("\n") + " -> ┘"]
             # Shift lines to the right
