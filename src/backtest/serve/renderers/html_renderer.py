@@ -67,8 +67,8 @@ class HTMLRenderer(MarkupRenderer):
         # Get the portfolio worth from one year ago to now
         portfolio_worth, index_worth, index_name = self.get_performance_data(state)
         isDark = self.style == "dark" or self.style == "rich"
-        fig = self.chart_builder(portfolio_worth.values, portfolio_worth.index, index_worth.values,
-                                 index_worth.index, isDark, index_name)
+        fig = self.chart_builder(portfolio_worth.values, portfolio_worth.index, index_worth and index_worth.values,
+                                 index_worth and index_worth.index, isDark, index_name)
         chart = fig.to_html(full_html=False, include_plotlyjs='cdn')
 
         # Step 5: Get the statistics

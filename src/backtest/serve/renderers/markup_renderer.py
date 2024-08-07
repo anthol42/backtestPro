@@ -253,13 +253,30 @@ class MarkupRenderer(Renderer):
         security_names, data = self.prepare_data(state)
         current_worth = state.broker.get_worth(security_names, data)
         portfolio_worth = np.append(portfolio_worth, current_worth)
-        idx_name = list(state.index_data.keys())[0]
-        index_worth = state.index_data[idx_name].data["Close"].loc[cutoff:state.timestamp].values
-        index_timestamps = state.index_data[idx_name].data["Close"].loc[cutoff:state.timestamp].index
+        # Find longer asset
+        if state.index_data is not None:
+            tickers = list(state.index_data.keys())
+            idx_name = tickers[0]
+            for ticker in tickers[1:]:
+                if len(state.index_data[ticker].data) > len(state.index_data[idx_name].data):
+                    idx_name = tickers
+            index_worth = state.index_data[idx_name].data["Close"].loc[cutoff:state.timestamp].values
+            index_timestamps = state.index_data[idx_name].data["Close"].loc[cutoff:state.timestamp].index
+        else:
+            idx_name = None
+        # elif state.data is not None:
+        #     tickers = list(state.data[state.main_idx].keys())
+        #     asset_name = tickers[0]
+        #     for ticker in tickers[1:]:
+        #         if len(state.data[state.main_idx][ticker].data) > len(state.data[state.main_idx][asset_name].data):
+        #             asset_name = tickers
         portfolio_timestamps = pd.DatetimeIndex([s.timestamp for s in state.broker.historical_states if s.timestamp > cutoff])
         portfolio_timestamps = portfolio_timestamps.append(pd.DatetimeIndex([state.timestamp]))
         worth = pd.Series(portfolio_worth, index=portfolio_timestamps)
-        index = pd.Series(index_worth, index=index_timestamps)
+        if idx_name is None:
+            index = None
+        else:
+            index = pd.Series(index_worth, index=index_timestamps)
         return worth, index, idx_name
 
     @staticmethod
@@ -365,8 +382,9 @@ class MarkupRenderer(Renderer):
         return markup.render(data)
 
     @staticmethod
-    def chart_builder(portfolio_worth: np.ndarray, porfolio_timestamps: pd.DatetimeIndex, index_worth: np.ndarray,
-                      index_timestamps: pd.DatetimeIndex, dark_theme: bool = False,
+    def chart_builder(portfolio_worth: np.ndarray, porfolio_timestamps: pd.DatetimeIndex,
+                      index_worth: Optional[np.ndarray] = None,
+                      index_timestamps: Optional[pd.DatetimeIndex] = None, dark_theme: bool = False,
                       index_name: str = "Index") -> 'go.Figure':
         """
         Build a performance chart comparing the strategy performance with the index performance.
@@ -385,7 +403,6 @@ class MarkupRenderer(Renderer):
             return go.Figure()
         # Calculate percentage change
         portfolio_percentage = (portfolio_worth - portfolio_worth[0]) / portfolio_worth[0] * 100
-        index_percentage = (index_worth - index_worth[0]) / index_worth[0] * 100
 
         # Create figure
         fig = go.Figure()
@@ -396,9 +413,11 @@ class MarkupRenderer(Renderer):
                                  line=dict(color=color, width=2)))
 
         # Add index data
-        color = 'green' if not dark_theme else 'limegreen'
-        fig.add_trace(go.Scatter(x=index_timestamps, y=index_percentage, name=index_name,
-                                 line=dict(color=color, width=2, dash='dash')))
+        if index_worth is not None:
+            index_percentage = (index_worth - index_worth[0]) / index_worth[0] * 100
+            color = 'green' if not dark_theme else 'limegreen'
+            fig.add_trace(go.Scatter(x=index_timestamps, y=index_percentage, name=index_name,
+                                     line=dict(color=color, width=2, dash='dash')))
 
         # Update layout
         text_color = 'black' if not dark_theme else 'white'

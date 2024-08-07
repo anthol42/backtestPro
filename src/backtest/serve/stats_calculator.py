@@ -51,8 +51,16 @@ class StatCalculator:
         current_worth = state.broker.get_worth(security_names, data)
         portfolio_cutoff_worth = np.append(portfolio_cutoff_worth, current_worth)
         equity_history = np.append(equity_history, current_worth)
-        idx_name = list(state.index_data.keys())[0]
-        index_worth = state.index_data[idx_name].data["Close"].loc[cutoff:state.timestamp].values
+        if state.index_data is not None:
+            tickers = list(state.index_data.keys())
+            idx_name = tickers[0]
+            for ticker in tickers[1:]:
+                if len(state.index_data[ticker].data) > len(state.index_data[idx_name].data):
+                    idx_name = tickers
+            index_worth = state.index_data[idx_name].data["Close"].loc[cutoff:state.timestamp].values
+        else:
+            idx_name = None
+            index_worth = None
         portfolio_cutoff_timestamps = pd.DatetimeIndex(
             [s.timestamp for s in state.broker.historical_states if s.timestamp > cutoff])
         equity_timestamps = pd.DatetimeIndex([s.timestamp for s in state.broker.historical_states])

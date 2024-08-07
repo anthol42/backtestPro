@@ -171,7 +171,7 @@ class Job(Backtest):
         self._index_data: Optional[List[TSData]] = None
 
     def run(self) -> BackTestResult:
-        raise NotImplementedError("This method is not implemented for Job, use Backtest to run run_jib instead.")
+        raise NotImplementedError("This method is not implemented for Job, use Backtest to run run_job instead.")
 
     def run_job(self, every: Optional['schedule.Job'] = None):
         """
@@ -242,6 +242,9 @@ class Job(Backtest):
             with warnings.catch_warnings(record=True) as w:
                 # Step 1: Fetch the data
                 now = datetime.now() if now_override is None else now_override
+
+                # Round to the next full hour
+                now = now.replace(minute=0, second=0, microsecond=0, hour=now.hour + 1) if now_override is None else now_override
                 self._data: List[Dict[str, TSData]] = self.data_pipe.get(now - self.lookback, now)
                 if self.index_pipe is not None:
                     self._index_data = self.index_pipe.get(now - self.lookback, now)
@@ -253,6 +256,7 @@ class Job(Backtest):
 
                 # Step 3: Prepare the data, no need to filter None charts, as the data is supposed to be up-to-date
                 processed_data: List[List[Record]] = self._prep_data(now)
+                # print(processed_data[0][1].ticker, processed_data[0][1].chart)
                 prepared_data = RecordsBucket(processed_data, self.available_time_res, self.main_timestep, self.window)
                 last_data_dt = prepared_data.main[0].chart.index[-1]
 
