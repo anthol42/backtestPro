@@ -47,12 +47,13 @@ class EmailRenderer(MarkupRenderer):
     - dark: A dark theme (Darcula style)
     - rich: Another dark theme with another color palette
     """
-    def __init__(self, style: str = "light"):
+    def __init__(self, style: str = "light", filename: str = "email_report.html"):
         super().__init__()
         styles = ["light", "dark", "rich"]
         if style not in styles:
             raise ValueError(f"Style {style} does not exists.  Available styles are {styles}")
         self.style = style
+        self.filename = filename
 
     def render(self, state: StateSignals, base_path: PurePath):
 
@@ -93,5 +94,5 @@ class EmailRenderer(MarkupRenderer):
         if not os.path.exists(base_path):
             os.makedirs(base_path)
 
-        with open(base_path / "index.html", "w") as f:
+        with open(base_path / self.filename, "w") as f:
             f.write(html_content)

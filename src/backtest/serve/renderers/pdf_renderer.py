@@ -103,7 +103,7 @@ class PDFRenderer(MarkupRenderer):
     - dark: A dark theme (Darcula style)
     - rich: Another dark theme with another color palette
     """
-    def __init__(self, report_title: str = "Financial Report", style: str = "light"):
+    def __init__(self, report_title: str = "Financial Report", style: str = "light", filename: str = "report.pdf"):
         """
         :param report_title: The title of the report
         :param style: The theme of the report.  Can be "light", "dark" or "rich"
@@ -114,6 +114,7 @@ class PDFRenderer(MarkupRenderer):
             raise ValueError(f"Style {style} does not exists.  Available styles are {styles}")
         self.style = style
         self.report_title = report_title
+        self.filename = filename
 
     def render(self, state: StateSignals, base_path: PurePath):
         if not WEASYPRINT_INSTALLED:
@@ -179,8 +180,8 @@ class PDFRenderer(MarkupRenderer):
         # Get the portfolio worth from one year ago to now
         portfolio_worth, index_worth, index_name = self.get_performance_data(state)
         isDark = self.style == "dark" or self.style == "rich"
-        fig = self.chart_builder(portfolio_worth.values, portfolio_worth.index, index_worth.values,
-                                 index_worth.index, isDark, index_name)
+        fig = self.chart_builder(portfolio_worth.values, portfolio_worth.index, index_worth and index_worth.values,
+                                 index_worth and index_worth.index, isDark, index_name)
 
         chart_path = base_path / "chart.svg"
         with open(base_path / "chart.svg", "w") as f:
@@ -261,4 +262,4 @@ class PDFRenderer(MarkupRenderer):
 
         # Save the file
         html.write_pdf(
-            base_path / 'report.pdf', stylesheets=[css])
+            base_path / self.filename, stylesheets=[css])
