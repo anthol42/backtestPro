@@ -619,7 +619,7 @@ class Broker:
             :param div_freq: The frequency that the security is paying dividends.
             :return: None
             """
-            for ticker, position in self.portfolio.getLong().items():
+            for ticker, position in self.portfolio.long.items():
                 ticker_idx = security_names.index(ticker)
                 if dividends[ticker_idx] > 0:
                     dividend_payout = self.compute_dividend_payout(position, div_freq[ticker_idx],
@@ -787,7 +787,7 @@ class Broker:
         :return: worth in dollars
         """
         worth = self.account.get_total_cash()
-        for ticker, position in self.portfolio.getLong().items():
+        for ticker, position in self.portfolio.long.items():
             eq_idx = security_names.index(ticker)
             price = tuple(current_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
             close = price[3]
@@ -796,7 +796,7 @@ class Broker:
                 debt = 0
             worth += position.amount * close - debt
 
-        for ticker, position in self.portfolio.getShort().items():
+        for ticker, position in self.portfolio.short.items():
             eq_idx = security_names.index(ticker)
             price = tuple(current_tick_data[eq_idx].tolist())  # (Open, High, Low, Close)
             close = price[3]
