@@ -25,7 +25,8 @@ BACKTEST_TAG = "bcktst-pro: "
 
 class Cron(CliApp):
     def __init__(self):
-        super().__init__([str], path=str, name=str, m=str, h=str, dom=str, mon=str, dow=str, logfile=str)
+        super().__init__([str], path=str, name=str, m=(str, int), h=(str, int), dom=(str, int), mon=(str, int),
+                         dow=(str, int), logfile=str)
 
 
     def verify_cron(self, value: str, idx: int, r: Tuple[int, int]) -> bool:
@@ -36,6 +37,9 @@ class Cron(CliApp):
         :param r: The range of the cron expression
         :return: None
         """
+        if isinstance(value, int):
+            value = str(value)
+
         # Check if only wildcard
         if value == "*":
             return True
