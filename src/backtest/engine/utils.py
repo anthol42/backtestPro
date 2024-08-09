@@ -54,11 +54,10 @@ def get_hardware() -> dict:
         "hz_actual": info["hz_actual_friendly"],
         "vendor_id": info["vendor_id_raw"],
         "l2_cache_size": info["l2_cache_size"],
-        "stepping": info["stepping"],
         "model": info["model"],
-        "family": info["family"],
-        "flags": info["flags"],
-        "l2_cache_line_size": info["l2_cache_line_size"],
-        "l2_cache_associativity": info["l2_cache_associativity"],
+        "family": info["family"] if "family" in info else None,
+        "flags": info["flags"] if "flags" in info else None,
+        "l2_cache_line_size": info["l2_cache_line_size"] if "l2_cache_line_size" in info else None,
+        "l2_cache_associativity": info["l2_cache_associativity"] if "l2_cache_associativity" in info else None,
         "Memory": f"{round(psutil.virtual_memory().total / (1024.0 **3))} GB"
     }
