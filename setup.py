@@ -66,14 +66,14 @@ setup(
     ],
     python_requires=">=3.8",
     install_requires=[
-        "pandas>=2.2.0",
-        "numpy>=1.26.4",
-        "matplotlib>=3.8.0",
-        "psutil>=5.9.0",
-        "py-cpuinfo>=9.0.0",
-        "mplfinance>=0.12.10b0",
-        "tqdm>=4.66.0",
-        "yfinance>=0.2.37"
+        "pandas",
+        "numpy",
+        "matplotlib",
+        "psutil",
+        "py-cpuinfo",
+        "mplfinance",
+        "tqdm",
+        "yfinance"
     ],
     extras_require={
         'optional': [
